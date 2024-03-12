@@ -1,5 +1,7 @@
 //===- SemaTemplateDeduction.cpp - Template Argument Deduction ------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -268,6 +270,19 @@ checkDeducedTemplateArguments(ASTContext &Context,
     // All other combinations are incompatible.
     return DeducedTemplateArgument();
 
+  case TemplateArgument::Reflection:
+    // If we deduced a constant in one case and either a dependent expression or
+    // declaration in another case, keep the integral constant.
+    // If both are integral constants with the same value, keep that value.
+    if (Y.getKind() == TemplateArgument::Expression ||
+        Y.getKind() == TemplateArgument::Declaration ||
+        (Y.getKind() == TemplateArgument::Reflection &&
+         X.getAsReflection() == Y.getAsReflection()))
+      return X;
+
+    // All other combinations are incompatible.
+    return DeducedTemplateArgument();
+
   case TemplateArgument::StructuralValue:
     // If we deduced a value and a dependent expression, keep the value.
     if (Y.getKind() == TemplateArgument::Expression ||
@@ -319,12 +334,17 @@ checkDeducedTemplateArguments(ASTContext &Context,
       return X;
 
     // If we deduced a declaration and an integral constant, keep the
-    // integral constant and whichever type did not come from an array
-    // bound.
+    // integral constant and whichever type did not come from an array bound.
     if (Y.getKind() == TemplateArgument::Integral) {
       if (Y.wasDeducedFromArrayBound())
         return TemplateArgument(Context, Y.getAsIntegral(),
                                 X.getParamTypeForDecl());
+      return Y;
+    }
+
+    // If we deduced a declaration and a reflection constant, keep the
+    // reflection constant.
+    if (Y.getKind() == TemplateArgument::Reflection) {
       return Y;
     }
 
@@ -2272,6 +2292,7 @@ static TemplateDeductionResult DeduceTemplateArgumentsByTypeMatch(
     case Type::DependentName:
     case Type::UnresolvedUsing:
     case Type::Decltype:
+    case Type::ReflectionSplice:
     case Type::UnaryTransform:
     case Type::DeducedTemplateSpecialization:
     case Type::DependentTemplateSpecialization:
@@ -2354,6 +2375,15 @@ DeduceTemplateArguments(Sema &S, TemplateParameterList *TemplateParams,
     Info.SecondArg = A;
     return TemplateDeductionResult::NonDeducedMismatch;
 
+  case TemplateArgument::Reflection:
+    if (A.getKind() == TemplateArgument::Reflection &&
+        P.getAsReflection() == A.getAsReflection())
+      return TemplateDeductionResult::Success;
+
+    Info.FirstArg = P;
+    Info.SecondArg = A;
+    return TemplateDeductionResult::NonDeducedMismatch;
+
   case TemplateArgument::StructuralValue:
     if (A.getKind() == TemplateArgument::StructuralValue &&
         A.structurallyEquals(P))
@@ -2370,6 +2400,7 @@ DeduceTemplateArguments(Sema &S, TemplateParameterList *TemplateParams,
       case TemplateArgument::Integral:
       case TemplateArgument::Expression:
       case TemplateArgument::StructuralValue:
+      case TemplateArgument::Reflection:
         return DeduceNonTypeTemplateArgument(
             S, TemplateParams, NTTP, DeducedTemplateArgument(A),
             A.getNonTypeTemplateArgumentType(), Info, Deduced);
@@ -2578,6 +2609,9 @@ static bool isSameTemplateArg(ASTContext &Context,
     case TemplateArgument::Integral:
       return hasSameExtendedValue(X.getAsIntegral(), Y.getAsIntegral());
 
+    case TemplateArgument::Reflection:
+      return X.getAsReflection() == Y.getAsReflection();
+
     case TemplateArgument::StructuralValue:
       return X.structurallyEquals(Y);
 
@@ -2664,6 +2698,12 @@ Sema::getTrivialTemplateArgumentLoc(const TemplateArgument &Arg,
   case TemplateArgument::Integral:
   case TemplateArgument::StructuralValue: {
     Expr *E = BuildExpressionFromNonTypeTemplateArgument(Arg, Loc).get();
+    return TemplateArgumentLoc(TemplateArgument(E), E);
+  }
+
+  case TemplateArgument::Reflection: {
+    Expr *E =
+        BuildExpressionFromReflectionTemplateArgument(Arg, Loc).getAs<Expr>();
     return TemplateArgumentLoc(TemplateArgument(E), E);
   }
 
@@ -3899,8 +3939,9 @@ static QualType GetTypeOfFunction(Sema &S, const OverloadExpr::FindResult &R,
   if (CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Fn))
     if (Method->isImplicitObjectMemberFunction()) {
       // An instance method that's referenced in a form that doesn't
-      // look like a member pointer is just invalid.
-      if (!R.HasFormOfMemberPointer)
+      // look like a member pointer is just invalid (unless in the context of
+      // taking its reflection).
+      if (!R.HasFormOfMemberPointer && !S.isReflectionContext())
         return {};
 
       return S.Context.getMemberPointerType(Fn->getType(),
@@ -5238,6 +5279,11 @@ TypeSourceInfo *Sema::ReplaceAutoTypeSourceInfo(TypeSourceInfo *TypeWithAuto,
 }
 
 void Sema::DiagnoseAutoDeductionFailure(VarDecl *VDecl, Expr *Init) {
+  // If we're deducing to infer the type of the operand of a reflect expression,
+  // elide the diagnostic to allow a more relevant error further up the stack.
+  if (isReflectionContext())
+    return;
+
   if (isa<InitListExpr>(Init))
     Diag(VDecl->getLocation(),
          VDecl->isInitCapture()
@@ -6546,6 +6592,13 @@ MarkUsedTemplateParameters(ASTContext &Ctx, QualType T,
                                  OnlyDeduced, Depth, Used);
     break;
 
+  case Type::ReflectionSplice:
+    if (!OnlyDeduced)
+      MarkUsedTemplateParameters(Ctx,
+                                 cast<ReflectionSpliceType>(T)->getOperand(),
+                                 OnlyDeduced, Depth, Used);
+    break;
+
   case Type::PackIndexing:
     if (!OnlyDeduced) {
       MarkUsedTemplateParameters(Ctx, cast<PackIndexingType>(T)->getPattern(),
@@ -6612,6 +6665,7 @@ MarkUsedTemplateParameters(ASTContext &Ctx,
   switch (TemplateArg.getKind()) {
   case TemplateArgument::Null:
   case TemplateArgument::Integral:
+  case TemplateArgument::Reflection:
   case TemplateArgument::Declaration:
   case TemplateArgument::NullPtr:
   case TemplateArgument::StructuralValue:

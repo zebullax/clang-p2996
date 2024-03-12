@@ -132,8 +132,9 @@ void func() {
   }
 
   for (int i = 0; i < 10; ++i) {
-    // expected-error@+2{{expected expression}}
-    // expected-warning@+1{{OpenACC construct 'cache' not yet implemented, pragma ignored}}
+    // expected-error@+3{{expected expression}}
+    // expected-warning@+2{{OpenACC construct 'cache' not yet implemented, pragma ignored}}
+    // expected-warning@+1{{enable reflection features}}
     #pragma acc cache(readonly:ArrayPtr[5:])
   }
 

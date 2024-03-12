@@ -1,5 +1,7 @@
 //===--- ComputeDependence.h -------------------------------------- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -94,6 +96,13 @@ class DesignatedInitExpr;
 class ParenListExpr;
 class PseudoObjectExpr;
 class AtomicExpr;
+class CXXReflectExpr;
+class CXXMetafunctionExpr;
+class CXXIndeterminateSpliceExpr;
+class CXXExprSpliceExpr;
+class CXXDependentMemberSpliceExpr;
+class StackLocationExpr;
+class ValueOfLValueExpr;
 class OMPArraySectionExpr;
 class OMPArrayShapingExpr;
 class OMPIteratorExpr;
@@ -188,6 +197,14 @@ ExprDependence computeDependence(DesignatedInitExpr *E);
 ExprDependence computeDependence(ParenListExpr *E);
 ExprDependence computeDependence(PseudoObjectExpr *E);
 ExprDependence computeDependence(AtomicExpr *E);
+
+ExprDependence computeDependence(CXXReflectExpr *E, const ASTContext &C);
+ExprDependence computeDependence(CXXMetafunctionExpr *E);
+ExprDependence computeDependence(CXXIndeterminateSpliceExpr *E);
+ExprDependence computeDependence(CXXExprSpliceExpr *E);
+ExprDependence computeDependence(CXXDependentMemberSpliceExpr *E);
+ExprDependence computeDependence(StackLocationExpr *E);
+ExprDependence computeDependence(ValueOfLValueExpr *E);
 
 ExprDependence computeDependence(OMPArraySectionExpr *E);
 ExprDependence computeDependence(OMPArrayShapingExpr *E);

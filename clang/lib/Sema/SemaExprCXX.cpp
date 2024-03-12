@@ -1,5 +1,7 @@
 //===--- SemaExprCXX.cpp - Semantic Analysis for Expressions --------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -80,6 +82,7 @@ ParsedType Sema::getInheritingConstructorName(CXXScopeSpec &SS,
   case NestedNameSpecifier::Super:
   case NestedNameSpecifier::Namespace:
   case NestedNameSpecifier::NamespaceAlias:
+  case NestedNameSpecifier::IndeterminateSplice:
     llvm_unreachable("Nested name specifier is not a type for inheriting ctor");
   }
 
@@ -535,6 +538,7 @@ bool Sema::checkLiteralOperatorId(const CXXScopeSpec &SS,
   case NestedNameSpecifier::Super:
   case NestedNameSpecifier::Namespace:
   case NestedNameSpecifier::NamespaceAlias:
+  case NestedNameSpecifier::IndeterminateSplice:
     return false;
   }
 
@@ -3321,7 +3325,7 @@ bool Sema::FindDeallocationFunction(SourceLocation StartLoc, CXXRecordDecl *RD,
     Operator = cast<CXXMethodDecl>(Matches[0].FD);
 
     // FIXME: DiagnoseUseOfDecl?
-    if (Operator->isDeleted()) {
+    if (Operator->isDeleted() && !isReflectionContext()) {
       if (Diagnose) {
         Diag(StartLoc, diag::err_deleted_function_use);
         NoteDeletedFunction(Operator);

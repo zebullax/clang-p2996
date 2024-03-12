@@ -103,6 +103,7 @@ def InjectedClassNameType : TypeNode<Type>, AlwaysDependent, LeafType;
 def DependentNameType : TypeNode<Type>, AlwaysDependent;
 def DependentTemplateSpecializationType : TypeNode<Type>, AlwaysDependent;
 def PackExpansionType : TypeNode<Type>, AlwaysDependent;
+def ReflectionSpliceType : TypeNode<Type>, NeverCanonicalUnlessDependent;
 def PackIndexingType  : TypeNode<Type>, NeverCanonicalUnlessDependent;
 def ObjCTypeParamType : TypeNode<Type>, NeverCanonical;
 def ObjCObjectType : TypeNode<Type>;

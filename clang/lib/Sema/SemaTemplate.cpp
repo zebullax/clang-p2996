@@ -1,5 +1,7 @@
 //===------- SemaTemplate.cpp - Semantic Analysis for C++ Templates -------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -219,6 +221,8 @@ TemplateNameKind Sema::isTemplateName(Scope *S,
     // Let the parser know whether we found nothing or found functions; if we
     // found nothing, we want to more carefully check whether this is actually
     // a function template name versus some other kind of undeclared identifier.
+    if (isReflectionContext())
+      return TNK_Non_template;
     return AssumedTemplate == AssumedTemplateKind::FoundNothing
                ? TNK_Undeclared_template
                : TNK_Function_template;
@@ -1455,6 +1459,8 @@ QualType Sema::CheckNonTypeTemplateParameterType(QualType T,
       T->isMemberPointerType() ||
       //   -- std::nullptr_t, or
       T->isNullPtrType() ||
+      //   -- std::meta::info, or
+      T->isReflectionType() ||
       //   -- a type that contains a placeholder type.
       T->isUndeducedType()) {
     // C++ [temp.param]p5: The top-level cv-qualifiers on the template-parameter
@@ -4757,6 +4763,7 @@ static bool isTemplateArgumentTemplateParameter(
   case TemplateArgument::Null:
   case TemplateArgument::NullPtr:
   case TemplateArgument::Integral:
+  case TemplateArgument::Reflection:
   case TemplateArgument::Declaration:
   case TemplateArgument::StructuralValue:
   case TemplateArgument::Pack:
@@ -6091,6 +6098,7 @@ bool Sema::CheckTemplateArgument(
 
     case TemplateArgument::Declaration:
     case TemplateArgument::Integral:
+    case TemplateArgument::Reflection:
     case TemplateArgument::StructuralValue:
     case TemplateArgument::NullPtr:
       // We've already checked this template argument, so just copy
@@ -6247,6 +6255,7 @@ bool Sema::CheckTemplateArgument(
 
   case TemplateArgument::Declaration:
   case TemplateArgument::Integral:
+  case TemplateArgument::Reflection:
   case TemplateArgument::StructuralValue:
   case TemplateArgument::NullPtr:
     llvm_unreachable("non-type argument with template template parameter");
@@ -6770,6 +6779,11 @@ bool UnnamedLocalNoLinkageFinder::VisitDecltypeType(const DecltypeType*) {
   return false;
 }
 
+bool UnnamedLocalNoLinkageFinder::VisitReflectionSpliceType(
+                                                  const ReflectionSpliceType* T) {
+  return Visit(T->getUnderlyingType());
+}
+
 bool UnnamedLocalNoLinkageFinder::VisitPackIndexingType(
     const PackIndexingType *) {
   return false;
@@ -6899,6 +6913,7 @@ bool UnnamedLocalNoLinkageFinder::VisitNestedNameSpecifier(
   case NestedNameSpecifier::NamespaceAlias:
   case NestedNameSpecifier::Global:
   case NestedNameSpecifier::Super:
+  case NestedNameSpecifier::IndeterminateSplice:
     return false;
 
   case NestedNameSpecifier::TypeSpec:
@@ -7794,6 +7809,14 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
     if (Value.isAddrLabelDiff())
       return Diag(StartLoc, diag::err_non_type_template_arg_addr_label_diff);
 
+    if (ParamType->isReflectionType()) {
+      SugaredConverted = TemplateArgument(Context, Value.getReflection());
+      CanonicalConverted = TemplateArgument(Context, Value.getReflection());
+
+      return ArgResult.get();
+    }
+
+
     SugaredConverted = TemplateArgument(Context, ParamType, Value);
     CanonicalConverted = TemplateArgument(Context, CanonParamType, Value);
     return ArgResult.get();
@@ -8425,6 +8448,42 @@ static Expr *BuildExpressionFromIntegralTemplateArgumentValue(
   return E;
 }
 
+static ExprResult
+BuildExpressionFromReflection(Sema &S, const ReflectionValue &R,
+                              SourceLocation Loc) {
+  switch (R.getKind()) {
+  case ReflectionValue::RK_type:
+    return CXXReflectExpr::Create(S.Context, Loc, Loc, R.getAsType());
+  case ReflectionValue::RK_const_value:
+    return CXXReflectExpr::Create(S.Context, Loc, R.getAsConstValueExpr());
+  case ReflectionValue::RK_declaration:
+    return CXXReflectExpr::Create(S.Context, Loc, Loc, R.getAsDecl());
+  case ReflectionValue::RK_template:
+    return CXXReflectExpr::Create(S.Context, Loc, Loc, R.getAsTemplate());
+  case ReflectionValue::RK_namespace:
+    return CXXReflectExpr::Create(S.Context, Loc, Loc, R.getAsNamespace());
+  case ReflectionValue::RK_base_specifier:
+    return CXXReflectExpr::Create(S.Context, Loc, Loc, R.getAsBaseSpecifier());
+  case ReflectionValue::RK_data_member_spec:
+    return CXXReflectExpr::Create(S.Context, Loc, Loc, R.getAsDataMemberSpec());
+  }
+  llvm_unreachable("unknown reflection kind");
+}
+
+/// Construct a new expression that refers to the given reflection template
+/// argument with the given source-location information.
+///
+/// This routine takes care of the mapping from an integral template argument
+/// (which may have any integral type) to the appropriate literal value.
+ExprResult
+Sema::BuildExpressionFromReflectionTemplateArgument(const TemplateArgument &Arg,
+                                                    SourceLocation Loc) {
+  assert(Arg.getKind() == TemplateArgument::Reflection &&
+       "Operation is only valid for reflection template arguments");
+
+  return BuildExpressionFromReflection(*this, Arg.getAsReflection(), Loc);
+}
+
 static Expr *BuildExpressionFromNonTypeTemplateArgumentValue(
     Sema &S, QualType T, const APValue &Val, SourceLocation Loc) {
   auto MakeInitList = [&](ArrayRef<Expr *> Elts) -> Expr * {
@@ -8486,7 +8545,7 @@ static Expr *BuildExpressionFromNonTypeTemplateArgumentValue(
   case APValue::Indeterminate:
     llvm_unreachable("Unexpected APValue kind.");
   case APValue::LValue:
-  case APValue::MemberPointer:
+  case APValue::MemberPointer: {
     // There isn't necessarily a valid equivalent source-level syntax for
     // these; in particular, a naive lowering might violate access control.
     // So for now we lower to a ConstantExpr holding the value, wrapped around
@@ -8499,6 +8558,10 @@ static Expr *BuildExpressionFromNonTypeTemplateArgumentValue(
     }
     auto *OVE = new (S.Context) OpaqueValueExpr(Loc, T, VK);
     return ConstantExpr::Create(S.Context, OVE, Val);
+  }
+  case APValue::Reflection: {
+    return BuildExpressionFromReflection(S, Val.getReflection(), Loc).get();
+  }
   }
   llvm_unreachable("Unhandled APValue::ValueKind enum");
 }
@@ -8525,6 +8588,9 @@ Sema::BuildExpressionFromNonTypeTemplateArgument(const TemplateArgument &Arg,
   case TemplateArgument::Integral:
     return BuildExpressionFromIntegralTemplateArgumentValue(
         *this, Arg.getIntegralType(), Arg.getAsIntegral(), Loc);
+
+  case TemplateArgument::Reflection:
+    return BuildExpressionFromReflectionTemplateArgument(Arg, Loc);
 
   case TemplateArgument::StructuralValue:
     return BuildExpressionFromNonTypeTemplateArgumentValue(

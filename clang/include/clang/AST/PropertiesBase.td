@@ -1,5 +1,7 @@
 //==--- PropertiesBase.td - Baseline definitions for AST properties -------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -81,6 +83,8 @@ def Bool : PropertyType<"bool">;
 def BuiltinTypeKind : EnumPropertyType<"BuiltinType::Kind">;
 def BTFTypeTagAttr : PropertyType<"const BTFTypeTagAttr *">;
 def CallingConv : EnumPropertyType;
+def CXXBaseSpecifierRef :
+    RefPropertyType<"CXXBaseSpecifier"> { let ConstWhenWriting = 1; }
 def DeclarationName : PropertyType;
 def DeclarationNameKind : EnumPropertyType<"DeclarationName::NameKind">;
 def DeclRef : RefPropertyType<"Decl"> { let ConstWhenWriting = 1; }
@@ -130,10 +134,14 @@ def OverloadedOperatorKind : EnumPropertyType;
 def Qualifiers : PropertyType;
 def QualType : DefaultValuePropertyType;
 def RefQualifierKind : EnumPropertyType;
+def ReflectionKind : EnumPropertyType<"ReflectionValue::ReflectionKind">;
+def ReflectionValue : PropertyType { let PassByReference = 1; }
 def Selector : PropertyType;
 def SourceLocation : PropertyType;
 def StmtRef : RefPropertyType<"Stmt"> { let ConstWhenWriting = 1; }
   def ExprRef : SubclassPropertyType<"Expr", StmtRef>;
+def TagDataMemberSpecRef :
+    RefPropertyType<"TagDataMemberSpec"> { let ConstWhenWriting = 1; }
 def TemplateArgument : PropertyType;
 def TemplateArgumentKind : EnumPropertyType<"TemplateArgument::ArgKind">;
 def TemplateName : DefaultValuePropertyType;
@@ -249,6 +257,68 @@ class PropertyTypeCase<PropertyType type, string name> : HasProperties {
 
   /// The name of the case (a value of the type's kind enum).
   string Name = name;
+}
+
+// Type cases for ReflectionValue.
+def : PropertyTypeKind<ReflectionValue, ReflectionKind,
+                       "node.getKind()">;
+let Class = PropertyTypeCase<ReflectionValue, "RK_type"> in {
+  def : Property<"value", QualType> {
+    let Read = [{ node.getAsType() }];
+  }
+  def : Creator<[{
+    return ReflectionValue(ReflectionValue::RK_type,
+                           value.getAsOpaquePtr());
+  }]>;
+}
+let Class = PropertyTypeCase<ReflectionValue, "RK_const_value"> in {
+  def : Property<"value", StmtRef> {
+    let Read = [{ node.getAsConstValueExpr() }];
+  }
+  def : Creator<[{
+    return ReflectionValue(ReflectionValue::RK_const_value, value);
+  }]>;
+}
+let Class = PropertyTypeCase<ReflectionValue, "RK_declaration"> in {
+  def : Property<"value", ValueDeclRef> {
+    let Read = [{ node.getAsDecl() }];
+  }
+  def : Creator<[{
+    return ReflectionValue(ReflectionValue::RK_declaration, value);
+  }]>;
+}
+let Class = PropertyTypeCase<ReflectionValue, "RK_template"> in {
+  def : Property<"value", TemplateName> {
+    let Read = [{ node.getAsTemplate() }];
+  }
+  def : Creator<[{
+    return ReflectionValue(ReflectionValue::RK_template,
+                           value.getAsTemplateDecl());
+  }]>;
+}
+let Class = PropertyTypeCase<ReflectionValue, "RK_namespace"> in {
+  def : Property<"value", DeclRef> {
+    let Read = [{ node.getAsNamespace() }];
+  }
+  def : Creator<[{
+    return ReflectionValue(ReflectionValue::RK_namespace, value);
+  }]>;
+}
+let Class = PropertyTypeCase<ReflectionValue, "RK_base_specifier"> in {
+  def : Property<"value", CXXBaseSpecifierRef> {
+    let Read = [{ node.getAsBaseSpecifier() }];
+  }
+  def : Creator<[{
+    return ReflectionValue(ReflectionValue::RK_base_specifier, value);
+  }]>;
+}
+let Class = PropertyTypeCase<ReflectionValue, "RK_data_member_spec"> in {
+  def : Property<"value", TagDataMemberSpecRef> {
+    let Read = [{ node.getAsDataMemberSpec() }];
+  }
+  def : Creator<[{
+    return ReflectionValue(ReflectionValue::RK_data_member_spec, value);
+  }]>;
 }
 
 // Type cases for APValue.
@@ -421,6 +491,11 @@ let Class = PropertyTypeCase<APValue, "AddrLabelDiff"> in {
   }
   def : Creator<[{
     return APValue(cast<AddrLabelExpr>(lhs), cast<AddrLabelExpr>(rhs));
+  }]>;
+}
+let Class = PropertyTypeCase<APValue, "Reflection"> in {
+  def : Creator<[{
+    llvm_unreachable("unimplemented");
   }]>;
 }
 let Class = PropertyTypeCase<APValue, "MemberPointer"> in {
@@ -806,6 +881,17 @@ let Class = PropertyTypeCase<TemplateArgument, "Integral"> in {
   }
   def : Creator<[{
     return TemplateArgument(ctx, value, type, isDefaulted);
+  }]>;
+}
+let Class = PropertyTypeCase<TemplateArgument, "Reflection"> in {
+  def : Property<"value", ReflectionValue> {
+    let Read = [{ node.getAsReflection() }];
+  }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
+  def : Creator<[{
+    return TemplateArgument(ctx, value, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "StructuralValue"> in {

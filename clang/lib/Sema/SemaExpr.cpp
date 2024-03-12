@@ -1,5 +1,7 @@
 //===--- SemaExpr.cpp - Semantic Analysis for Expressions -----------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -265,7 +267,7 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     // See if this is a deleted function.
-    if (FD->isDeleted()) {
+    if (FD->isDeleted() && !isReflectionContext()) {
       auto *Ctor = dyn_cast<CXXConstructorDecl>(FD);
       if (Ctor && Ctor->isInheritingConstructor())
         Diag(Loc, diag::err_deleted_inherited_ctor_use)
@@ -4715,6 +4717,9 @@ static void captureVariablyModifiedType(ASTContext &Context, QualType T,
       break;
     case Type::Decltype:
       T = cast<DecltypeType>(Ty)->desugar();
+      break;
+    case Type::ReflectionSplice:
+      T = cast<ReflectionSpliceType>(Ty)->desugar();
       break;
     case Type::PackIndexing:
       T = cast<PackIndexingType>(Ty)->desugar();
@@ -13552,6 +13557,14 @@ QualType Sema::CheckCompareOperands(ExprResult &LHS, ExprResult &RHS,
     }
   }
 
+  // Reflection equality.
+  if (LHSType->isReflectionType() && RHSType->isReflectionType()) {
+    // Only == and != are defined for meta::info values.
+    if (!BinaryOperator::isEqualityOp(Opc))
+      return InvalidOperands(Loc, LHS, RHS);
+    return computeResultTy();
+  }
+
   return InvalidOperands(Loc, LHS, RHS);
 }
 
@@ -14969,6 +14982,8 @@ static ValueDecl *getPrimaryDecl(Expr *E) {
     return getPrimaryDecl(cast<ImplicitCastExpr>(E)->getSubExpr());
   case Stmt::CXXUuidofExprClass:
     return cast<CXXUuidofExpr>(E)->getGuidDecl();
+  case Stmt::CXXExprSpliceExprClass:
+    return getPrimaryDecl(cast<CXXExprSpliceExpr>(E)->getOperand());
   default:
     return nullptr;
   }
@@ -14995,6 +15010,7 @@ static void diagnoseAddressOfInvalidType(Sema &S, SourceLocation Loc,
 bool Sema::CheckUseOfCXXMethodAsAddressOfOperand(SourceLocation OpLoc,
                                                  const Expr *Op,
                                                  const CXXMethodDecl *MD) {
+  Op = Op->IgnoreExprSplices();
   const auto *DRE = cast<DeclRefExpr>(Op->IgnoreParens());
 
   if (Op != DRE)
@@ -15070,6 +15086,7 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
   // Make sure to ignore parentheses in subsequent checks
   Expr *op = OrigOp.get()->IgnoreParens();
 
+
   // In OpenCL captures for blocks called as lambda functions
   // are located in the private address space. Blocks used in
   // enqueue_kernel can be located in a different address space
@@ -15117,22 +15134,24 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
   } else if (isa<ObjCSelectorExpr>(op)) {
     return Context.getPointerType(op->getType());
   } else if (lval == Expr::LV_MemberFunction) {
+    Expr *unwrapped = op->IgnoreExprSplices();
     // If it's an instance method, make a member pointer.
     // The expression must have exactly the form &A::foo.
 
     // If the underlying expression isn't a decl ref, give up.
-    if (!isa<DeclRefExpr>(op)) {
+    if (!isa<DeclRefExpr>(unwrapped)) {
       Diag(OpLoc, diag::err_invalid_form_pointer_member_function)
         << OrigOp.get()->getSourceRange();
       return QualType();
     }
-    DeclRefExpr *DRE = cast<DeclRefExpr>(op);
+    DeclRefExpr *DRE = cast<DeclRefExpr>(unwrapped);
     CXXMethodDecl *MD = cast<CXXMethodDecl>(DRE->getDecl());
 
     CheckUseOfCXXMethodAsAddressOfOperand(OpLoc, OrigOp.get(), MD);
 
     QualType MPTy = Context.getMemberPointerType(
-        op->getType(), Context.getTypeDeclType(MD->getParent()).getTypePtr());
+        unwrapped->getType(),
+        Context.getTypeDeclType(MD->getParent()).getTypePtr());
     // Under the MS ABI, lock down the inheritance model now.
     if (Context.getTargetInfo().getCXXABI().isMicrosoft())
       (void)isCompleteType(OpLoc, MPTy);
@@ -15178,10 +15197,12 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
     } else if (isa<FunctionTemplateDecl>(dcl)) {
       return Context.OverloadTy;
     } else if (isa<FieldDecl>(dcl) || isa<IndirectFieldDecl>(dcl)) {
+      Expr *unwrapped = op->IgnoreExprSplices();
       // Okay: we can take the address of a field.
       // Could be a pointer to member, though, if there is an explicit
       // scope qualifier for the class.
-      if (isa<DeclRefExpr>(op) && cast<DeclRefExpr>(op)->getQualifier()) {
+      if (isa<DeclRefExpr>(unwrapped) &&
+          cast<DeclRefExpr>(unwrapped)->getQualifier()) {
         DeclContext *Ctx = dcl->getDeclContext();
         if (Ctx && Ctx->isRecord()) {
           if (dcl->getType()->isReferenceType()) {
@@ -15195,7 +15216,7 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
             Ctx = Ctx->getParent();
 
           QualType MPTy = Context.getMemberPointerType(
-              op->getType(),
+              unwrapped->getType(),
               Context.getTypeDeclType(cast<RecordDecl>(Ctx)).getTypePtr());
           // Under the MS ABI, lock down the inheritance model now.
           if (Context.getTargetInfo().getCXXABI().isMicrosoft())
@@ -17479,19 +17500,25 @@ ExprResult Sema::ActOnGNUNullExpr(SourceLocation TokenLoc) {
   return new (Context) GNUNullExpr(Ty, TokenLoc);
 }
 
-static CXXRecordDecl *LookupStdSourceLocationImpl(Sema &S, SourceLocation Loc) {
+RecordDecl *Sema::lookupStdSourceLocationImpl(SourceLocation Loc) {
+  if (StdSourceLocationImplDecl)
+    return StdSourceLocationImplDecl;
+
   CXXRecordDecl *ImplDecl = nullptr;
 
   // Fetch the std::source_location::__impl decl.
-  if (NamespaceDecl *Std = S.getStdNamespace()) {
-    LookupResult ResultSL(S, &S.PP.getIdentifierTable().get("source_location"),
-                          Loc, Sema::LookupOrdinaryName);
-    if (S.LookupQualifiedName(ResultSL, Std)) {
+  if (NamespaceDecl *Std = getStdNamespace()) {
+    AccessControlScopeGuard guard(*this, true);
+
+    LookupResult ResultSL(*this,
+                          &PP.getIdentifierTable().get("source_location"), Loc,
+                          Sema::LookupOrdinaryName);
+    if (LookupQualifiedName(ResultSL, Std)) {
       if (auto *SLDecl = ResultSL.getAsSingle<RecordDecl>()) {
-        LookupResult ResultImpl(S, &S.PP.getIdentifierTable().get("__impl"),
+        LookupResult ResultImpl(*this, &PP.getIdentifierTable().get("__impl"),
                                 Loc, Sema::LookupOrdinaryName);
         if ((SLDecl->isCompleteDefinition() || SLDecl->isBeingDefined()) &&
-            S.LookupQualifiedName(ResultImpl, SLDecl)) {
+            LookupQualifiedName(ResultImpl, SLDecl)) {
           ImplDecl = ResultImpl.getAsSingle<CXXRecordDecl>();
         }
       }
@@ -17499,7 +17526,7 @@ static CXXRecordDecl *LookupStdSourceLocationImpl(Sema &S, SourceLocation Loc) {
   }
 
   if (!ImplDecl || !ImplDecl->isCompleteDefinition()) {
-    S.Diag(Loc, diag::err_std_source_location_impl_not_found);
+    Diag(Loc, diag::err_std_source_location_impl_not_found);
     return nullptr;
   }
 
@@ -17507,7 +17534,7 @@ static CXXRecordDecl *LookupStdSourceLocationImpl(Sema &S, SourceLocation Loc) {
   // only the four expected fields.
   if (ImplDecl->isUnion() || !ImplDecl->isStandardLayout() ||
       ImplDecl->getNumBases() != 0) {
-    S.Diag(Loc, diag::err_std_source_location_impl_malformed);
+    Diag(Loc, diag::err_std_source_location_impl_malformed);
     return nullptr;
   }
 
@@ -17517,12 +17544,11 @@ static CXXRecordDecl *LookupStdSourceLocationImpl(Sema &S, SourceLocation Loc) {
 
     if (Name == "_M_file_name") {
       if (F->getType() !=
-          S.Context.getPointerType(S.Context.CharTy.withConst()))
+          Context.getPointerType(Context.CharTy.withConst()))
         break;
       Count++;
     } else if (Name == "_M_function_name") {
-      if (F->getType() !=
-          S.Context.getPointerType(S.Context.CharTy.withConst()))
+      if (F->getType() != Context.getPointerType(Context.CharTy.withConst()))
         break;
       Count++;
     } else if (Name == "_M_line") {
@@ -17539,10 +17565,11 @@ static CXXRecordDecl *LookupStdSourceLocationImpl(Sema &S, SourceLocation Loc) {
     }
   }
   if (Count != 4) {
-    S.Diag(Loc, diag::err_std_source_location_impl_malformed);
+    Diag(Loc, diag::err_std_source_location_impl_malformed);
     return nullptr;
   }
 
+  StdSourceLocationImplDecl = ImplDecl;
   return ImplDecl;
 }
 
@@ -17565,14 +17592,11 @@ ExprResult Sema::ActOnSourceLocExpr(SourceLocIdentKind Kind,
     ResultTy = Context.UnsignedIntTy;
     break;
   case SourceLocIdentKind::SourceLocStruct:
-    if (!StdSourceLocationImplDecl) {
-      StdSourceLocationImplDecl =
-          LookupStdSourceLocationImpl(*this, BuiltinLoc);
-      if (!StdSourceLocationImplDecl)
-        return ExprError();
-    }
+    RecordDecl *ImplDecl = lookupStdSourceLocationImpl(BuiltinLoc);
+    if (!StdSourceLocationImplDecl)
+      return ExprError();
     ResultTy = Context.getPointerType(
-        Context.getRecordType(StdSourceLocationImplDecl).withConst());
+                                   Context.getRecordType(ImplDecl).withConst());
     break;
   }
 
@@ -18398,6 +18422,7 @@ ExprResult Sema::CheckForImmediateInvocation(ExprResult E, FunctionDecl *Decl) {
   /// evaluated until they are instantiated.
   if (!Res->isValueDependent())
     ExprEvalContexts.back().ImmediateInvocationCandidates.emplace_back(Res, 0);
+
   return Res;
 }
 
@@ -18477,6 +18502,8 @@ static void RemoveNestedImmediateInvocation(
       if (!E->isImmediateInvocation())
         return Base::TransformConstantExpr(E);
       RemoveImmediateInvocation(E);
+      if (!E->getSubExpr())
+        return E;
       return Base::TransformExpr(E->getSubExpr());
     }
     /// Base::TransfromCXXOperatorCallExpr doesn't traverse the callee so
@@ -18750,6 +18777,7 @@ static bool isPotentiallyConstantEvaluatedContext(Sema &SemaRef) {
 
     case Sema::ExpressionEvaluationContext::Unevaluated:
     case Sema::ExpressionEvaluationContext::UnevaluatedAbstract:
+    case Sema::ExpressionEvaluationContext::ReflectionContext:
       // Expressions in this context are never evaluated.
       return false;
   }
@@ -18853,6 +18881,7 @@ static OdrUseContext isOdrUseContext(Sema &SemaRef) {
     case Sema::ExpressionEvaluationContext::Unevaluated:
     case Sema::ExpressionEvaluationContext::UnevaluatedList:
     case Sema::ExpressionEvaluationContext::UnevaluatedAbstract:
+    case Sema::ExpressionEvaluationContext::ReflectionContext:
       return OdrUseContext::None;
 
     case Sema::ExpressionEvaluationContext::ConstantEvaluated:
@@ -20991,6 +21020,7 @@ bool Sema::DiagRuntimeBehavior(SourceLocation Loc, ArrayRef<const Stmt*> Stmts,
   case ExpressionEvaluationContext::UnevaluatedList:
   case ExpressionEvaluationContext::UnevaluatedAbstract:
   case ExpressionEvaluationContext::DiscardedStatement:
+  case ExpressionEvaluationContext::ReflectionContext:
     // The argument will never be evaluated, so don't complain.
     break;
 

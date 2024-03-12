@@ -1,5 +1,7 @@
 //===- DeclBase.cpp - Declaration AST Node Implementation -----------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -1294,6 +1296,16 @@ bool DeclContext::isDependentContext() const {
   // should be considered dependent.
 
   return getParent() && getParent()->isDependentContext();
+}
+
+bool DeclContext::isConstexprContext() const {
+  const DeclContext *DC = this;
+  do {
+    if (auto *FD = dyn_cast<FunctionDecl>(DC))
+      return FD->isConstexpr();
+    DC = DC->getParent();
+  } while (DC);
+  return false;
 }
 
 bool DeclContext::isTransparentContext() const {

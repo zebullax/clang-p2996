@@ -97,6 +97,8 @@ def warn_fe_backend_warning_attr :
 
 def err_fe_invalid_code_complete_file : Error<
     "cannot locate code-completion file %0">, DefaultFatal;
+def err_fe_reflection_incompatible_with_blocks : Error<
+    "cannot specify both '-freflection' and '-fblocks'">, DefaultFatal;
 def err_fe_dependency_file_requires_MT : Error<
     "-dependency-file requires at least one -MT or -MQ option">;
 def err_fe_invalid_plugin_name : Error<

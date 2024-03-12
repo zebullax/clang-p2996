@@ -1,5 +1,7 @@
 //===--- Expr.h - Classes for representing expressions ----------*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -928,6 +930,14 @@ public:
     return const_cast<Expr *>(this)->IgnoreParenCasts();
   }
 
+  /// Skip past any expressions splices which might surround this expression
+  /// until reaching a fixed point. Skips:
+  /// * CXXExprSpliceExpr
+  Expr *IgnoreExprSplices() LLVM_READONLY;
+  const Expr *IgnoreExprSplices() const {
+    return const_cast<Expr *>(this)->IgnoreExprSplices();
+  }
+
   /// Skip conversion operators. If this Expr is a call to a conversion
   /// operator, return the argument.
   Expr *IgnoreConversionOperatorSingleStep() LLVM_READONLY;
@@ -1047,10 +1057,12 @@ protected:
    setDependence(computeDependence(this));
  }
   FullExpr(StmtClass SC, EmptyShell Empty)
-    : Expr(SC, Empty) {}
+    : Expr(SC, Empty), SubExpr(nullptr) {
+   setDependence(ExprDependence::None);
+ }
 public:
-  const Expr *getSubExpr() const { return cast<Expr>(SubExpr); }
-  Expr *getSubExpr() { return cast<Expr>(SubExpr); }
+  const Expr *getSubExpr() const { return SubExpr ? cast<Expr>(SubExpr) : nullptr; }
+  Expr *getSubExpr() { return SubExpr ? cast<Expr>(SubExpr) : nullptr; }
 
   /// As with any mutator of the AST, be very careful when modifying an
   /// existing AST to preserve its invariants.
@@ -1120,10 +1132,10 @@ public:
                                                   const ASTContext &Context);
 
   SourceLocation getBeginLoc() const LLVM_READONLY {
-    return SubExpr->getBeginLoc();
+    return SubExpr ? SubExpr->getBeginLoc() : SourceLocation();
   }
   SourceLocation getEndLoc() const LLVM_READONLY {
-    return SubExpr->getEndLoc();
+    return SubExpr ? SubExpr->getEndLoc() : SourceLocation();
   }
 
   static bool classof(const Stmt *T) {

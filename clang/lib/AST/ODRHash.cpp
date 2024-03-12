@@ -134,6 +134,7 @@ void ODRHash::AddNestedNameSpecifier(const NestedNameSpecifier *NNS) {
     break;
   case NestedNameSpecifier::Global:
   case NestedNameSpecifier::Super:
+  case NestedNameSpecifier::IndeterminateSplice:  // This is wrong.
     break;
   }
 }
@@ -180,6 +181,9 @@ void ODRHash::AddTemplateArgument(TemplateArgument TA) {
       TA.getAsIntegral().Profile(ID);
       break;
     }
+    case TemplateArgument::Reflection:
+      TA.getAsReflection().Profile(ID);
+      break;
     case TemplateArgument::StructuralValue:
       AddQualType(TA.getStructuralValueType());
       AddStructuralValue(TA.getAsStructuralValue());

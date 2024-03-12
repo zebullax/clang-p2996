@@ -1,5 +1,7 @@
 //===- ExprClassification.cpp - Expression AST Node Implementation --------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -139,6 +141,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::DependentCoawaitExprClass:
   case Expr::CXXDependentScopeMemberExprClass:
   case Expr::DependentScopeDeclRefExprClass:
+  case Expr::CXXDependentMemberSpliceExprClass:
     // ObjC instance variables are lvalues
     // FIXME: ObjC++0x might have different rules
   case Expr::ObjCIvarRefExprClass:
@@ -148,6 +151,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::OMPArraySectionExprClass:
   case Expr::OMPArrayShapingExprClass:
   case Expr::OMPIteratorExprClass:
+  case Expr::ValueOfLValueExprClass:
     return Cl::CL_LValue;
 
     // C99 6.5.2.5p5 says that compound literals are lvalues.
@@ -202,14 +206,23 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::SourceLocExprClass:
   case Expr::ConceptSpecializationExprClass:
   case Expr::RequiresExprClass:
+  case Expr::CXXReflectExprClass:
+  case Expr::CXXIndeterminateSpliceExprClass:
+  case Expr::StackLocationExprClass:
     return Cl::CL_PRValue;
+
+  case Expr::CXXMetafunctionExprClass:
+    return E->getValueKind() == VK_LValue ? Cl::CL_LValue : Cl::CL_PRValue;
 
   // Make HLSL this reference-like
   case Expr::CXXThisExprClass:
     return Lang.HLSL ? Cl::CL_LValue : Cl::CL_PRValue;
 
-  case Expr::ConstantExprClass:
+  case Expr::ConstantExprClass: {
+    if (!cast<ConstantExpr>(E)->getSubExpr())
+      return Cl::CL_PRValue;
     return ClassifyInternal(Ctx, cast<ConstantExpr>(E)->getSubExpr());
+  }
 
     // Next come the complicated cases.
   case Expr::SubstNonTypeTemplateParmExprClass:
@@ -234,6 +247,19 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
         return ClassifyInternal(Ctx, Base);
     }
     return Cl::CL_LValue;
+
+  case Expr::CXXExprSpliceExprClass: {
+    const auto *ESE = dyn_cast<CXXExprSpliceExpr>(E);
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(ESE->getOperand())) {
+      if (auto *MD = dyn_cast<CXXMethodDecl>(DRE->getDecl());
+          MD && !MD->isStatic())
+        return Cl::CL_MemberFunction;
+      else if (isa<EnumConstantDecl>(DRE->getDecl()))
+        return Cl::CL_PRValue;
+      return Cl::CL_LValue;
+    }
+    return Cl::CL_PRValue;
+  }
 
   // Subscripting matrix types behaves like member accesses.
   case Expr::MatrixSubscriptExprClass:

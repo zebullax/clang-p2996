@@ -2198,6 +2198,7 @@ ExprResult Sema::BuildLambdaExpr(SourceLocation StartLoc, SourceLocation EndLoc,
     case ExpressionEvaluationContext::Unevaluated:
     case ExpressionEvaluationContext::UnevaluatedList:
     case ExpressionEvaluationContext::UnevaluatedAbstract:
+    case ExpressionEvaluationContext::ReflectionContext:
     // C++1y [expr.const]p2:
     //   A conditional-expression e is a core constant expression unless the
     //   evaluation of e, following the rules of the abstract machine, would

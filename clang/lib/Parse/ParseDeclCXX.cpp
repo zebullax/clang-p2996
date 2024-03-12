@@ -1,5 +1,7 @@
 //===--- ParseDeclCXX.cpp - C++ Declaration Parsing -------------*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -249,6 +251,32 @@ Parser::DeclGroupPtrTy Parser::ParseNamespace(DeclaratorContext Context,
                                         ImplicitUsingDirectiveDecl);
 }
 
+/// ParseNamespaceName - Parse the name of a namespace.
+Decl *Parser::ParseNamespaceName(CXXScopeSpec &SS, SourceLocation &IdentLoc) {
+  // Will be one of:
+  // - A nested-names-specifier followed by an identifier, or
+  // - An unqualified splice (C++2c, P2996).
+
+  ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
+                                 /*ObjectHadErrors=*/false,
+                                 /*EnteringContext=*/false,
+                                 /*MayBePseudoDestructor=*/nullptr,
+                                 /*IsTypename=*/false,
+                                 /*LastII=*/nullptr,
+                                 /*OnlyNamespace=*/false);
+
+  if (Tok.is(tok::identifier)) {
+    IdentifierInfo *II = Tok.getIdentifierInfo();
+    IdentLoc = ConsumeToken();
+    return Actions.ActOnNamespaceName(getCurScope(), SS, II, IdentLoc);
+  } else if (SS.isValid() &&
+             SS.getScopeRep()->getKind() == NestedNameSpecifier::Global) {
+    return Actions.getASTContext().getTranslationUnitDecl();
+  }
+
+  return nullptr;
+}
+
 /// ParseInnerNamespace - Parse the contents of a namespace.
 void Parser::ParseInnerNamespace(const InnerNamespaceInfoList &InnerNSs,
                                  unsigned int index, SourceLocation &InlineLoc,
@@ -315,7 +343,24 @@ Decl *Parser::ParseNamespaceAlias(SourceLocation NamespaceLoc,
                                  /*LastII=*/nullptr,
                                  /*OnlyNamespace=*/true);
 
-  if (Tok.isNot(tok::identifier)) {
+  // Check for a splice expression without a leading nested-name-specififer.
+  if (Tok.is(tok::annot_splice) && SS.isEmpty()) {
+    SourceLocation NSLoc = Tok.getLocation();
+
+    DeclResult DR = ParseCXXSpliceAsNamespace();
+    if (DR.isInvalid())
+      return nullptr;
+
+    // Eat the ';'.
+    DeclEnd = Tok.getLocation();
+    if (ExpectAndConsume(tok::semi,
+                         diag::err_expected_semi_after_namespace_name))
+      SkipUntil(tok::semi);
+
+    return Actions.ActOnNamespaceAliasDef(getCurScope(), NamespaceLoc, AliasLoc,
+                                          Alias, SS, NSLoc,
+                                          cast<NamedDecl>(DR.get()));
+  } else if (Tok.isNot(tok::identifier)) {
     Diag(Tok, diag::err_expected_namespace_name);
     // Skip to end of the definition and eat the ';'.
     SkipUntil(tok::semi);
@@ -551,8 +596,40 @@ Decl *Parser::ParseUsingDirective(DeclaratorContext Context,
   IdentifierInfo *NamespcName = nullptr;
   SourceLocation IdentLoc = SourceLocation();
 
-  // Parse namespace-name.
-  if (Tok.isNot(tok::identifier)) {
+  // Check for a splice expression without a leading nested-name-specififer.
+  if (Tok.is(tok::annot_splice) && SS.isEmpty()) {
+    SourceLocation NSLoc = Tok.getLocation();
+
+    DeclResult DR = ParseCXXSpliceAsNamespace();
+    if (DR.isInvalid())
+      return nullptr;
+
+    NamedDecl *Named = cast<NamedDecl>(DR.get());
+    NamespaceDecl *NS = nullptr;
+    if (auto *Alias = dyn_cast<NamespaceAliasDecl>(Named))
+      NS = Alias->getNamespace();
+    else
+      NS = cast<NamespaceDecl>(Named);
+
+    // Parse (optional) attributes (most likely GNU strong-using extension).
+    bool GNUAttr = false;
+    if (Tok.is(tok::kw___attribute)) {
+      GNUAttr = true;
+      ParseGNUAttributes(attrs);
+    }
+
+    // Eat ';'.
+    DeclEnd = Tok.getLocation();
+    if (ExpectAndConsume(
+            tok::semi,
+            GNUAttr ? diag::err_expected_semi_after_attribute_list
+                    : diag::err_expected_semi_after_namespace_name))
+      SkipUntil(tok::semi);
+
+    return Actions.ActOnUsingDirective(getCurScope(), UsingLoc, NamespcLoc,
+                                       SS, NSLoc, Named, NS, attrs);
+  } else if (Tok.isNot(tok::identifier)) {
+    // Parse namespace-name.
     Diag(Tok, diag::err_expected_namespace_name);
     // If there was invalid namespace name, skip to end of decl, and eat ';'.
     SkipUntil(tok::semi);
@@ -4779,14 +4856,15 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
         CommonScopeLoc, Sema::AttributeCompletion::Scope);
     if (!CommonScopeName) {
       Diag(Tok.getLocation(), diag::err_expected) << tok::identifier;
-      SkipUntil(tok::r_square, tok::colon, StopBeforeMatch);
+      SkipUntil(tok::r_square, tok::colon, tok::r_splice, StopBeforeMatch);
     }
-    if (!TryConsumeToken(tok::colon) && CommonScopeName)
+    if (!TryConsumeToken(tok::colon) && !Tok.is(tok::r_splice) &&
+        CommonScopeName)
       Diag(Tok.getLocation(), diag::err_expected) << tok::colon;
   }
 
   bool AttrParsed = false;
-  while (!Tok.isOneOf(tok::r_square, tok::semi, tok::eof)) {
+  while (!Tok.isOneOf(tok::r_square, tok::semi, tok::eof, tok::r_splice)) {
     if (AttrParsed) {
       // If we parsed an attribute, a comma is required before parsing any
       // additional attributes.
@@ -4861,7 +4939,9 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
   }
 
   SourceLocation CloseLoc = Tok.getLocation();
-  if (ExpectAndConsume(tok::r_square))
+  if (Tok.is(tok::r_splice))
+    ConsumeToken();
+  else if (ExpectAndConsume(tok::r_square))
     SkipUntil(tok::r_square);
   else if (Tok.is(tok::r_square))
     checkCompoundToken(CloseLoc, tok::r_square, CompoundToken::AttrEnd);

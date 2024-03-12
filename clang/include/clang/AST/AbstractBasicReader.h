@@ -177,6 +177,10 @@ public:
     return llvm::APInt(bitWidth, numWords, &data[0]);
   }
 
+  ReflectionValue readReflectionValue() {
+    llvm_unreachable("unimplemented");
+  }
+
   llvm::FixedPointSemantics readFixedPointSemantics() {
     unsigned width = asImpl().readUInt32();
     unsigned scale = asImpl().readUInt32();
@@ -283,6 +287,13 @@ public:
       case NestedNameSpecifier::Super:
         cur = NestedNameSpecifier::SuperSpecifier(ctx,
                                             asImpl().readCXXRecordDeclRef());
+        continue;
+
+      case NestedNameSpecifier::IndeterminateSplice:
+        cur = NestedNameSpecifier::IndeterminateSpliceSpecifier(
+                ctx,
+                reinterpret_cast<CXXIndeterminateSpliceExpr *>(
+                      asImpl().readExprRef()));
         continue;
       }
       llvm_unreachable("bad nested name specifier kind");

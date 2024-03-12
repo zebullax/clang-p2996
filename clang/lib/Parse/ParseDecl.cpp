@@ -1,5 +1,7 @@
 //===--- ParseDecl.cpp - Declaration Parsing --------------------*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -3154,6 +3156,8 @@ Parser::getDeclSpecContextFromDeclaratorContext(DeclaratorContext Context) {
     return DeclSpecContext::DSC_conv_operator;
   case DeclaratorContext::CXXNew:
     return DeclSpecContext::DSC_new;
+  case DeclaratorContext::ReflectOperator:
+    return DeclSpecContext::DSC_reflect_operator;
   case DeclaratorContext::Prototype:
   case DeclaratorContext::ObjCResult:
   case DeclaratorContext::ObjCParameter:
@@ -3520,6 +3524,28 @@ void Parser::ParseDeclarationSpecifiers(
       // specifiers.  First verify that DeclSpec's are consistent.
       DS.Finish(Actions, Policy);
       return;
+
+    case tok::l_splice:
+      if (ParseCXXIndeterminateSplice()) {
+        DS.SetTypeSpecError();
+        break;
+      }
+      continue;
+
+    case tok::annot_splice: {
+      ExprResult Result = getExprAnnotation(Tok);
+      assert(!Result.isInvalid());
+
+      if (DS.SetTypeSpecType(DeclSpec::TST_type_splice, Tok.getLocation(),
+                             PrevSpec, DiagID, Result.get(), Policy)) {
+        Diag(Tok.getLocation(), DiagID) << PrevSpec;
+        DS.SetTypeSpecError();
+        break;
+      }
+      DS.SetRangeEnd(Tok.getAnnotationEndLoc());
+      ConsumeAnnotationToken();
+      continue;
+    }
 
     // alignment-specifier
     case tok::kw__Alignas:
@@ -6738,7 +6764,8 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
       // An identifier within parens is unlikely to be intended to be anything
       // other than a name being "declared".
       DiagnoseIdentifier = true;
-    else if (D.getContext() == DeclaratorContext::TemplateArg)
+    else if (D.getContext() == DeclaratorContext::TemplateArg ||
+             D.getContext() == DeclaratorContext::ReflectOperator)
       // T<int N> is an accidental identifier; T<int N indicates a missing '>'.
       DiagnoseIdentifier =
           NextToken().isOneOf(tok::comma, tok::greater, tok::greatergreater);

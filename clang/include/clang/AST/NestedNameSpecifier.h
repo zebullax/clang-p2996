@@ -1,5 +1,7 @@
 //===- NestedNameSpecifier.h - C++ nested name specifiers -------*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -29,6 +31,7 @@ namespace clang {
 
 class ASTContext;
 class CXXRecordDecl;
+class CXXIndeterminateSpliceExpr;
 class IdentifierInfo;
 class LangOptions;
 class NamespaceAliasDecl;
@@ -44,8 +47,9 @@ class TypeLoc;
 /// names. For example, "foo::" in "foo::x" is a nested name
 /// specifier. Nested name specifiers are made up of a sequence of
 /// specifiers, each of which can be a namespace, type, identifier
-/// (for dependent names), decltype specifier, or the global specifier ('::').
-/// The last two specifiers can only appear at the start of a
+/// (for dependent names), decltype specifier, expression (for
+/// indeterminate splices), or the global specifier ('::').
+/// The last three specifiers can only appear at the start of a
 /// nested-namespace-specifier.
 class NestedNameSpecifier : public llvm::FoldingSetNode {
   /// Enumeration describing
@@ -53,16 +57,17 @@ class NestedNameSpecifier : public llvm::FoldingSetNode {
     StoredIdentifier = 0,
     StoredDecl = 1,
     StoredTypeSpec = 2,
-    StoredTypeSpecWithTemplate = 3
+    StoredTypeSpecWithTemplate = 3,
+    StoredIndeterminateSplice = 4
   };
 
   /// The nested name specifier that precedes this nested name
   /// specifier.
   ///
   /// The pointer is the nested-name-specifier that precedes this
-  /// one. The integer stores one of the first four values of type
+  /// one. The integer stores one of the first five values of type
   /// SpecifierKind.
-  llvm::PointerIntPair<NestedNameSpecifier *, 2, StoredSpecifierKind> Prefix;
+  llvm::PointerIntPair<NestedNameSpecifier *, 3, StoredSpecifierKind> Prefix;
 
   /// The last component in the nested name specifier, which
   /// can be an identifier, a declaration, or a type.
@@ -98,7 +103,11 @@ public:
 
     /// Microsoft's '__super' specifier, stored as a CXXRecordDecl* of
     /// the class it appeared in.
-    Super
+    Super,
+
+    /// A reflection splice of indeterminate kind, stored as an
+    /// CXXIndeterminateSpliceExpr*.
+    IndeterminateSplice,
   };
 
 private:
@@ -159,6 +168,10 @@ public:
   static NestedNameSpecifier *SuperSpecifier(const ASTContext &Context,
                                              CXXRecordDecl *RD);
 
+  /// Returns the nested name specifier representing an indeterminate splice.
+  static NestedNameSpecifier *IndeterminateSpliceSpecifier(
+          const ASTContext &Context, const CXXIndeterminateSpliceExpr *Expr);
+
   /// Return the prefix of this nested name specifier.
   ///
   /// The prefix contains all of the parts of the nested name
@@ -197,6 +210,14 @@ public:
     if (Prefix.getInt() == StoredTypeSpec ||
         Prefix.getInt() == StoredTypeSpecWithTemplate)
       return (const Type *)Specifier;
+
+    return nullptr;
+  }
+
+  /// Retrieve the splice expression stored in this nested name specifier.
+  const CXXIndeterminateSpliceExpr *getAsSpliceExpr() const {
+    if (Prefix.getInt() == StoredIndeterminateSplice)
+      return (const CXXIndeterminateSpliceExpr *)Specifier;
 
     return nullptr;
   }
@@ -335,6 +356,10 @@ public:
   /// retrieve the type with source-location information.
   TypeLoc getTypeLoc() const;
 
+  /// For a nested-name-specifier that refers to a splice expression, retrive
+  /// the expression.
+  const CXXIndeterminateSpliceExpr *getSpliceExpr() const;
+
   /// Determines the data length for the entire
   /// nested-name-specifier.
   unsigned getDataLength() const { return getDataLength(Qualifier); }
@@ -465,6 +490,19 @@ public:
   /// \param ColonColonLoc The location of the trailing '::'.
   void MakeSuper(ASTContext &Context, CXXRecordDecl *RD,
                  SourceLocation SuperLoc, SourceLocation ColonColonLoc);
+
+  /// Turns this (empty) nested-name-specifier into a specifier having a single
+  /// component of indeterminate splice kind.
+  ///
+  /// \param Context The AST context in which this nested-name-specifier
+  /// resides.
+  ///
+  /// \param Expr The indeterminate splice.
+  ///
+  /// \param ColonColonLoc The location of the trailing '::'.
+  void MakeIndeterminateSplice(ASTContext &Context,
+                               const CXXIndeterminateSpliceExpr *Expr,
+                               SourceLocation ColonColonLoc);
 
   /// Make a new nested-name-specifier from incomplete source-location
   /// information.

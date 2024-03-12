@@ -1,5 +1,7 @@
 //===--- APValue.cpp - Union class for APFloat/APSInt/Complex -------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -376,6 +378,11 @@ APValue::APValue(const APValue &RHS) : Kind(None) {
     MakeAddrLabelDiff();
     setAddrLabelDiff(RHS.getAddrLabelDiffLHS(), RHS.getAddrLabelDiffRHS());
     break;
+  case Reflection: {
+    const ReflectionValue& Refl = RHS.getReflection();
+    MakeReflection(Refl.getKind(), Refl.getOpaqueValue());
+    break;
+  }
   }
 }
 
@@ -433,6 +440,7 @@ bool APValue::needsCleanup() const {
   case None:
   case Indeterminate:
   case AddrLabelDiff:
+  case Reflection:
     return false;
   case Struct:
   case Union:
@@ -614,9 +622,54 @@ void APValue::Profile(llvm::FoldingSetNodeID &ID) const {
     for (const CXXRecordDecl *D : getMemberPointerPath())
       ID.AddPointer(D);
     return;
+  case Reflection:
+    getReflection().Profile(ID);
+    return;
   }
 
   llvm_unreachable("Unknown APValue kind!");
+}
+
+QualType APValue::getReflectedType() const {
+  const ReflectionValue& Refl = getReflection();
+  assert(Refl.getKind() == ReflectionValue::RK_type);
+  return Refl.getAsType();
+}
+
+ConstantExpr *APValue::getReflectedConstValueExpr() const {
+  const ReflectionValue &Refl = getReflection();
+  assert(Refl.getKind() == ReflectionValue::RK_const_value);
+  return Refl.getAsConstValueExpr();
+}
+
+ValueDecl *APValue::getReflectedDecl() const {
+  const ReflectionValue &Refl = getReflection();
+  assert(Refl.getKind() == ReflectionValue::RK_declaration);
+  return Refl.getAsDecl();
+}
+
+const TemplateName APValue::getReflectedTemplate() const {
+  const ReflectionValue &Refl = getReflection();
+  assert(Refl.getKind() == ReflectionValue::RK_template);
+  return Refl.getAsTemplate();
+}
+
+Decl *APValue::getReflectedNamespace() const {
+  const ReflectionValue &Refl = getReflection();
+  assert(Refl.getKind() == ReflectionValue::RK_namespace);
+  return Refl.getAsNamespace();
+}
+
+CXXBaseSpecifier *APValue::getReflectedBaseSpecifier() const {
+  const ReflectionValue &Refl = getReflection();
+  assert(Refl.getKind() == ReflectionValue::RK_base_specifier);
+  return Refl.getAsBaseSpecifier();
+}
+
+TagDataMemberSpec *APValue::getReflectedDataMemberSpec() const {
+ const ReflectionValue &Refl = getReflection();
+ assert(Refl.getKind() == ReflectionValue::RK_data_member_spec);
+ return Refl.getAsDataMemberSpec();
 }
 
 static double GetApproxValue(const llvm::APFloat &F) {
@@ -935,6 +988,34 @@ void APValue::printPretty(raw_ostream &Out, const PrintingPolicy &Policy,
     Out << " - ";
     Out << "&&" << getAddrLabelDiffRHS()->getLabel()->getName();
     return;
+  case APValue::Reflection:
+    const ReflectionValue& Refl = getReflection();
+    std::string Repr("...");
+    switch (Refl.getKind()) {
+    case ReflectionValue::RK_type:
+      Repr = "type";
+      break;
+    case ReflectionValue::RK_const_value:
+      Repr = "constant-value";
+      break;
+    case ReflectionValue::RK_declaration:
+      Repr = "declaration";
+      break;
+    case ReflectionValue::RK_template:
+      Repr = "template";
+      break;
+    case ReflectionValue::RK_namespace:
+      Repr = "namespace";
+      break;
+    case ReflectionValue::RK_base_specifier:
+      Repr = "base-specifier";
+      break;
+    case ReflectionValue::RK_data_member_spec:
+      Repr = "data-member-spec";
+      break;
+    }
+    Out << "^(" << Repr << ")";
+    return;
   }
   llvm_unreachable("Unknown APValue kind!");
 }
@@ -1130,6 +1211,7 @@ LinkageInfo LinkageComputer::getLVForValue(const APValue &V,
   case APValue::ComplexInt:
   case APValue::ComplexFloat:
   case APValue::Vector:
+  case APValue::Reflection:
     break;
 
   case APValue::AddrLabelDiff:

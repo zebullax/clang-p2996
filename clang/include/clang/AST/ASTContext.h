@@ -1,5 +1,7 @@
 //===- ASTContext.h - Context to hold long-lived AST nodes ------*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -235,6 +237,8 @@ class ASTContext : public RefCountedBase<ASTContext> {
                                      ASTContext&>
     DependentTemplateSpecializationTypes;
   llvm::FoldingSet<PackExpansionType> PackExpansionTypes;
+  mutable llvm::FoldingSet<DependentReflectionSpliceType>
+    DependentReflectionSpliceTypes;
   mutable llvm::FoldingSet<ObjCObjectTypeImpl> ObjCObjectTypes;
   mutable llvm::FoldingSet<ObjCObjectPointerType> ObjCObjectPointerTypes;
   mutable llvm::FoldingSet<DependentUnaryTransformType>
@@ -1111,6 +1115,7 @@ public:
   CanQualType BFloat16Ty;
   CanQualType Float16Ty; // C11 extension ISO/IEC TS 18661-3
   CanQualType VoidPtrTy, NullPtrTy;
+  CanQualType MetaInfoTy;
   CanQualType DependentTy, OverloadTy, BoundMemberTy, UnknownAnyTy;
   CanQualType BuiltinFnTy;
   CanQualType PseudoObjectTy, ARCUnbridgedCastTy;
@@ -1677,6 +1682,8 @@ public:
   QualType getPackExpansionType(QualType Pattern,
                                 std::optional<unsigned> NumExpansions,
                                 bool ExpectPackInType = true);
+
+  QualType getReflectionSpliceType(Expr *E, QualType UnderlyingType) const;
 
   QualType getObjCInterfaceType(const ObjCInterfaceDecl *Decl,
                                 ObjCInterfaceDecl *PrevDecl = nullptr) const;

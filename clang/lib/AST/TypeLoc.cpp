@@ -349,6 +349,7 @@ TypeSpecifierType BuiltinTypeLoc::getWrittenTypeSpec() const {
   case BuiltinType::WChar_S:
   case BuiltinType::WChar_U:
     return TST_wchar;
+  case BuiltinType::MetaInfo:
   case BuiltinType::UChar:
   case BuiltinType::UShort:
   case BuiltinType::UInt:
@@ -584,6 +585,7 @@ void TemplateSpecializationTypeLoc::initializeArgLocs(
       llvm_unreachable("Impossible TemplateArgument");
 
     case TemplateArgument::Integral:
+    case TemplateArgument::Reflection:
     case TemplateArgument::Declaration:
     case TemplateArgument::NullPtr:
     case TemplateArgument::StructuralValue:
@@ -621,6 +623,12 @@ void TemplateSpecializationTypeLoc::initializeArgLocs(
       break;
     }
   }
+}
+
+void ReflectionSpliceTypeLoc::initializeLocal(ASTContext &Context,
+                                              SourceLocation Loc) {
+  setLSpliceLoc(Loc);
+  setRSpliceLoc(Loc);
 }
 
 // Builds a ConceptReference where all locations point at the same token,

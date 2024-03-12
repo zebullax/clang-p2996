@@ -1,5 +1,7 @@
 //===--- ParseExpr.cpp - Expression Parsing -------------------------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -840,6 +842,7 @@ class CastExpressionIdValidator final : public CorrectionCandidateCallback {
 /// [G++]   unary-type-trait '(' type-id ')'
 /// [G++]   binary-type-trait '(' type-id ',' type-id ')'           [TODO]
 /// [EMBT]  array-type-trait '(' type-id ',' integer ')'
+/// [C++2c] '^' reflect-operand
 /// [clang] '^' block-literal
 ///
 ///       constant: [C99 6.4.4]
@@ -1646,15 +1649,26 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     break;
   }
 
+  case tok::annot_splice: {
+    // An 'annot_splice' was parsed by 'TryAnnotateTypeOrScopeToken', but it
+    // could not be spliced as a type; it must be an expression.
+    Res = ParseCXXSpliceAsExpr();
+    break;
+  }
+
+  case tok::l_splice:
   case tok::annot_cxxscope: { // [C++] id-expression: qualified-id
     // If TryAnnotateTypeOrScopeToken annotates the token, tail recurse.
     // (We can end up in this situation after tentative parsing.)
-    if (TryAnnotateTypeOrScopeToken())
+    if (TryAnnotateTypeOrScopeToken()) {
       return ExprError();
-    if (!Tok.is(tok::annot_cxxscope))
-      return ParseCastExpression(ParseKind, isAddressOfOperand, NotCastExpr,
+    }
+    if (!Tok.is(tok::annot_cxxscope)) {
+      auto result = ParseCastExpression(ParseKind, isAddressOfOperand, NotCastExpr,
                                  isTypeCast, isVectorLiteral,
                                  NotPrimaryExpression);
+      return result;
+    }
 
     Token Next = NextToken();
     if (Next.is(tok::annot_template_id)) {
@@ -1796,6 +1810,9 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     Res = ParseExpressionTrait();
     break;
 
+  case tok::kw___metafunction:
+    return ParseCXXMetafunctionExpression();
+
   case tok::at: {
     if (NotPrimaryExpression)
       *NotPrimaryExpression = true;
@@ -1803,7 +1820,12 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     return ParseObjCAtExpression(AtLoc);
   }
   case tok::caret:
-    Res = ParseBlockLiteralExpression();
+    // '-freflection' and '-fblocks' are mutually exclusive.
+    if (getLangOpts().Reflection) {
+        return ParseCXXReflectExpression();
+    } else {
+        Res = ParseBlockLiteralExpression();
+    }
     break;
   case tok::code_completion: {
     cutOffParsing();
@@ -2304,6 +2326,18 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
         IdentifierInfo *Id = Tok.getIdentifierInfo();
         SourceLocation Loc = ConsumeToken();
         Name.setIdentifier(Id, Loc);
+      } else if (Tok.is(tok::annot_splice)) {
+        ExprResult Res = ParseCXXSpliceAsExpr();
+        if (!Res.isInvalid() && !Diags.hasErrorOccurred()) {
+          LHS = Actions.ActOnMemberAccessExpr(
+                getCurScope(), LHS.get(), OpLoc, OpKind,
+                dyn_cast<CXXExprSpliceExpr>(Res.get()), TemplateKWLoc);
+          if (!LHS.isInvalid() && Tok.is(tok::less))
+            checkPotentialAngleBracket(LHS);
+          break;
+        } else {
+          LHS = ExprError();
+        }
       } else if (ParseUnqualifiedId(
                      SS, ObjectType, LHS.get() && LHS.get()->containsErrors(),
                      /*EnteringContext=*/false,

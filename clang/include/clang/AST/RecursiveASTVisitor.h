@@ -1,5 +1,7 @@
 //===--- RecursiveASTVisitor.h - Recursive AST Visitor ----------*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -29,8 +31,10 @@
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/ExprOpenMP.h"
 #include "clang/AST/LambdaCapture.h"
+#include "clang/AST/LocInfoType.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/OpenMPClause.h"
+#include "clang/AST/Reflection.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtObjC.h"
@@ -773,6 +777,11 @@ bool RecursiveASTVisitor<Derived>::TraverseNestedNameSpecifier(
   case NestedNameSpecifier::Super:
     return true;
 
+  case NestedNameSpecifier::IndeterminateSplice:
+    TRY_TO(TraverseStmt(
+            const_cast<CXXIndeterminateSpliceExpr *>(NNS->getAsSpliceExpr())));
+    break;
+
   case NestedNameSpecifier::TypeSpec:
   case NestedNameSpecifier::TypeSpecWithTemplate:
     TRY_TO(TraverseType(QualType(NNS->getAsType(), 0)));
@@ -797,6 +806,11 @@ bool RecursiveASTVisitor<Derived>::TraverseNestedNameSpecifierLoc(
   case NestedNameSpecifier::Global:
   case NestedNameSpecifier::Super:
     return true;
+
+  case NestedNameSpecifier::IndeterminateSplice:
+    TRY_TO(TraverseStmt(
+            const_cast<CXXIndeterminateSpliceExpr *>(NNS.getSpliceExpr())));
+    break;
 
   case NestedNameSpecifier::TypeSpec:
   case NestedNameSpecifier::TypeSpecWithTemplate:
@@ -853,6 +867,7 @@ bool RecursiveASTVisitor<Derived>::TraverseTemplateArgument(
   case TemplateArgument::Null:
   case TemplateArgument::Declaration:
   case TemplateArgument::Integral:
+  case TemplateArgument::Reflection:
   case TemplateArgument::NullPtr:
   case TemplateArgument::StructuralValue:
     return true;
@@ -886,6 +901,7 @@ bool RecursiveASTVisitor<Derived>::TraverseTemplateArgumentLoc(
   case TemplateArgument::Null:
   case TemplateArgument::Declaration:
   case TemplateArgument::Integral:
+  case TemplateArgument::Reflection:
   case TemplateArgument::NullPtr:
   case TemplateArgument::StructuralValue:
     return true;
@@ -1068,6 +1084,9 @@ DEF_TRAVERSE_TYPE(TypeOfType, { TRY_TO(TraverseType(T->getUnmodifiedType())); })
 
 DEF_TRAVERSE_TYPE(DecltypeType,
                   { TRY_TO(TraverseStmt(T->getUnderlyingExpr())); })
+
+DEF_TRAVERSE_TYPE(ReflectionSpliceType,
+                  { TRY_TO(TraverseStmt(T->getOperand())); })
 
 DEF_TRAVERSE_TYPE(PackIndexingType, {
   TRY_TO(TraverseType(T->getPattern()));
@@ -1351,6 +1370,9 @@ DEF_TRAVERSE_TYPELOC(TypeOfType, {
 DEF_TRAVERSE_TYPELOC(DecltypeType, {
   TRY_TO(TraverseStmt(TL.getTypePtr()->getUnderlyingExpr()));
 })
+
+DEF_TRAVERSE_TYPELOC(ReflectionSpliceType,
+                     { TRY_TO(TraverseStmt(TL.getOperand())); })
 
 DEF_TRAVERSE_TYPELOC(PackIndexingType, {
   TRY_TO(TraverseType(TL.getPattern()));
@@ -2874,6 +2896,49 @@ DEF_TRAVERSE_STMT(SubstNonTypeTemplateParmExpr, {})
 DEF_TRAVERSE_STMT(FunctionParmPackExpr, {})
 DEF_TRAVERSE_STMT(CXXFoldExpr, {})
 DEF_TRAVERSE_STMT(AtomicExpr, {})
+DEF_TRAVERSE_STMT(CXXReflectExpr, {
+  const ReflectionValue &Op = S->getOperand();
+  switch (Op.getKind()) {
+  case ReflectionValue::RK_type: {
+    TRY_TO(TraverseType(Op.getAsType()));
+    break;
+  }
+  case ReflectionValue::RK_const_value: {
+    TRY_TO(TraverseStmt(Op.getAsConstValueExpr()));
+    break;
+  }
+  case ReflectionValue::RK_declaration: {
+    TRY_TO(TraverseDecl(Op.getAsDecl()));
+    break;
+  }
+  case ReflectionValue::RK_template: {
+    TRY_TO(TraverseTemplateName(Op.getAsTemplate()));
+    break;
+  }
+  case ReflectionValue::RK_namespace: {
+    TRY_TO(TraverseDecl(Op.getAsNamespace()));
+    break;
+  }
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+    break;
+  }
+})
+DEF_TRAVERSE_STMT(CXXMetafunctionExpr, {})
+DEF_TRAVERSE_STMT(CXXIndeterminateSpliceExpr, {
+  TRY_TO(TraverseStmt(S->getOperand()));
+})
+DEF_TRAVERSE_STMT(CXXExprSpliceExpr, {
+  TRY_TO(TraverseStmt(const_cast<Expr *>(S->getOperand())));
+})
+DEF_TRAVERSE_STMT(CXXDependentMemberSpliceExpr, {
+  TRY_TO(TraverseStmt(S->getBase()));
+  TRY_TO(TraverseStmt(S->getRHS()));
+})
+DEF_TRAVERSE_STMT(StackLocationExpr, {})
+DEF_TRAVERSE_STMT(ValueOfLValueExpr, {
+  TRY_TO(TraverseDecl(S->getValueDecl()));
+})
 DEF_TRAVERSE_STMT(CXXParenListInitExpr, {})
 
 DEF_TRAVERSE_STMT(MaterializeTemporaryExpr, {

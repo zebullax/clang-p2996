@@ -1,5 +1,7 @@
 //===--- SemaCXXScopeSpec.cpp - Semantic Analysis for C++ scope specifiers-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -178,6 +180,9 @@ DeclContext *Sema::computeDeclContext(const CXXScopeSpec &SS,
 
   case NestedNameSpecifier::Super:
     return NNS->getAsRecordDecl();
+
+  case NestedNameSpecifier::IndeterminateSplice:
+    return TryFindDeclContextOf(NNS->getAsSpliceExpr());
   }
 
   llvm_unreachable("Invalid NestedNameSpecifier::Kind!");
@@ -1073,6 +1078,7 @@ bool Sema::ShouldEnterDeclaratorScope(Scope *S, const CXXScopeSpec &SS) {
   case NestedNameSpecifier::TypeSpec:
   case NestedNameSpecifier::TypeSpecWithTemplate:
   case NestedNameSpecifier::Super:
+  case NestedNameSpecifier::IndeterminateSplice:
     // These are never namespace scopes.
     return true;
   }

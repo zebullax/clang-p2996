@@ -1,5 +1,7 @@
 //===--- CGExprConstant.cpp - Emit LLVM Code from Constant Expressions ----===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -2112,6 +2114,13 @@ llvm::Constant *ConstantEmitter::tryEmitPrivate(const APValue &Value,
         llvm::StructType::get(Complex[0]->getType(), Complex[1]->getType());
     return llvm::ConstantStruct::get(STy, Complex);
   }
+  case APValue::Reflection: {
+    // FIXME: This emits an unused garbage value, but there's not much
+    // meaningful we can emit here. This seems okay, as the value only
+    // seems to be used in debug builds...But perhaps we can do better?
+    return llvm::ConstantInt::get(CGM.getLLVMContext(),
+                                  llvm::APInt(/*numBits=*/1, /*val=*/1));
+  }
   case APValue::Float: {
     const llvm::APFloat &Init = Value.getFloat();
     if (&Init.getSemantics() == &llvm::APFloat::IEEEhalf() &&
@@ -2247,7 +2256,9 @@ llvm::Constant *
 CodeGenModule::getMemberPointerConstant(const UnaryOperator *uo) {
   // Member pointer constants always have a very particular form.
   const MemberPointerType *type = cast<MemberPointerType>(uo->getType());
-  const ValueDecl *decl = cast<DeclRefExpr>(uo->getSubExpr())->getDecl();
+
+  const Expr *SubExpr = uo->getSubExpr()->IgnoreExprSplices();
+  const ValueDecl *decl = cast<DeclRefExpr>(SubExpr)->getDecl();
 
   // A member function pointer.
   if (const CXXMethodDecl *method = dyn_cast<CXXMethodDecl>(decl))

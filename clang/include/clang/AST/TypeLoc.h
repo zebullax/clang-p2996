@@ -1,5 +1,7 @@
 //===- TypeLoc.h - Type Source Info Wrapper ---------------------*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -2566,6 +2568,41 @@ public:
 
   QualType getInnerType() const {
     return this->getTypePtr()->getPattern();
+  }
+};
+
+struct ReflectionSpliceTypeLocInfo {
+  SourceLocation LSpliceLoc, RSpliceLoc;
+};
+
+class ReflectionSpliceTypeLoc
+  : public ConcreteTypeLoc<UnqualTypeLoc, ReflectionSpliceTypeLoc,
+                           ReflectionSpliceType, ReflectionSpliceTypeLocInfo> {
+public:
+  Expr *getOperand() const {
+    return getTypePtr()->getOperand();
+  }
+
+  SourceLocation getLSpliceLoc() const {
+    return this->getLocalData()->LSpliceLoc;
+  }
+
+  void setLSpliceLoc(SourceLocation Loc) {
+    this->getLocalData()->LSpliceLoc = Loc;
+  }
+
+  SourceLocation getRSpliceLoc() const {
+    return this->getLocalData()->RSpliceLoc;
+  }
+
+  void setRSpliceLoc(SourceLocation Loc) {
+    this->getLocalData()->RSpliceLoc = Loc;
+  }
+
+  void initializeLocal(ASTContext &Context, SourceLocation Loc);
+
+  SourceRange getLocalSourceRange() const {
+    return SourceRange(getLSpliceLoc(), getRSpliceLoc());
   }
 };
 

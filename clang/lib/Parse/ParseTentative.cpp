@@ -1,5 +1,7 @@
 //===--- ParseTentative.cpp - Ambiguity Resolution Parsing ----------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -693,6 +695,9 @@ bool Parser::isCXXTypeId(TentativeCXXTypeIdContext Context, bool &isAmbiguous) {
     } else if (Context == TypeIdInTrailingReturnType) {
       TPR = TPResult::True;
       isAmbiguous = true;
+    } else if (Context == TypeIdAsReflectionOperand) {
+      TPR = TPResult::True;
+      isAmbiguous = true;
     } else
       TPR = TPResult::False;
   }
@@ -1291,6 +1296,7 @@ public:
 /// [GNU]     '__auto_type'
 /// [C++11]   'decltype' ( expression )
 /// [C++1y]   'decltype' ( 'auto' )
+/// [C++2c]   '[:' expression ':]'
 ///
 ///         type-name:
 ///           class-name
@@ -1464,6 +1470,7 @@ Parser::isCXXDeclarationSpecifier(ImplicitTypenameContext AllowImplicitTypename,
   }
   case tok::kw___super:
   case tok::kw_decltype:
+  case tok::l_splice:
     // Annotate typenames and C++ scope specifiers.  If we get one, just
     // recurse to handle whatever we get.
     if (TryAnnotateTypeOrScopeToken(AllowImplicitTypename))

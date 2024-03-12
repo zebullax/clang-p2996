@@ -458,6 +458,52 @@ void ASTStmtWriter::VisitCoyieldExpr(CoyieldExpr *E) {
   Code = serialization::EXPR_COYIELD;
 }
 
+void ASTStmtWriter::VisitCXXReflectExpr(CXXReflectExpr *E) {
+  VisitExpr(E);
+  Record.AddSourceLocation(E->getOperatorLoc());
+  Record.AddReflectionValue(E->getOperand());
+  Code = serialization::EXPR_REFLECT;
+}
+
+void ASTStmtWriter::VisitCXXMetafunctionExpr(CXXMetafunctionExpr *E) {
+  VisitExpr(E);
+  Record.AddSourceLocation(E->getKwLoc());
+  // TODO(P2996): Note that this cannot be safely deserialized with the current
+  // model.
+  Code = serialization::EXPR_METAFUNCTION;
+}
+
+void ASTStmtWriter::VisitCXXIndeterminateSpliceExpr(
+                                                CXXIndeterminateSpliceExpr *E) {
+  VisitExpr(E);
+  Code = serialization::EXPR_SPLICE;
+}
+
+void ASTStmtWriter::VisitCXXExprSpliceExpr(CXXExprSpliceExpr *E) {
+  VisitExpr(E);
+  // TODO(P2996): Implement this.
+  Code = serialization::EXPR_EXPR_SPLICE;
+}
+
+void ASTStmtWriter::VisitCXXDependentMemberSpliceExpr(
+                                              CXXDependentMemberSpliceExpr *E) {
+  VisitExpr(E);
+  // TODO(P2996): Implement this.
+  Code = serialization::EXPR_DEPENDENT_MEMBER_SPLICE;
+}
+
+void ASTStmtWriter::VisitStackLocationExpr(StackLocationExpr *E) {
+  VisitExpr(E);
+  // TODO(P2996): Implement this.
+  Code = serialization::EXPR_STACK_LOCATION;
+}
+
+void ASTStmtWriter::VisitValueOfLValueExpr(ValueOfLValueExpr *E) {
+  VisitExpr(E);
+  // TODO(P2996): Implement this.
+  Code = serialization::EXPR_VALUE_OF_LVALUE;
+}
+
 void ASTStmtWriter::VisitDependentCoawaitExpr(DependentCoawaitExpr *E) {
   VisitExpr(E);
   Record.AddSourceLocation(E->getKeywordLoc());

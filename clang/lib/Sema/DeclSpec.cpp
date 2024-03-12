@@ -1,5 +1,7 @@
 //===--- DeclSpec.cpp - Declaration Specifier Semantic Analysis -----------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -117,6 +119,18 @@ void CXXScopeSpec::MakeSuper(ASTContext &Context, CXXRecordDecl *RD,
   Builder.MakeSuper(Context, RD, SuperLoc, ColonColonLoc);
 
   Range.setBegin(SuperLoc);
+  Range.setEnd(ColonColonLoc);
+
+  assert(Range == Builder.getSourceRange() &&
+  "NestedNameSpecifierLoc range computation incorrect");
+}
+
+void CXXScopeSpec::MakeIndeterminateSplice(ASTContext &Context,
+                                           CXXIndeterminateSpliceExpr * Expr,
+                                           SourceLocation ColonColonLoc) {
+  Builder.MakeIndeterminateSplice(Context, Expr, ColonColonLoc);
+
+  Range.setBegin(Expr->getLSpliceLoc());
   Range.setEnd(ColonColonLoc);
 
   assert(Range == Builder.getSourceRange() &&
@@ -385,6 +399,7 @@ bool Declarator::isDeclarationOfFunction() const {
       return false;
 
     case TST_decltype:
+    case TST_type_splice:
     case TST_typeof_unqualExpr:
     case TST_typeofExpr:
       if (Expr *E = DS.getRepAsExpr())
@@ -595,6 +610,7 @@ const char *DeclSpec::getSpecifierName(DeclSpec::TST T,
   case DeclSpec::TST_auto:        return "auto";
   case DeclSpec::TST_auto_type:   return "__auto_type";
   case DeclSpec::TST_decltype:    return "(decltype)";
+  case DeclSpec::TST_type_splice: return "[:reflection-of-type:]";
   case DeclSpec::TST_decltype_auto: return "decltype(auto)";
 #define TRANSFORM_TYPE_TRAIT_DEF(_, Trait)                                     \
   case DeclSpec::TST_##Trait:                                                  \

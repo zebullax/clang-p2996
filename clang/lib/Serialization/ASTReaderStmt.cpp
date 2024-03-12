@@ -495,6 +495,36 @@ void ASTStmtReader::VisitCoyieldExpr(CoyieldExpr *E) {
   E->OpaqueValue = cast_or_null<OpaqueValueExpr>(Record.readSubStmt());
 }
 
+void ASTStmtReader::VisitCXXReflectExpr(CXXReflectExpr *E) {
+  llvm_unreachable("unimplemented");
+}
+
+void ASTStmtReader::VisitCXXMetafunctionExpr(CXXMetafunctionExpr *E) {
+  llvm_unreachable("unimplemented");
+}
+
+void ASTStmtReader::VisitCXXIndeterminateSpliceExpr(
+                                                CXXIndeterminateSpliceExpr *E) {
+  llvm_unreachable("unimplemented");
+}
+
+void ASTStmtReader::VisitCXXExprSpliceExpr(CXXExprSpliceExpr *E) {
+  llvm_unreachable("unimplemented");
+}
+
+void ASTStmtReader::VisitCXXDependentMemberSpliceExpr(
+                                              CXXDependentMemberSpliceExpr *E) {
+  llvm_unreachable("unimplemented");
+}
+
+void ASTStmtReader::VisitStackLocationExpr(StackLocationExpr *E) {
+  llvm_unreachable("unimplemented");
+}
+
+void ASTStmtReader::VisitValueOfLValueExpr(ValueOfLValueExpr *E) {
+  llvm_unreachable("unimplemented");
+}
+
 void ASTStmtReader::VisitDependentCoawaitExpr(DependentCoawaitExpr *E) {
   VisitExpr(E);
   E->KeywordLoc = readSourceLocation();

@@ -1,5 +1,7 @@
 //===- ExprCXX.cpp - (C++) Expression AST Node Implementation -------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -1839,6 +1841,233 @@ TypeTraitExpr *TypeTraitExpr::CreateDeserialized(const ASTContext &C,
                                                  unsigned NumArgs) {
   void *Mem = C.Allocate(totalSizeToAlloc<TypeSourceInfo *>(NumArgs));
   return new (Mem) TypeTraitExpr(EmptyShell());
+}
+
+CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T,
+                               QualType Operand)
+    : Expr(CXXReflectExprClass, T, VK_PRValue, OK_Ordinary),
+      Ref(ReflectionValue::RK_type, Operand.getAsOpaquePtr()) {
+  setDependence(computeDependence(this, C));
+}
+
+CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T,
+                               Expr *Operand)
+    : Expr(CXXReflectExprClass, T, VK_PRValue, OK_Ordinary),
+      Ref(ReflectionValue::RK_const_value, Operand) {
+  setDependence(computeDependence(this, C));
+}
+
+CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T, Decl *Operand,
+                               bool IsNamespace)
+    : Expr(CXXReflectExprClass, T, VK_PRValue, OK_Ordinary),
+      Ref(IsNamespace ? ReflectionValue::RK_namespace :
+                        ReflectionValue:: RK_declaration, Operand) {
+  setDependence(computeDependence(this, C));
+}
+
+CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T,
+                               const TemplateName Operand)
+    : Expr(CXXReflectExprClass, T, VK_PRValue, OK_Ordinary),
+      Ref(ReflectionValue::RK_template, Operand.getAsVoidPointer()) {
+  setDependence(computeDependence(this, C));
+}
+
+CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T,
+                               CXXBaseSpecifier *Operand)
+    : Expr(CXXReflectExprClass, T, VK_PRValue, OK_Ordinary),
+      Ref(ReflectionValue::RK_base_specifier, Operand) {
+  setDependence(computeDependence(this, C));
+}
+
+CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T,
+                               TagDataMemberSpec *Operand)
+    : Expr(CXXReflectExprClass, T, VK_PRValue, OK_Ordinary),
+      Ref(ReflectionValue::RK_data_member_spec, Operand) {
+  setDependence(computeDependence(this, C));
+}
+
+CXXReflectExpr *CXXReflectExpr::Create(ASTContext &C,
+                                       SourceLocation OperatorLoc,
+                                       SourceLocation OperandLoc,
+                                       QualType Operand) {
+  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy, Operand);
+  E->setOperatorLoc(OperatorLoc);
+  E->setArgLoc(OperandLoc);
+  return E;
+}
+
+CXXReflectExpr *CXXReflectExpr::Create(ASTContext &C,
+                                       SourceLocation OperatorLoc,
+                                       Expr *Operand) {
+  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy, Operand);
+  E->setOperatorLoc(OperatorLoc);
+  E->setArgLoc(Operand->getExprLoc());
+  return E;
+}
+
+CXXReflectExpr *CXXReflectExpr::Create(ASTContext &C,
+                                       SourceLocation OperatorLoc,
+                                       SourceLocation OperandLoc,
+                                       Decl *Operand) {
+  bool IsNamespace = isa<NamespaceDecl>(Operand) ||
+                     isa<TranslationUnitDecl>(Operand) ||
+                     isa<NamespaceAliasDecl>(Operand);
+
+  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy, Operand,
+                                             IsNamespace);
+  E->setOperatorLoc(OperatorLoc);
+  E->setArgLoc(OperandLoc);
+  return E;
+}
+
+CXXReflectExpr *CXXReflectExpr::Create(ASTContext &C,
+                                       SourceLocation OperatorLoc,
+                                       SourceLocation OperandLoc,
+                                       const TemplateName Operand) {
+  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy, Operand);
+  E->setOperatorLoc(OperatorLoc);
+  E->setArgLoc(OperandLoc);
+  return E;
+}
+
+CXXReflectExpr *CXXReflectExpr::Create(ASTContext &C,
+                                       SourceLocation OperatorLoc,
+                                       SourceLocation OperandLoc,
+                                       CXXBaseSpecifier *Operand) {
+  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy, Operand);
+  E->setOperatorLoc(OperatorLoc);
+  E->setArgLoc(OperandLoc);
+  return E;
+}
+
+CXXReflectExpr *CXXReflectExpr::Create(ASTContext &C,
+                                       SourceLocation OperatorLoc,
+                                       SourceLocation OperandLoc,
+                                       TagDataMemberSpec *Operand) {
+  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy, Operand);
+  E->setOperatorLoc(OperatorLoc);
+  E->setArgLoc(OperandLoc);
+  return E;
+}
+
+static QualType UnwrapCXXMetafunctionExprReturnType(QualType QT) {
+  if (auto *LVRT = dyn_cast<LValueReferenceType>(QT))
+    QT = LVRT->getPointeeType();
+
+  return QT;
+}
+
+CXXMetafunctionExpr::CXXMetafunctionExpr(unsigned MetaFnID,
+                                         const ImplFn &Impl,
+                                         QualType ResultType,
+                                         ExprValueKind VK,
+                                         Expr ** Args, unsigned NumArgs,
+                                         SourceLocation KwLoc,
+                                         SourceLocation LParenLoc,
+                                         SourceLocation RParenLoc)
+   : Expr(CXXMetafunctionExprClass,
+          UnwrapCXXMetafunctionExprReturnType(ResultType), VK, OK_Ordinary),
+     MetaFnID(MetaFnID), Impl(Impl), ResultType(ResultType),
+     NumArgs(NumArgs), Args(Args), KwLoc(KwLoc), LParenLoc(LParenLoc),
+     RParenLoc(RParenLoc) {
+  std::copy(Args, Args + NumArgs, this->Args);
+  setDependence(computeDependence(this));
+}
+
+CXXMetafunctionExpr *CXXMetafunctionExpr::Create(ASTContext &C,
+                                                 unsigned MetaFnID,
+                                                 const ImplFn &Impl,
+                                                 QualType ResultType,
+                                                 ArrayRef<Expr *> Args,
+                                                 SourceLocation KwLoc,
+                                                 SourceLocation LParenLoc,
+                                                 SourceLocation RParenLoc) {
+  Expr **args = new (C) Expr *[Args.size()];
+  std::copy(Args.begin(), Args.end(), args);
+
+  ExprValueKind VK = isa<LValueReferenceType>(ResultType) ? VK_LValue :
+                                                            VK_PRValue;
+  return new (C) CXXMetafunctionExpr(MetaFnID, Impl, ResultType, VK, args,
+                                     Args.size(), KwLoc, LParenLoc, RParenLoc);
+}
+
+CXXIndeterminateSpliceExpr::CXXIndeterminateSpliceExpr(
+        QualType ResultTy, SourceLocation LSpliceLoc, Expr *Operand,
+        SourceLocation RSpliceLoc)
+  : Expr(CXXIndeterminateSpliceExprClass, ResultTy, VK_PRValue, OK_Ordinary),
+    LSpliceLoc(LSpliceLoc), Operand(Operand), RSpliceLoc(RSpliceLoc) {
+  setDependence(computeDependence(this));
+}
+
+CXXIndeterminateSpliceExpr *CXXIndeterminateSpliceExpr::Create(
+        ASTContext &C, SourceLocation LSpliceLoc, Expr *Operand,
+        SourceLocation RSpliceLoc) {
+  return new (C) CXXIndeterminateSpliceExpr(C.MetaInfoTy, LSpliceLoc, Operand,
+                                            RSpliceLoc);
+}
+
+CXXExprSpliceExpr::CXXExprSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
+                                     SourceLocation LSpliceLoc, Expr *Operand,
+                                     SourceLocation RSpliceLoc)
+  : Expr(CXXExprSpliceExprClass, ResultTy, ValueKind, OK_Ordinary),
+    LSpliceLoc(LSpliceLoc), Operand(Operand), RSpliceLoc(RSpliceLoc) {
+  setDependence(computeDependence(this));
+}
+
+CXXExprSpliceExpr *CXXExprSpliceExpr::Create(ASTContext &C,
+                                             ExprValueKind ValueKind,
+                                             SourceLocation LSpliceLoc,
+                                             Expr *Operand,
+                                             SourceLocation RSpliceLoc) {
+  QualType ResultTy = Operand->getType();
+  if (Operand->isTypeDependent() || Operand->isValueDependent())
+    ResultTy = C.DependentTy;
+
+  return new (C) CXXExprSpliceExpr(ResultTy, ValueKind, LSpliceLoc, Operand,
+                                   RSpliceLoc);
+}
+
+StackLocationExpr::StackLocationExpr(QualType ResultTy, SourceRange Range,
+                                     int FrameOffset)
+    : Expr(StackLocationExprClass, ResultTy, VK_PRValue, OK_Ordinary),
+      Range(Range), FrameOffset(FrameOffset) {
+  setDependence(computeDependence(this));
+}
+
+StackLocationExpr *StackLocationExpr::Create(ASTContext &C, SourceRange Range,
+                                             int FrameOffset) {
+  return new (C) StackLocationExpr(C.MetaInfoTy, Range, FrameOffset);
+}
+
+ValueOfLValueExpr::ValueOfLValueExpr(QualType ResultTy, SourceRange Range,
+                                     ValueDecl *Decl)
+    : Expr(ValueOfLValueExprClass, ResultTy, VK_LValue, OK_Ordinary),
+      Range(Range), Decl(Decl) {
+  setDependence(computeDependence(this));
+}
+
+ValueOfLValueExpr *ValueOfLValueExpr::Create(ASTContext &C, SourceRange Range,
+                                             QualType ResultTy,
+                                             ValueDecl *Decl) {
+  return new (C) ValueOfLValueExpr(ResultTy, Range, Decl);
+}
+
+CXXDependentMemberSpliceExpr::CXXDependentMemberSpliceExpr(
+        QualType ResultTy, Expr *Base, SourceLocation OpLoc, bool IsArrow,
+        CXXExprSpliceExpr *RHS)
+    : Expr(CXXDependentMemberSpliceExprClass, ResultTy, VK_LValue, OK_Ordinary),
+      OpLoc(OpLoc), IsArrow(IsArrow) {
+  SubExprs[0] = Base;
+  SubExprs[1] = RHS;
+
+  setDependence(computeDependence(this));
+}
+
+CXXDependentMemberSpliceExpr *CXXDependentMemberSpliceExpr::Create(
+        ASTContext &C, Expr *Base, SourceLocation OpLoc, bool IsArrow,
+        CXXExprSpliceExpr *RHS) {
+  return new (C) CXXDependentMemberSpliceExpr(C.DependentTy, Base, OpLoc,
+                                              IsArrow, RHS);
 }
 
 CUDAKernelCallExpr::CUDAKernelCallExpr(Expr *Fn, CallExpr *Config,

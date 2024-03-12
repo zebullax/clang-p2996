@@ -1,5 +1,7 @@
 //===--- Options.td - Options for clang -----------------------------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -3329,6 +3331,11 @@ defm relaxed_template_template_args : BoolFOption<"relaxed-template-template-arg
   LangOpts<"RelaxedTemplateTemplateArgs">, DefaultFalse,
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
           "Enable C++17 relaxed template template argument matching">,
+  NegFlag<SetFalse>>;
+defm reflection : BoolFOption<"reflection",
+  LangOpts<"Reflection">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option],
+          "Enable proposed C++26 reflection as described by P2996">,
   NegFlag<SetFalse>>;
 defm sized_deallocation : BoolFOption<"sized-deallocation",
   LangOpts<"SizedDeallocation">, DefaultFalse,

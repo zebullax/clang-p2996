@@ -473,6 +473,7 @@ static bool isSimpleAPValue(const APValue &Value) {
   case APValue::Vector:
   case APValue::Array:
   case APValue::Struct:
+  case APValue::Reflection:
     return false;
   case APValue::Union:
     return isSimpleAPValue(Value.getUnionValue());
@@ -655,6 +656,9 @@ void TextNodeDumper::Visit(const APValue &Value, QualType Ty) {
     return;
   case APValue::AddrLabelDiff:
     OS << "AddrLabelDiff <todo>";
+    return;
+  case APValue::Reflection:
+    OS << "Reflection <todo>";
     return;
   }
   llvm_unreachable("Unknown APValue kind!");
@@ -840,6 +844,9 @@ void clang::TextNodeDumper::dumpNestedNameSpecifier(const NestedNameSpecifier *N
       break;
     case NestedNameSpecifier::Super:
       OS << " Super";
+      break;
+    case NestedNameSpecifier::IndeterminateSplice:
+      OS << " IndeterminateSplice";
       break;
     }
 

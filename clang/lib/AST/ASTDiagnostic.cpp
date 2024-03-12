@@ -1,5 +1,7 @@
 //===--- ASTDiagnostic.cpp - Diagnostic Printing Hooks for AST Nodes ------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -575,6 +577,8 @@ class TemplateDiff {
       TemplateTemplate,
       /// Integer difference
       Integer,
+      /// Reflection difference
+      Reflection,
       /// Declaration difference, nullptr arguments are included here
       Declaration,
       /// One argument being integer and the other being declaration
@@ -590,7 +594,9 @@ class TemplateDiff {
       QualType ArgType;
       Qualifiers Qual;
       llvm::APSInt Val;
+      ReflectionValue *Refl;
       bool IsValidInt = false;
+      bool IsValidRefl = false;
       Expr *ArgExpr = nullptr;
       TemplateDecl *TD = nullptr;
       ValueDecl *VD = nullptr;
@@ -693,6 +699,25 @@ class TemplateDiff {
       FlatTree[CurrentNode].ToArgInfo.IsValidInt = IsValidToInt;
       FlatTree[CurrentNode].FromArgInfo.ArgType = FromIntType;
       FlatTree[CurrentNode].ToArgInfo.ArgType = ToIntType;
+      FlatTree[CurrentNode].FromArgInfo.ArgExpr = FromExpr;
+      FlatTree[CurrentNode].ToArgInfo.ArgExpr = ToExpr;
+      SetDefault(FromDefault, ToDefault);
+    }
+
+    void SetReflectionDiff(ReflectionValue *FromRefl,
+                           ReflectionValue *ToRefl,
+                           bool IsValidFromRefl, bool IsValidToRefl,
+                           QualType MetaInfoType,
+                           Expr *FromExpr, Expr *ToExpr, bool FromDefault,
+                           bool ToDefault) {
+      assert(FlatTree[CurrentNode].Kind == Invalid && "Node is not empty.");
+      FlatTree[CurrentNode].Kind = Reflection;
+      FlatTree[CurrentNode].FromArgInfo.Refl = FromRefl;
+      FlatTree[CurrentNode].ToArgInfo.Refl = ToRefl;
+      FlatTree[CurrentNode].FromArgInfo.IsValidRefl = IsValidFromRefl;
+      FlatTree[CurrentNode].ToArgInfo.IsValidRefl = IsValidToRefl;
+      FlatTree[CurrentNode].FromArgInfo.ArgType = MetaInfoType;
+      FlatTree[CurrentNode].ToArgInfo.ArgType = MetaInfoType;
       FlatTree[CurrentNode].FromArgInfo.ArgExpr = FromExpr;
       FlatTree[CurrentNode].ToArgInfo.ArgExpr = ToExpr;
       SetDefault(FromDefault, ToDefault);
@@ -1211,6 +1236,8 @@ class TemplateDiff {
                                              NonTypeTemplateParmDecl *Default,
                                              llvm::APSInt &Value, bool &HasInt,
                                              QualType &IntType, bool &IsNullPtr,
+                                             bool &HasReflection,
+                                             ReflectionValue *&ReflValue,
                                              Expr *&E, ValueDecl *&VD,
                                              bool &NeedAddressOf) {
     if (!Iter.isEnd()) {
@@ -1282,20 +1309,26 @@ class TemplateDiff {
     Expr *FromExpr = nullptr, *ToExpr = nullptr;
     llvm::APSInt FromInt, ToInt;
     QualType FromIntType, ToIntType;
+    ReflectionValue *FromRefl, *ToRefl;
     ValueDecl *FromValueDecl = nullptr, *ToValueDecl = nullptr;
     bool HasFromInt = false, HasToInt = false, FromNullPtr = false,
-         ToNullPtr = false, NeedFromAddressOf = false, NeedToAddressOf = false;
+         ToNullPtr = false, NeedFromAddressOf = false, NeedToAddressOf = false,
+         HasFromRefl = false, HasToRefl = false;
     InitializeNonTypeDiffVariables(
         Context, FromIter, FromDefaultNonTypeDecl, FromInt, HasFromInt,
-        FromIntType, FromNullPtr, FromExpr, FromValueDecl, NeedFromAddressOf);
+        FromIntType, FromNullPtr, HasFromRefl, FromRefl, FromExpr,
+        FromValueDecl, NeedFromAddressOf);
     InitializeNonTypeDiffVariables(Context, ToIter, ToDefaultNonTypeDecl, ToInt,
-                                   HasToInt, ToIntType, ToNullPtr, ToExpr,
-                                   ToValueDecl, NeedToAddressOf);
+                                   HasToInt, ToIntType, ToNullPtr, HasToRefl,
+                                   ToRefl, ToExpr, ToValueDecl,
+                                   NeedToAddressOf);
 
     bool FromDefault = FromIter.isEnd() &&
-                       (FromExpr || FromValueDecl || HasFromInt || FromNullPtr);
+                       (FromExpr || FromValueDecl || HasFromInt ||
+                        FromNullPtr || HasFromRefl);
     bool ToDefault = ToIter.isEnd() &&
-                     (ToExpr || ToValueDecl || HasToInt || ToNullPtr);
+                     (ToExpr || ToValueDecl || HasToInt || HasToRefl ||
+                      ToNullPtr);
 
     bool FromDeclaration = FromValueDecl || FromNullPtr;
     bool ToDeclaration = ToValueDecl || ToNullPtr;
@@ -1323,6 +1356,24 @@ class TemplateDiff {
       if (HasFromInt && HasToInt) {
         Tree.SetSame(Context.hasSameType(FromIntType, ToIntType) &&
                      FromInt == ToInt);
+      }
+      return;
+    }
+
+    if (FromDeclaration && HasToRefl) {
+      llvm_unreachable("unimplemented");
+    }
+
+    if (HasFromRefl && ToDeclaration) {
+      llvm_unreachable("unimplemented");
+    }
+
+    if (HasFromRefl || HasToRefl) {
+      Tree.SetReflectionDiff(FromRefl, ToRefl, HasFromRefl, HasToRefl,
+                             Context.MetaInfoTy, FromExpr, ToExpr,
+                             FromDefault, ToDefault);
+      if (HasFromRefl && HasToRefl) {
+        Tree.SetSame(FromRefl == ToRefl);
       }
       return;
     }
@@ -1534,6 +1585,10 @@ class TemplateDiff {
         PrintAPSInt(FromInt, ToInt, IsValidFromInt, IsValidToInt, FromIntType,
                     ToIntType, FromExpr, ToExpr, Tree.FromDefault(),
                     Tree.ToDefault(), Tree.NodeIsSame());
+        return;
+      }
+      case DiffTree::Reflection: {
+        llvm_unreachable("unimplemented");
         return;
       }
       case DiffTree::Declaration: {

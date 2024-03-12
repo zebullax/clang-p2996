@@ -168,6 +168,11 @@ experimental/memory cstddef
 experimental/memory cstdint
 experimental/memory cstring
 experimental/memory limits
+experimental/meta optional
+experimental/meta source_location
+experimental/meta span
+experimental/meta string_view
+experimental/meta vector
 experimental/propagate_const cstddef
 experimental/simd cstddef
 experimental/simd cstdint

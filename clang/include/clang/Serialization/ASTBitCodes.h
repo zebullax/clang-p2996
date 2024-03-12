@@ -1076,6 +1076,9 @@ enum PredefinedTypeIDs {
   /// \brief The '__ibm128' type
   PREDEF_TYPE_IBM128_ID = 74,
 
+  /// \brief The 'std::meta::info' type
+  PREDEF_TYPE_META_INFO_ID = 75,
+
 /// OpenCL image types with auto numeration
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
   PREDEF_TYPE_##Id##_ID,
@@ -1104,7 +1107,7 @@ enum PredefinedTypeIDs {
 ///
 /// Type IDs for non-predefined types will start at
 /// NUM_PREDEF_TYPE_IDs.
-const unsigned NUM_PREDEF_TYPE_IDS = 502;
+const unsigned NUM_PREDEF_TYPE_IDS = 503;
 
 // Ensure we do not overrun the predefined types we reserved
 // in the enum PredefinedTypeIDs above.
@@ -2012,6 +2015,15 @@ enum StmtCode {
   EXPR_COAWAIT,
   EXPR_COYIELD,
   EXPR_DEPENDENT_COAWAIT,
+
+  // C++2c reflection (P2996)
+  EXPR_REFLECT,
+  EXPR_METAFUNCTION,
+  EXPR_SPLICE,
+  EXPR_EXPR_SPLICE,
+  EXPR_DEPENDENT_MEMBER_SPLICE,
+  EXPR_STACK_LOCATION,
+  EXPR_VALUE_OF_LVALUE,
 
   // FixedPointLiteral
   EXPR_FIXEDPOINT_LITERAL,

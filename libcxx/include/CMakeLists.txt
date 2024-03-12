@@ -935,6 +935,7 @@ set(files
   experimental/__simd/vec_ext.h
   experimental/iterator
   experimental/memory
+  experimental/meta
   experimental/propagate_const
   experimental/simd
   experimental/type_traits

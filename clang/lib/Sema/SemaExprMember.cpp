@@ -1,5 +1,7 @@
 //===--- SemaExprMember.cpp - Semantic Analysis for Expressions -----------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -76,7 +78,11 @@ enum IMAKind {
 
   /// All possible referrents are instance members of an unrelated
   /// class.
-  IMA_Error_Unrelated
+  IMA_Error_Unrelated,
+
+  /// The reference is in the context of a reflection operand, which is allowed
+  /// because the context is unevaluated.
+  IMA_Reflection_Operand,
 };
 
 /// The given lookup names class member(s) and is not being used for
@@ -140,6 +146,9 @@ static IMAKind ClassifyImplicitMemberAccess(Sema &SemaRef,
     if (isField && SemaRef.getLangOpts().CPlusPlus11)
       AbstractInstanceResult = IMA_Field_Uneval_Context;
     break;
+
+  case Sema::ExpressionEvaluationContext::ReflectionContext:
+    return IMA_Reflection_Operand;
 
   case Sema::ExpressionEvaluationContext::UnevaluatedAbstract:
     AbstractInstanceResult = IMA_Abstract;
@@ -282,6 +291,7 @@ ExprResult Sema::BuildPossibleImplicitMemberExpr(
     Diag(R.getNameLoc(), diag::warn_cxx98_compat_non_static_member_use)
       << R.getLookupNameInfo().getName();
     [[fallthrough]];
+  case IMA_Reflection_Operand:
   case IMA_Static:
   case IMA_Abstract:
   case IMA_Mixed_StaticOrExplicitContext:
@@ -1214,6 +1224,71 @@ Sema::BuildMemberReferenceExpr(Expr *BaseExpr, QualType BaseExprType,
   return ExprError();
 }
 
+ExprResult
+Sema::BuildMemberReferenceExpr(Scope *S, Expr *Base, SourceLocation OpLoc,
+                               tok::TokenKind OpKind, CXXExprSpliceExpr *RHS,
+                               SourceLocation TemplateKWLoc) {
+  // Disable access control for the duration of the splice expression
+  AccessControlScopeGuard guard {*this, true};
+
+  bool IsArrow = (OpKind == tok::arrow);
+  if (RHS->isValueDependent() || RHS->isTypeDependent())
+    return BuildDependentMemberSpliceExpr(Base, OpLoc, IsArrow, RHS);
+
+  CXXScopeSpec SS;
+  ValueDecl *VD = nullptr;
+  if (auto *DRE = dyn_cast<DeclRefExpr>(RHS->getOperand())) {
+    ValueDecl *D = DRE->getDecl();
+    if (isa<FieldDecl>(D) || isa<CXXMethodDecl>(D)) {
+      VD = D;
+      SS.Adopt(DRE->getQualifierLoc());
+    }
+  }
+  if (!VD || (SS.isSet() && SS.isInvalid())) {
+    Diag(RHS->getExprLoc(), diag::err_member_access_splice_not_class_member);
+    return ExprError();
+  }
+
+  DeclarationNameInfo NameInfo(cast<NamedDecl>(VD)->getDeclName(),
+                               VD->getLocation());
+  LookupResult LR(*this, NameInfo, LookupMemberName);
+  if (LR.empty())
+    LR.addDecl(VD);
+
+  // Obnoxious translating of TemplateArgumentList to TemplateArgumentListInfo..
+  TemplateArgumentListInfo TemplateArgs(RHS->getBeginLoc(), RHS->getEndLoc());
+  if (const auto *FD = dyn_cast<FunctionDecl>(VD)) {
+    if (const TemplateArgumentList *TAs = FD->getTemplateSpecializationArgs())
+      for (const TemplateArgument &TA : TAs->asArray()) {
+        if (TA.getKind() == TemplateArgument::Type) {
+          QualType QT = TA.getAsType();
+          TypeSourceInfo *TSI = Context.CreateTypeSourceInfo(QT, 0);
+          TemplateArgumentLoc TAL(TA, TSI);
+          TemplateArgs.addArgument(TAL);
+        } else {
+          TemplateArgumentLoc TAL(TA, TemplateArgumentLocInfo{});
+          TemplateArgs.addArgument(TAL);
+        }
+      }
+  }
+
+  ExprResult Res = BuildMemberReferenceExpr(
+      Base, Base->getType(), OpLoc, IsArrow, SS, TemplateKWLoc, nullptr, LR,
+      TemplateArgs.size() > 0 ? &TemplateArgs : 0, S, false, nullptr);
+
+  if (!Res.isInvalid() && isa<MemberExpr>(Res.get()))
+    CheckMemberAccessOfNoDeref(cast<MemberExpr>(Res.get()));
+
+  return Res;
+}
+
+ExprResult
+Sema::BuildDependentMemberSpliceExpr(Expr *Base, SourceLocation OpLoc,
+                                     bool IsArrow, CXXExprSpliceExpr *RHS) {
+  return CXXDependentMemberSpliceExpr::Create(Context, Base, OpLoc, IsArrow,
+                                              RHS);
+}
+
 /// Given that normal member access failed on the given expression,
 /// and given that the expression's type involves builtin-id or
 /// builtin-Class, decide whether substituting in the redefinition
@@ -1797,6 +1872,16 @@ ExprResult Sema::ActOnMemberAccessExpr(Scope *S, Expr *Base,
     CheckMemberAccessOfNoDeref(cast<MemberExpr>(Res.get()));
 
   return Res;
+}
+
+/// Variant of ActOnMemberAccessExpr used when the right-hand expression is an
+/// expression splice (C++26, P2996) rather than an unqualified-id.
+ExprResult Sema::ActOnMemberAccessExpr(Scope *S, Expr *Base,
+                                       SourceLocation OpLoc,
+                                       tok::TokenKind OpKind,
+                                       CXXExprSpliceExpr *RHS,
+                                       SourceLocation TemplateKWLoc) {
+  return BuildMemberReferenceExpr(S, Base, OpLoc, OpKind, RHS, TemplateKWLoc);
 }
 
 void Sema::CheckMemberAccessOfNoDeref(const MemberExpr *E) {

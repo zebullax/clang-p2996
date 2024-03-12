@@ -183,6 +183,9 @@ serialization::TypeIdxFromBuiltin(const BuiltinType *BT) {
   case BuiltinType::Char32:
     ID = PREDEF_TYPE_CHAR32_ID;
     break;
+  case BuiltinType::MetaInfo:
+    ID = PREDEF_TYPE_META_INFO_ID;
+    break;
   case BuiltinType::Overload:
     ID = PREDEF_TYPE_OVERLOAD_ID;
     break;

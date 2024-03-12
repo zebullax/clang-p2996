@@ -84,14 +84,16 @@ void use() {
     #pragma acc cache(Arrs.MemArr[3:4].array[4])
   }
   for (int i = 0; i < 10; ++i) {
-    // expected-error@+3{{expected ']'}}
-    // expected-note@+2{{to match this '['}}
-    // expected-warning@+1{{OpenACC construct 'cache' not yet implemented, pragma ignored}}
+    // expected-error@+4{{expected ']'}}
+    // expected-note@+3{{to match this '['}}
+    // expected-warning@+2{{OpenACC construct 'cache' not yet implemented, pragma ignored}}
+    // expected-warning@+1{{enable reflection features}}
     #pragma acc cache(Arrs.MemArr[3:4:].array[4])
   }
   for (int i = 0; i < 10; ++i) {
-    // expected-error@+2{{expected expression}}
-    // expected-warning@+1{{OpenACC construct 'cache' not yet implemented, pragma ignored}}
+    // expected-error@+3{{expected expression}}
+    // expected-warning@+2{{OpenACC construct 'cache' not yet implemented, pragma ignored}}
+    // expected-warning@+1 2{{enable reflection features}}
     #pragma acc cache(Arrs.MemArr[:].array[4])
   }
   for (int i = 0; i < 10; ++i) {
@@ -100,15 +102,17 @@ void use() {
     #pragma acc cache(Arrs.MemArr[::].array[4])
   }
   for (int i = 0; i < 10; ++i) {
-    // expected-error@+4{{expected expression}}
-    // expected-error@+3{{expected ']'}}
-    // expected-note@+2{{to match this '['}}
-    // expected-warning@+1{{OpenACC construct 'cache' not yet implemented, pragma ignored}}
+    // expected-error@+5{{expected expression}}
+    // expected-error@+4{{expected ']'}}
+    // expected-note@+3{{to match this '['}}
+    // expected-warning@+2{{OpenACC construct 'cache' not yet implemented, pragma ignored}}
+    // expected-warning@+1 2{{enable reflection features}}
     #pragma acc cache(Arrs.MemArr[: :].array[4])
   }
   for (int i = 0; i < 10; ++i) {
-    // expected-error@+2{{expected expression}}
-    // expected-warning@+1{{OpenACC construct 'cache' not yet implemented, pragma ignored}}
+    // expected-error@+3{{expected expression}}
+    // expected-warning@+2{{OpenACC construct 'cache' not yet implemented, pragma ignored}}
+    // expected-warning@+1{{enable reflection features}}
     #pragma acc cache(Arrs.MemArr[3:].array[4])
   }
   func<S, 5>();

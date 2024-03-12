@@ -8,8 +8,8 @@
 [[using foo
 ] // expected-error {{expected ':'}}
 ] extern int n;
-[[using 42:]] extern int n; // expected-error {{expected identifier}}
-[[using clang:]] extern int n; // ok
+[[using 42:]] extern int n; // expected-error {{expected identifier}} expected-warning {{enable reflection}}
+[[using clang:]] extern int n; // expected-warning {{enable reflection}}
 [[using blah: clang::optnone]] extern int n; // expected-error {{attribute with scope specifier cannot follow}} expected-warning {{only applies to functions}}
 
 [[using clang: unknown_attr]] extern int n; // expected-warning {{unknown attribute}}

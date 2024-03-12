@@ -325,6 +325,7 @@ LinkageComputer::getLVForTemplateArgumentList(ArrayRef<TemplateArgument> Args,
     switch (Arg.getKind()) {
     case TemplateArgument::Null:
     case TemplateArgument::Integral:
+    case TemplateArgument::Reflection:
     case TemplateArgument::Expression:
       continue;
 

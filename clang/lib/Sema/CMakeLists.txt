@@ -20,6 +20,7 @@ add_clang_library(clangSema
   HLSLExternalSemaSource.cpp
   IdentifierResolver.cpp
   JumpDiagnostics.cpp
+  Metafunctions.cpp
   MultiplexExternalSemaSource.cpp
   ParsedAttr.cpp
   Scope.cpp
@@ -57,6 +58,7 @@ add_clang_library(clangSema
   SemaOpenMP.cpp
   SemaOverload.cpp
   SemaPseudoObject.cpp
+  SemaReflect.cpp
   SemaRISCVVectorLookup.cpp
   SemaStmt.cpp
   SemaStmtAsm.cpp

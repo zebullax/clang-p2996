@@ -1,5 +1,7 @@
 //===--- ParseExprCXX.cpp - C++ Expression Parsing ------------------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -231,9 +233,29 @@ bool Parser::ParseOptionalCXXScopeSpecifier(
       SS.SetInvalid(SourceRange(DeclLoc, CCLoc));
 
     HasScopeSpecifier = true;
-  }
+  } else if (!HasScopeSpecifier && Tok.is(tok::l_splice)) {
+    if (ParseCXXIndeterminateSplice()) {
+      return true;
+    }
 
-  else if (!HasScopeSpecifier && Tok.is(tok::identifier) &&
+    if (!NextToken().is(tok::coloncolon)) {
+      // This isn't a nested-name-specifier; leave the 'annot_splice' token.
+      return false;
+    }
+    ExprResult Result = getExprAnnotation(Tok);
+    ConsumeAnnotationToken();
+
+    SourceLocation CCLoc;
+    TryConsumeToken(tok::coloncolon, CCLoc);
+    CXXIndeterminateSpliceExpr *SpliceExpr =
+          dyn_cast<CXXIndeterminateSpliceExpr>(Result.get());
+    if (Actions.ActOnCXXNestedNameSpecifierReflectionSplice(SS, SpliceExpr,
+                                                            CCLoc)) {
+      SS.SetInvalid(SourceRange(SpliceExpr->getExprLoc(), CCLoc));
+      return true;
+    }
+    HasScopeSpecifier = true;
+  } else if (!HasScopeSpecifier && Tok.is(tok::identifier) &&
            GetLookAheadToken(1).is(tok::ellipsis) &&
            GetLookAheadToken(2).is(tok::l_square)) {
     SourceLocation Start = Tok.getLocation();

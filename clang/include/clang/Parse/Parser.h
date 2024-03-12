@@ -1,5 +1,7 @@
 //===--- Parser.h - C Language Parser ---------------------------*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -78,7 +80,8 @@ class Parser : public CodeCompletionHandler {
   /// Used by code completion for ranking.
   PreferredTypeBuilder PreferredType;
 
-  unsigned short ParenCount = 0, BracketCount = 0, BraceCount = 0;
+  unsigned short ParenCount = 0, BracketCount = 0;
+  unsigned short BraceCount = 0, SpliceCount = 0;
   unsigned short MisplacedModuleBeginCount = 0;
 
   /// Actions - These are the callbacks we invoke as we parse various constructs
@@ -361,16 +364,17 @@ class Parser : public CodeCompletionHandler {
       Expr *TemplateName;
       SourceLocation LessLoc;
       AngleBracketTracker::Priority Priority;
-      unsigned short ParenCount, BracketCount, BraceCount;
+      unsigned short ParenCount, BracketCount, BraceCount, SpliceCount;
 
       bool isActive(Parser &P) const {
         return P.ParenCount == ParenCount && P.BracketCount == BracketCount &&
-               P.BraceCount == BraceCount;
+               P.BraceCount == BraceCount && P.SpliceCount == SpliceCount;
       }
 
       bool isActiveOrNested(Parser &P) const {
         return isActive(P) || P.ParenCount > ParenCount ||
-               P.BracketCount > BracketCount || P.BraceCount > BraceCount;
+               P.BracketCount > BracketCount || P.BraceCount > BraceCount ||
+               P.SpliceCount > SpliceCount;
       }
     };
 
@@ -391,7 +395,8 @@ class Parser : public CodeCompletionHandler {
         }
       } else {
         Locs.push_back({TemplateName, LessLoc, Prio,
-                        P.ParenCount, P.BracketCount, P.BraceCount});
+                        P.ParenCount, P.BracketCount,
+                        P.BraceCount, P.SpliceCount});
       }
     }
 
@@ -584,6 +589,10 @@ private:
   bool isTokenBrace() const {
     return Tok.isOneOf(tok::l_brace, tok::r_brace);
   }
+  /// isTokenSplice - Return true if the cur token is "[:" or ":]".
+  bool isTokenSplice() const {
+    return Tok.isOneOf(tok::l_splice, tok::r_splice);
+  }
   /// isTokenStringLiteral - True if this token is a string-literal.
   bool isTokenStringLiteral() const {
     return tok::isStringLiteral(Tok.getKind());
@@ -645,6 +654,22 @@ private:
     PP.Lex(Tok);
     return PrevTokLocation;
   }
+
+  /// ConsumeSplice - This consume methods keeps the splice count up-to-date.
+  SourceLocation ConsumeSplice() {
+    assert(isTokenSplice() && "wrong consume method");
+    if (Tok.getKind() == tok::l_splice)
+      ++SpliceCount;
+    else if (SpliceCount) {
+      AngleBrackets.clear(*this);
+      --SpliceCount;     // Don't let unbalanced :]'s drive the count negative.
+    }
+
+    PrevTokLocation = Tok.getLocation();
+    PP.Lex(Tok);
+    return PrevTokLocation;
+  }
+
 
   /// ConsumeBrace - This consume method keeps the brace count up-to-date.
   ///
@@ -995,7 +1020,8 @@ private:
     PreferredTypeBuilder PrevPreferredType;
     Token PrevTok;
     size_t PrevTentativelyDeclaredIdentifierCount;
-    unsigned short PrevParenCount, PrevBracketCount, PrevBraceCount;
+    unsigned short PrevParenCount, PrevBracketCount;
+    unsigned short PrevBraceCount, PrevSpliceCount;
     bool isActive;
 
   public:
@@ -1007,6 +1033,7 @@ private:
       PrevParenCount = P.ParenCount;
       PrevBracketCount = P.BracketCount;
       PrevBraceCount = P.BraceCount;
+      PrevSpliceCount = P.SpliceCount;
       P.PP.EnableBacktrackAtThisPos();
       isActive = true;
     }
@@ -1026,6 +1053,7 @@ private:
           PrevTentativelyDeclaredIdentifierCount);
       P.ParenCount = PrevParenCount;
       P.BracketCount = PrevBracketCount;
+      P.SpliceCount = PrevSpliceCount;
       P.BraceCount = PrevBraceCount;
       isActive = false;
     }
@@ -2249,6 +2277,7 @@ private:
     DSC_condition,          // condition declaration context
     DSC_association, // A _Generic selection expression's type association
     DSC_new,         // C++ new expression
+    DSC_reflect_operator,  // C++2c reflect operator (P2996)
   };
 
   /// Is this a context in which we are parsing just a type-specifier (or
@@ -2262,6 +2291,7 @@ private:
     case DeclSpecContext::DSC_top_level:
     case DeclSpecContext::DSC_objc_method_result:
     case DeclSpecContext::DSC_condition:
+    case DeclSpecContext::DSC_reflect_operator:
       return false;
 
     case DeclSpecContext::DSC_template_type_arg:
@@ -2320,6 +2350,7 @@ private:
     case DeclSpecContext::DSC_conv_operator:
     case DeclSpecContext::DSC_template_arg:
     case DeclSpecContext::DSC_new:
+    case DeclSpecContext::DSC_reflect_operator:
       return AllowDefiningTypeSpec::No;
     }
     llvm_unreachable("Missing DeclSpecContext case");
@@ -2344,6 +2375,7 @@ private:
     case DeclSpecContext::DSC_conv_operator:
     case DeclSpecContext::DSC_template_arg:
     case DeclSpecContext::DSC_new:
+    case DeclSpecContext::DSC_reflect_operator:
 
       return false;
     }
@@ -2364,6 +2396,7 @@ private:
     case DeclSpecContext::DSC_association:
     case DeclSpecContext::DSC_conv_operator:
     case DeclSpecContext::DSC_new:
+    case DeclSpecContext::DSC_reflect_operator:
       return true;
 
     case DeclSpecContext::DSC_objc_method_result:
@@ -2395,6 +2428,7 @@ private:
     case DeclSpecContext::DSC_template_arg:
     case DeclSpecContext::DSC_conv_operator:
     case DeclSpecContext::DSC_association:
+    case DeclSpecContext::DSC_reflect_operator:
       return ImplicitTypenameContext::No;
     }
     llvm_unreachable("Missing DeclSpecContext case");
@@ -2568,6 +2602,7 @@ private:
     TypeIdAsTemplateArgument,
     TypeIdInTrailingReturnType,
     TypeIdAsGenericSelectionArgument,
+    TypeIdAsReflectionOperand,
   };
 
   /// isTypeIdInParens - Assumes that a '(' was parsed and now we want to know
@@ -3220,6 +3255,8 @@ private:
   };
   using InnerNamespaceInfoList = llvm::SmallVector<InnerNamespaceInfo, 4>;
 
+  Decl *ParseNamespaceName(CXXScopeSpec &SS, SourceLocation &IdentLoc);
+
   void ParseInnerNamespace(const InnerNamespaceInfoList &InnerNSs,
                            unsigned int index, SourceLocation &InlineLoc,
                            ParsedAttributes &attrs,
@@ -3696,6 +3733,7 @@ private:
                                  TemplateTy Template, SourceLocation OpenLoc);
   ParsedTemplateArgument ParseTemplateTemplateArgument();
   ParsedTemplateArgument ParseTemplateArgument();
+  ParsedTemplateArgument ParseTemplateReflectOperand();
   DeclGroupPtrTy ParseExplicitInstantiation(DeclaratorContext Context,
                                             SourceLocation ExternLoc,
                                             SourceLocation TemplateLoc,
@@ -3746,6 +3784,17 @@ private:
   // Embarcadero: Arary and Expression Traits
   ExprResult ParseArrayTypeTrait();
   ExprResult ParseExpressionTrait();
+
+  //===--------------------------------------------------------------------===//
+  // C++2c: Reflection [P2996]
+  ExprResult ParseCXXReflectExpression();
+  ExprResult ParseCXXMetafunctionExpression();
+
+  bool ParseCXXIndeterminateSplice();
+
+  TypeResult ParseCXXSpliceAsType(bool AllowDependent, bool Complain);
+  ExprResult ParseCXXSpliceAsExpr();
+  DeclResult ParseCXXSpliceAsNamespace();
 
   //===--------------------------------------------------------------------===//
   // Preprocessor code-completion pass-through

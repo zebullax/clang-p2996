@@ -1,5 +1,7 @@
 //===- ASTStructuralEquivalence.cpp ---------------------------------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -562,8 +564,11 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
   case NestedNameSpecifier::Global:
     return true;
   case NestedNameSpecifier::Super:
-    return IsStructurallyEquivalent(Context, NNS1->getAsRecordDecl(),
+    return IsStructurallyEquivalent(Context,
+                                    NNS1->getAsRecordDecl(),
                                     NNS2->getAsRecordDecl());
+  case NestedNameSpecifier::IndeterminateSplice:
+    llvm::report_fatal_error("unimplemented: IsStructurallyEquivalent");
   }
   return false;
 }
@@ -666,6 +671,9 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 
     return llvm::APSInt::isSameValue(Arg1.getAsIntegral(),
                                      Arg2.getAsIntegral());
+
+  case TemplateArgument::Reflection:
+    return Arg1.getAsReflection() == Arg2.getAsReflection();
 
   case TemplateArgument::Declaration:
     return IsStructurallyEquivalent(Context, Arg1.getAsDecl(), Arg2.getAsDecl());
@@ -1132,6 +1140,13 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     if (!IsStructurallyEquivalent(Context,
                                   cast<DecltypeType>(T1)->getUnderlyingExpr(),
                                   cast<DecltypeType>(T2)->getUnderlyingExpr()))
+      return false;
+    break;
+
+  case Type::ReflectionSplice:
+    if (!IsStructurallyEquivalent(Context,
+                                  cast<ReflectionSpliceType>(T1)->getOperand(),
+                                  cast<ReflectionSpliceType>(T2)->getOperand()))
       return false;
     break;
 

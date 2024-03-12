@@ -1993,6 +1993,13 @@ void CodeGenFunction::ErrorUnsupported(const Stmt *S, const char *Type) {
   CGM.ErrorUnsupported(S, Type);
 }
 
+/// ErrorNonConstexprMetaType - Print out an error that meta type values must be
+/// constexpr.
+void CodeGenFunction::ErrorNonConstexprMetaType(const Stmt *S) {
+  CGM.Error(S->getBeginLoc(),
+            "values of meta types may only appear in constexpr contexts");
+}
+
 /// emitNonZeroVLAInit - Emit the "zero" initialization of a
 /// variable-length array whose elements have a non-zero bit-pattern.
 ///
@@ -2413,6 +2420,7 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
 
     case Type::Typedef:
     case Type::Decltype:
+    case Type::ReflectionSplice:
     case Type::Auto:
     case Type::DeducedTemplateSpecialization:
     case Type::PackIndexing:

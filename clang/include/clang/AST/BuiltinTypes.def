@@ -1,5 +1,7 @@
 //===-- BuiltinTypes.def - Metadata about BuiltinTypes ----------*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -225,6 +227,10 @@ FLOATING_TYPE(Ibm128, Ibm128Ty)
 
 // This is the type of C++0x 'nullptr'.
 BUILTIN_TYPE(NullPtr, NullPtrTy)
+
+// This is this type proposed for C++2c by P2996 for representing
+// internal compiler objects reflected by a value.
+BUILTIN_TYPE(MetaInfo, MetaInfoTy)
 
 // The primitive Objective C 'id' type.  The user-visible 'id'
 // type is a typedef of an ObjCObjectPointerType to an

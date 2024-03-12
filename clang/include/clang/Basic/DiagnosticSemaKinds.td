@@ -1,5 +1,7 @@
 //==--- DiagnosticSemaKinds.td - libsema diagnostics ----------------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -3051,6 +3053,43 @@ def err_type_constraint_missing_arguments : Error<
   "explicitly to use it here">;
 def err_placeholder_constraints_not_satisfied : Error<
   "deduced type %0 does not satisfy %1">;
+
+// Reflection
+def err_meta_type_constexpr : Error<"meta type variables must be constexpr">;
+def err_reflect_non_constexpr : Error<
+  "expression operand of reflection operator must be a constant expression">;
+def err_reflect_overload_set : Error<
+  "cannot take the reflection of an overload set">;
+def err_template_arg_bad_reflection_kind : Error<
+  "reflection of this kind cannot appear as a template argument">;
+def err_reflect_dependent_splice : Error<
+  "cannot take the reflection of a dependent splice expression">;
+
+def err_metafunction_empty_args : Error<
+  "__metafunction requires arguments">;
+def err_metafunction_leading_arg_type : Error<
+  "leading argument of __metafunction must have integral type">;
+def err_metafunction_not_constexpr : Error<
+  "arguments of __metafunction must be constant expressions">;
+def err_unknown_metafunction : Error<
+  "leading argument to __metafunction does not identify a metafunction">;
+def err_metafunction_arity : Error<
+  "expected between %0 and %1 arguments (%2 given)">;
+
+def err_splice_operand_not_reflection : Error<
+  "splice operand must be a reflection">;
+def err_splice_operand_not_constexpr : Error<
+  "splice operand must be a constant expression">;
+def err_unexpected_reflection_kind : Error<
+  "expected a reflection of %select{a|an|a}0 "
+  "%select{type|expression|namespace}0">;
+def err_splice_global_scope_as_namespace : Error<
+  "splice of global scope can only appear in a nested-name-specifier">;
+def err_member_access_splice_not_class_member : Error<
+  "use of splice as qualified member access requires the reflection to be a "
+  "member of a class">;
+def err_unsupported_splice_kind : Error<
+  "splicing %0 is %select{not|not yet}1 %select{supported|implemented}1">;
 
 // C++11 char16_t/char32_t
 def warn_cxx98_compat_unicode_type : Warning<

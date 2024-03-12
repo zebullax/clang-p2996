@@ -1473,6 +1473,8 @@ enum CXTemplateArgumentKind clang_Cursor_getTemplateArgumentKind(CXCursor C,
     return CXTemplateArgumentKind_NullPtr;
   case TemplateArgument::Integral:
     return CXTemplateArgumentKind_Integral;
+  case TemplateArgument::Reflection:
+    return CXTemplateArgumentKind_Reflection;
   case TemplateArgument::StructuralValue:
     // FIXME: Expose these values.
     return CXTemplateArgumentKind_Invalid;

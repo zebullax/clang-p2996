@@ -552,9 +552,10 @@ void VarListClauses() {
 #pragma acc serial copy(HasMem.MemArr[1:3].array[1:2]), seq
   for(;;){}
 
-  // expected-error@+3{{expected expression}}
-  // expected-warning@+2{{OpenACC clause 'copy' not yet implemented, clause ignored}}
-  // expected-warning@+1{{OpenACC clause 'seq' not yet implemented, clause ignored}}
+  // expected-error@+4{{expected expression}}
+  // expected-warning@+3{{OpenACC clause 'copy' not yet implemented, clause ignored}}
+  // expected-warning@+2{{OpenACC clause 'seq' not yet implemented, clause ignored}}
+  // expected-warning@+1 2{{enable reflection features}}
 #pragma acc serial copy(HasMem.MemArr[:]), seq
   for(;;){}
 
@@ -564,17 +565,19 @@ void VarListClauses() {
 #pragma acc serial copy(HasMem.MemArr[::]), seq
   for(;;){}
 
-  // expected-error@+5{{expected expression}}
-  // expected-error@+4{{expected ']'}}
-  // expected-note@+3{{to match this '['}}
-  // expected-warning@+2{{OpenACC clause 'copy' not yet implemented, clause ignored}}
-  // expected-warning@+1{{OpenACC clause 'seq' not yet implemented, clause ignored}}
+  // expected-error@+6{{expected expression}}
+  // expected-error@+5{{expected ']'}}
+  // expected-note@+4{{to match this '['}}
+  // expected-warning@+3{{OpenACC clause 'copy' not yet implemented, clause ignored}}
+  // expected-warning@+2{{OpenACC clause 'seq' not yet implemented, clause ignored}}
+  // expected-warning@+1 2{{enable reflection features}}
 #pragma acc serial copy(HasMem.MemArr[: :]), seq
   for(;;){}
 
-  // expected-error@+3{{expected expression}}
-  // expected-warning@+2{{OpenACC clause 'copy' not yet implemented, clause ignored}}
-  // expected-warning@+1{{OpenACC clause 'seq' not yet implemented, clause ignored}}
+  // expected-error@+4{{expected expression}}
+  // expected-warning@+3{{OpenACC clause 'copy' not yet implemented, clause ignored}}
+  // expected-warning@+2{{OpenACC clause 'seq' not yet implemented, clause ignored}}
+  // expected-warning@+1{{enable reflection features}}
 #pragma acc serial copy(HasMem.MemArr[3:]), seq
   for(;;){}
 

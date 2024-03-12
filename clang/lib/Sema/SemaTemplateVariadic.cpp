@@ -1,5 +1,7 @@
 //===------- SemaTemplateVariadic.cpp - C++ Variadic Templates ------------===/
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -95,6 +97,22 @@ namespace {
       if (E->getDecl()->isParameterPack())
         addUnexpanded(E->getDecl(), E->getLocation());
 
+      return true;
+    }
+
+    // Record occurrences of function and non-type template parameters packs in
+    // an expression.
+    bool VisitCXXReflectExpr(CXXReflectExpr *E) {
+      if (E->getOperand().getKind() == ReflectionValue::RK_declaration) {
+        ValueDecl *VD = E->getOperand().getAsDecl();
+        if (VD->isParameterPack())
+          addUnexpanded(VD, E->getExprLoc());
+      } else if (E->getOperand().getKind() == ReflectionValue::RK_template) {
+        TemplateName TName = E->getOperand().getAsTemplate();
+        if (TName.containsUnexpandedParameterPack()) {
+          addUnexpanded(TName.getAsTemplateDecl());
+        }
+      }
       return true;
     }
 
@@ -890,6 +908,7 @@ bool Sema::containsUnexpandedParameterPacks(Declarator &D) {
   case TST_typeof_unqualExpr:
   case TST_typeofExpr:
   case TST_decltype:
+  case TST_type_splice:
   case TST_bitint:
     if (DS.getRepAsExpr() &&
         DS.getRepAsExpr()->containsUnexpandedParameterPack())
@@ -1074,6 +1093,11 @@ static bool isParameterPack(Expr *PackExpression) {
   if (auto *D = dyn_cast<DeclRefExpr>(PackExpression); D) {
     ValueDecl *VD = D->getDecl();
     return VD->isParameterPack();
+  } else if (auto *D = dyn_cast<CXXReflectExpr>(PackExpression);
+             D && D->getOperand().getKind() ==
+                    ReflectionValue::RK_declaration) {
+    ValueDecl *VD = D->getOperand().getAsDecl();
+    return VD->isParameterPack();
   }
   return false;
 }
@@ -1180,6 +1204,7 @@ TemplateArgumentLoc Sema::getTemplateArgumentPackExpansionPattern(
   case TemplateArgument::NullPtr:
   case TemplateArgument::Template:
   case TemplateArgument::Integral:
+  case TemplateArgument::Reflection:
   case TemplateArgument::StructuralValue:
   case TemplateArgument::Pack:
   case TemplateArgument::Null:
@@ -1231,6 +1256,7 @@ std::optional<unsigned> Sema::getFullyPackExpandedSize(TemplateArgument Arg) {
   case TemplateArgument::NullPtr:
   case TemplateArgument::TemplateExpansion:
   case TemplateArgument::Integral:
+  case TemplateArgument::Reflection:
   case TemplateArgument::StructuralValue:
   case TemplateArgument::Pack:
   case TemplateArgument::Null:

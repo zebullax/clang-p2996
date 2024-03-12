@@ -3315,6 +3315,7 @@ static bool TypeInfoIsInStandardLibrary(const BuiltinType *Ty) {
   switch (Ty->getKind()) {
     case BuiltinType::Void:
     case BuiltinType::NullPtr:
+    case BuiltinType::MetaInfo:
     case BuiltinType::Bool:
     case BuiltinType::WChar_S:
     case BuiltinType::WChar_U:

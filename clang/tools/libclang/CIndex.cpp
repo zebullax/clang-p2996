@@ -1,5 +1,7 @@
 //===- CIndex.cpp - Clang-C Source Indexing Library -----------------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -1569,6 +1571,7 @@ bool CursorVisitor::VisitTemplateArgumentLoc(const TemplateArgumentLoc &TAL) {
   switch (TAL.getArgument().getKind()) {
   case TemplateArgument::Null:
   case TemplateArgument::Integral:
+  case TemplateArgument::Reflection:
   case TemplateArgument::Pack:
     return false;
 
@@ -1886,6 +1889,13 @@ bool CursorVisitor::VisitPackExpansionTypeLoc(PackExpansionTypeLoc TL) {
 
 bool CursorVisitor::VisitDecltypeTypeLoc(DecltypeTypeLoc TL) {
   if (Expr *E = TL.getUnderlyingExpr())
+    return Visit(MakeCXCursor(E, StmtParent, TU));
+
+  return false;
+}
+
+bool CursorVisitor::VisitReflectionSpliceTypeLoc(ReflectionSpliceTypeLoc TL) {
+  if (Expr *E = TL.getOperand())
     return Visit(MakeCXCursor(E, StmtParent, TU));
 
   return false;

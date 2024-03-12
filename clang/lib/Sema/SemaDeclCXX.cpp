@@ -1,5 +1,7 @@
 //===------ SemaDeclCXX.cpp - Semantic Analysis for C++ Declarations ------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -11992,6 +11994,20 @@ NamespaceDecl *Sema::getOrCreateStdNamespace() {
   return getStdNamespace();
 }
 
+/// Retrieve the special "std::meta" namespace, if it's been defined.
+NamespaceDecl *Sema::lookupStdMetaNamespace() {
+  if (!StdMetaNamespace) {
+    if (NamespaceDecl *Std = getStdNamespace()) {
+      LookupResult Result(*this, &PP.getIdentifierTable().get("meta"),
+                          SourceLocation(), LookupNamespaceName);
+      if (!LookupQualifiedName(Result, Std) ||
+          !(StdMetaNamespace = Result.getAsSingle<NamespaceDecl>()))
+      Result.suppressDiagnostics();
+    }
+  }
+  return StdMetaNamespace;
+}
+
 bool Sema::isStdInitializerList(QualType Ty, QualType *Element) {
   assert(getLangOpts().CPlusPlus &&
          "Looking for std::initializer_list outside of C++.");
@@ -12205,6 +12221,28 @@ static bool TryNamespaceTypoCorrection(Sema &S, LookupResult &R, Scope *Sc,
   return false;
 }
 
+Decl *Sema::ActOnNamespaceName(Scope *S, CXXScopeSpec &SS, IdentifierInfo *Id,
+                               SourceLocation IdLoc) {
+  // Look up namespace name.
+  LookupResult R(*this, Id, IdLoc, LookupNamespaceName);
+  LookupParsedName(R, S, &SS);
+  if (R.isAmbiguous())
+    return nullptr;
+
+  if (R.empty() && !isReflectionContext())
+    // Attempt a correction.
+    TryNamespaceTypoCorrection(*this, R, S, SS, IdLoc, Id);
+
+  if (R.empty())
+    return nullptr;
+
+  if (isReflectionContext())
+    if (auto *AD = R.getAsSingle<NamespaceAliasDecl>())
+      return AD;
+
+  return R.getAsSingle<NamespaceDecl>();
+}
+
 Decl *Sema::ActOnUsingDirective(Scope *S, SourceLocation UsingLoc,
                                 SourceLocation NamespcLoc, CXXScopeSpec &SS,
                                 SourceLocation IdentLoc,
@@ -12250,26 +12288,47 @@ Decl *Sema::ActOnUsingDirective(Scope *S, SourceLocation UsingLoc,
     // The use of a nested name specifier may trigger deprecation warnings.
     DiagnoseUseOfDecl(Named, IdentLoc);
 
-    // C++ [namespace.udir]p1:
-    //   A using-directive specifies that the names in the nominated
-    //   namespace can be used in the scope in which the
-    //   using-directive appears after the using-directive. During
-    //   unqualified name lookup (3.4.1), the names appear as if they
-    //   were declared in the nearest enclosing namespace which
-    //   contains both the using-directive and the nominated
-    //   namespace. [Note: in this context, "contains" means "contains
-    //   directly or indirectly". ]
+    Decl *Result = ActOnUsingDirective(S, UsingLoc, NamespcLoc, SS, IdentLoc, Named,
+                                       NS, AttrList);
+    if (Result)
+      UDir = cast<UsingDirectiveDecl>(Result);
+  } else {
+    Diag(IdentLoc, diag::err_expected_namespace_name) << SS.getRange();
+  }
 
-    // Find enclosing context containing both using-directive and
-    // nominated namespace.
-    DeclContext *CommonAncestor = NS;
-    while (CommonAncestor && !CommonAncestor->Encloses(CurContext))
-      CommonAncestor = CommonAncestor->getParent();
+  return UDir;
+}
 
-    UDir = UsingDirectiveDecl::Create(Context, CurContext, UsingLoc, NamespcLoc,
-                                      SS.getWithLocInContext(Context),
-                                      IdentLoc, Named, CommonAncestor);
+Decl *Sema::ActOnUsingDirective(Scope *S, SourceLocation UsingLoc,
+                                SourceLocation NamespcLoc, CXXScopeSpec &SS,
+                                SourceLocation IdentLoc, NamedDecl *Named,
+                                NamespaceDecl *NS,
+                                const ParsedAttributesView &AttrList) {
+  assert(!SS.isInvalid() && "Invalid CXXScopeSpec.");
+  assert(IdentLoc.isValid() && "Invalid NamespceName location.");
 
+  // C++ [namespace.udir]p1:
+  //   A using-directive specifies that the names in the nominated
+  //   namespace can be used in the scope in which the
+  //   using-directive appears after the using-directive. During
+  //   unqualified name lookup (3.4.1), the names appear as if they
+  //   were declared in the nearest enclosing namespace which
+  //   contains both the using-directive and the nominated
+  //   namespace. [Note: in this context, "contains" means "contains
+  //   directly or indirectly". ]
+
+  // Find enclosing context containing both using-directive and nominated
+  // namespace.
+  DeclContext *CommonAncestor = NS;
+  while (CommonAncestor && !CommonAncestor->Encloses(CurContext))
+    CommonAncestor = CommonAncestor->getParent();
+
+  UsingDirectiveDecl *UDir =
+       UsingDirectiveDecl::Create(Context, CurContext, UsingLoc, NamespcLoc,
+                                  SS.getWithLocInContext(Context),
+                                  IdentLoc, Named, CommonAncestor);
+
+  if (UDir) {
     if (IsUsingDirectiveInToplevelContext(CurContext) &&
         !SourceMgr.isInMainFile(SourceMgr.getExpansionLoc(IdentLoc))) {
       Diag(IdentLoc, diag::warn_using_directive_in_header);
@@ -13696,6 +13755,15 @@ Decl *Sema::ActOnNamespaceAliasDef(Scope *S, SourceLocation NamespaceLoc,
   assert(!R.isAmbiguous() && !R.empty());
   NamedDecl *ND = R.getRepresentativeDecl();
 
+  return ActOnNamespaceAliasDef(S, NamespaceLoc, AliasLoc, Alias, SS, IdentLoc,
+                                ND);
+}
+
+Decl *Sema::ActOnNamespaceAliasDef(Scope *S, SourceLocation NamespaceLoc,
+                                   SourceLocation AliasLoc,
+                                   IdentifierInfo *Alias, CXXScopeSpec &SS,
+                                   SourceLocation IdentLoc,
+                                   NamedDecl *ND) {
   // Check if we have a previous declaration with the same name.
   LookupResult PrevR(*this, Alias, AliasLoc, LookupOrdinaryName,
                      ForVisibleRedeclaration);
@@ -13750,6 +13818,7 @@ Decl *Sema::ActOnNamespaceAliasDef(Scope *S, SourceLocation NamespaceLoc,
   PushOnScopeChains(AliasDecl, S);
   return AliasDecl;
 }
+
 
 namespace {
 struct SpecialMemberExceptionSpecInfo

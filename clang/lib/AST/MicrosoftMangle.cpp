@@ -1,5 +1,7 @@
 //===--- MicrosoftMangle.cpp - Microsoft Visual C++ Name Mangling ---------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -22,6 +24,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/GlobalDecl.h"
+#include "clang/AST/LocInfoType.h"
 #include "clang/AST/Mangle.h"
 #include "clang/AST/VTableBuilder.h"
 #include "clang/Basic/ABI.h"
@@ -456,6 +459,7 @@ private:
                          const NamedDecl *Parm);
   void mangleTemplateArgValue(QualType T, const APValue &V, TplArgKind,
                               bool WithScalarType = false);
+  void mangleReflection(const ReflectionValue &R);
 
   void mangleObjCProtocol(const ObjCProtocolDecl *PD);
   void mangleObjCLifetime(const QualType T, Qualifiers Quals,
@@ -1650,6 +1654,7 @@ void MicrosoftCXXNameMangler::mangleTemplateArg(const TemplateDecl *TD,
   //                  ::= H <mangled-name> <number>
   //                  ::= I <mangled-name> <number> <number>
   //                  ::= J <mangled-name> <number> <number> <number>
+  //                  ::= M <mangled-name>
   //
   // <typed-constant-value> ::= [<type>] <constant-value>
   //
@@ -1696,6 +1701,10 @@ void MicrosoftCXXNameMangler::mangleTemplateArg(const TemplateDecl *TD,
     QualType T = TA.getIntegralType();
     mangleIntegerLiteral(TA.getAsIntegral(),
                          cast<NonTypeTemplateParmDecl>(Parm), T);
+    break;
+  }
+  case TemplateArgument::Reflection: {
+    mangleReflection(TA.getAsReflection());
     break;
   }
   case TemplateArgument::NullPtr: {
@@ -2005,12 +2014,49 @@ void MicrosoftCXXNameMangler::mangleTemplateArgValue(QualType T,
   case APValue::AddrLabelDiff:
   case APValue::FixedPoint:
     break;
+
+  case APValue::Reflection:
+    llvm_unreachable("reflection arguments should be separately handled");
+    return;
   }
 
   DiagnosticsEngine &Diags = Context.getDiags();
   unsigned DiagID = Diags.getCustomDiagID(
       DiagnosticsEngine::Error, "cannot mangle this template argument yet");
   Diags.Report(DiagID);
+}
+
+void MicrosoftCXXNameMangler::mangleReflection(const ReflectionValue &R) {
+  Out << 'M';
+
+  const void *opaque = R.getOpaqueValue();
+  switch (R.getKind()) {
+  case ReflectionValue::RK_type: {
+    Out << 't';
+    QualType QT = QualType::getFromOpaquePtr(opaque);
+    if (const LocInfoType *LIT = dyn_cast<LocInfoType>(QT)) {
+      QT = LIT->getType();
+    }
+
+    if (const ElaboratedType *UD = dyn_cast<ElaboratedType>(QT)) {
+      if (const TypedefType *TDT = dyn_cast<TypedefType>(UD->getNamedType())) {
+        mangleQualifiers(QT.getQualifiers(), false);
+        mangleName(TDT->getDecl());  // <- not sure if this is right.
+        break;
+      }
+    }
+    Context.mangleCanonicalTypeName(QT, Out, false);
+    break;
+  }
+  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_declaration:
+  case ReflectionValue::RK_template:
+  case ReflectionValue::RK_namespace:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+    llvm_unreachable("unimplemented");
+  }
+  Out << 'E';
 }
 
 void MicrosoftCXXNameMangler::mangleObjCProtocol(const ObjCProtocolDecl *PD) {
@@ -2575,6 +2621,10 @@ void MicrosoftCXXNameMangler::mangleType(const BuiltinType *T, Qualifiers,
 
   case BuiltinType::NullPtr:
     Out << "$$T";
+    break;
+
+  case BuiltinType::MetaInfo:
+    Out << "$$M";
     break;
 
   case BuiltinType::Float16:
@@ -3437,6 +3487,15 @@ void MicrosoftCXXNameMangler::mangleType(const DecltypeType *T, Qualifiers,
   DiagnosticsEngine &Diags = Context.getDiags();
   unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
     "cannot mangle this decltype() yet");
+  Diags.Report(Range.getBegin(), DiagID)
+    << Range;
+}
+
+void MicrosoftCXXNameMangler::mangleType(const ReflectionSpliceType *T,
+                                         Qualifiers, SourceRange Range) {
+  DiagnosticsEngine &Diags = Context.getDiags();
+  unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+    "cannot mangle this [: expr :] yet");
   Diags.Report(Range.getBegin(), DiagID)
     << Range;
 }

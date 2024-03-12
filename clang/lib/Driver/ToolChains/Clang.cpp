@@ -1,5 +1,7 @@
 //===-- Clang.cpp - Clang+LLVM ToolChain Implementations --------*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -6817,8 +6819,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_fapinotes_swift_version);
 
   // -fblocks=0 is default.
+  //
+  // Suppress default-enablement of '-fblocks' if reflection is enabled, as
+  // '-fblocks' is incompatible with '-freflection'.
+  bool BlocksDefault = TC.IsBlocksDefault() &&
+                       !Args.hasArg(options::OPT_freflection);
   if (Args.hasFlag(options::OPT_fblocks, options::OPT_fno_blocks,
-                   TC.IsBlocksDefault()) ||
+                   BlocksDefault) ||
       (Args.hasArg(options::OPT_fgnu_runtime) &&
        Args.hasArg(options::OPT_fobjc_nonfragile_abi) &&
        !Args.hasArg(options::OPT_fno_blocks))) {
@@ -7132,6 +7139,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // is provided.
   Args.addOptInFlag(CmdArgs, options::OPT_frelaxed_template_template_args,
                     options::OPT_fno_relaxed_template_template_args);
+
+  // -freflection is off by default, as it is experimental.
+  Args.addOptInFlag(CmdArgs, options::OPT_freflection,
+                    options::OPT_fno_reflection);
 
   // -fsized-deallocation is off by default, as it is an ABI-breaking change for
   // most platforms.

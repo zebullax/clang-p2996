@@ -2575,6 +2575,10 @@ public:
   /// specified stmt yet.
   void ErrorUnsupported(const Stmt *S, const char *Type);
 
+  /// ErrorNonConstexprMeta - Print out an error that meta type values must be
+  /// constexpr.
+  void ErrorNonConstexprMetaType(const Stmt *S);
+
   //===--------------------------------------------------------------------===//
   //                                  Helpers
   //===--------------------------------------------------------------------===//

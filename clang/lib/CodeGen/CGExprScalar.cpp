@@ -1,5 +1,7 @@
 //===--- CGExprScalar.cpp - Emit LLVM Code for Scalar Exprs ---------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -449,6 +451,9 @@ public:
   }
   Value *VisitUnaryCoawait(const UnaryOperator *E) {
     return Visit(E->getSubExpr());
+  }
+  Value *VisitCXXExprSpliceExpr(const CXXExprSpliceExpr *E) {
+    return Visit(E->getOperand());
   }
 
   // Leaves.
@@ -1636,9 +1641,15 @@ void ScalarExprEmitter::EmitBinOpCheck(
 //===----------------------------------------------------------------------===//
 
 Value *ScalarExprEmitter::VisitExpr(Expr *E) {
-  CGF.ErrorUnsupported(E, "scalar expression");
-  if (E->getType()->isVoidType())
-    return nullptr;
+  if (E->getType()->isMetaType()) {
+    assert(!E->isIntegerConstantExpr(CGF.getContext()) &&
+           "constexpr expressions should not reach here");
+    CGF.ErrorNonConstexprMetaType(E);
+  } else {
+    CGF.ErrorUnsupported(E, "scalar expression");
+    if (E->getType()->isVoidType())
+      return nullptr;
+  }
   return llvm::UndefValue::get(CGF.ConvertType(E->getType()));
 }
 

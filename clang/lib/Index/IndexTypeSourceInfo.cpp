@@ -283,6 +283,7 @@ void IndexingContext::indexNestedNameSpecifierLoc(NestedNameSpecifierLoc NNS,
   case NestedNameSpecifier::Identifier:
   case NestedNameSpecifier::Global:
   case NestedNameSpecifier::Super:
+  case NestedNameSpecifier::IndeterminateSplice:
     break;
 
   case NestedNameSpecifier::Namespace:

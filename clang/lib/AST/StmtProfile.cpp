@@ -2286,6 +2286,40 @@ void StmtProfiler::VisitOpaqueValueExpr(const OpaqueValueExpr *E) {
   VisitExpr(E);
 }
 
+void StmtProfiler::VisitCXXReflectExpr(const CXXReflectExpr *E) {
+  VisitExpr(E);
+
+  const ReflectionValue &Operand = E->getOperand();
+  ID.AddInteger(Operand.getKind());
+  ID.AddInteger(reinterpret_cast<std::size_t>(Operand.getOpaqueValue()));
+}
+
+void StmtProfiler::VisitCXXMetafunctionExpr(const CXXMetafunctionExpr *E) {
+  VisitExpr(E);
+}
+
+void StmtProfiler::VisitCXXIndeterminateSpliceExpr(
+                                          const CXXIndeterminateSpliceExpr *E) {
+  VisitExpr(E);
+}
+
+void StmtProfiler::VisitCXXExprSpliceExpr(const CXXExprSpliceExpr *E) {
+  VisitExpr(E);
+}
+
+void StmtProfiler::VisitCXXDependentMemberSpliceExpr(
+                                        const CXXDependentMemberSpliceExpr *E) {
+  VisitExpr(E);
+}
+
+void StmtProfiler::VisitStackLocationExpr(const StackLocationExpr *E) {
+  VisitExpr(E);
+}
+
+void StmtProfiler::VisitValueOfLValueExpr(const ValueOfLValueExpr *E) {
+  VisitDecl(E->getValueDecl());
+}
+
 void StmtProfiler::VisitTypoExpr(const TypoExpr *E) {
   VisitExpr(E);
 }
@@ -2422,6 +2456,10 @@ void StmtProfiler::VisitTemplateArgument(const TemplateArgument &Arg) {
   case TemplateArgument::Integral:
     VisitType(Arg.getIntegralType());
     Arg.getAsIntegral().Profile(ID);
+    break;
+
+  case TemplateArgument::Reflection:
+    Arg.getAsReflection().Profile(ID);
     break;
 
   case TemplateArgument::StructuralValue:

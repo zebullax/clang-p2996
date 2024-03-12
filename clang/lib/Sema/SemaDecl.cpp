@@ -1,5 +1,7 @@
 //===--- SemaDecl.cpp - Semantic Analysis for Declarations ----------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -14651,6 +14653,14 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
               << Init->getSourceRange();
       }
     }
+  }
+
+  bool isConstexprContext = var->isConstexpr() ||
+                            var->getDeclContext()->isConstexprContext();
+  if (!isConstexprContext && type->isMetaType()) {
+    Diag(var->getLocation(), diag::err_meta_type_constexpr);
+    var->setInvalidDecl();
+    return;
   }
 
   // Apply section attributes and pragmas to global variables.

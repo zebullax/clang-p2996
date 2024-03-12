@@ -1,5 +1,7 @@
 //===- ASTImporter.cpp - Importing ASTs from other Contexts ---------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -804,6 +806,10 @@ ASTNodeImporter::import(const TemplateArgument &From) {
     return TemplateArgument(From, *ToTypeOrErr);
   }
 
+  case TemplateArgument::Reflection: {
+    return TemplateArgument(From, Importer.getToContext().MetaInfoTy);
+  }
+
   case TemplateArgument::Declaration: {
     Expected<ValueDecl *> ToOrErr = import(From.getAsDecl());
     if (!ToOrErr)
@@ -1434,6 +1440,20 @@ ExpectedType ASTNodeImporter::VisitDecltypeType(const DecltypeType *T) {
     return ToUnderlyingTypeOrErr.takeError();
 
   return Importer.getToContext().getDecltypeType(
+      *ToExprOrErr, *ToUnderlyingTypeOrErr);
+}
+
+ExpectedType ASTNodeImporter::VisitReflectionSpliceType(
+                                                const ReflectionSpliceType *T) {
+  ExpectedExpr ToExprOrErr = import(T->getOperand());
+  if (!ToExprOrErr)
+    return ToExprOrErr.takeError();
+
+  ExpectedType ToUnderlyingTypeOrErr = import(T->getUnderlyingType());
+  if (!ToUnderlyingTypeOrErr)
+    return ToUnderlyingTypeOrErr.takeError();
+
+  return Importer.getToContext().getReflectionSpliceType(
       *ToExprOrErr, *ToUnderlyingTypeOrErr);
 }
 
@@ -3585,6 +3605,8 @@ private:
       return false;
     case TemplateArgument::Integral:
       return CheckType(Arg.getIntegralType());
+    case TemplateArgument::Reflection:
+      return CheckType(ParentDC->getParentASTContext().MetaInfoTy);
     case TemplateArgument::Type:
       return CheckType(Arg.getAsType());
     case TemplateArgument::Expression:
@@ -9652,6 +9674,9 @@ ASTImporter::Import(NestedNameSpecifier *FromNNS) {
     } else {
       return TyOrErr.takeError();
     }
+
+  case NestedNameSpecifier::IndeterminateSplice:
+    llvm_unreachable("unimplemented");
   }
 
   llvm_unreachable("Invalid nested name specifier kind");
@@ -9736,6 +9761,17 @@ ASTImporter::Import(NestedNameSpecifierLoc FromNNS) {
       Builder.MakeSuper(getToContext(), Spec->getAsRecordDecl(),
                         ToSourceRangeOrErr->getBegin(),
                         ToSourceRangeOrErr->getEnd());
+      break;
+    }
+
+    case NestedNameSpecifier::IndeterminateSplice: {
+      auto ToSourceRangeOrErr = Import(NNS.getSourceRange());
+      if (!ToSourceRangeOrErr)
+        return ToSourceRangeOrErr.takeError();
+
+      Builder.MakeIndeterminateSplice(getToContext(), Spec->getAsSpliceExpr(),
+                                      ToSourceRangeOrErr->getEnd());
+      break;
     }
   }
   }
@@ -10194,6 +10230,7 @@ ASTNodeImporter::ImportAPValue(const APValue &FromValue) {
   case APValue::FixedPoint:
   case APValue::ComplexInt:
   case APValue::ComplexFloat:
+  case APValue::Reflection:
     Result = FromValue;
     break;
   case APValue::Vector: {

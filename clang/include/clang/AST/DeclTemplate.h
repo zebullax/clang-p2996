@@ -2715,6 +2715,8 @@ public:
     PointOfInstantiation = Loc;
   }
 
+  bool isCompleteDefinition() { return IsCompleteDefinition; }
+
   void setCompleteDefinition() { IsCompleteDefinition = true; }
 
   /// If this variable template specialization is an instantiation of

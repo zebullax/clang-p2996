@@ -1,5 +1,7 @@
 //===- CompilerInvocation.cpp ---------------------------------------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -608,6 +610,10 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
     Diags.Report(diag::err_fe_invalid_alignment)
         << A->getAsString(Args) << A->getValue();
     LangOpts.NewAlignOverride = 0;
+  }
+
+  if (LangOpts.Reflection && Args.hasArg(OPT_fblocks)) {
+      Diags.Report(diag::err_fe_reflection_incompatible_with_blocks);
   }
 
   // Prevent the user from specifying both -fsycl-is-device and -fsycl-is-host.

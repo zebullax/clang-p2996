@@ -1,5 +1,7 @@
 //===- ExprCXX.h - Classes for representing expressions ---------*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -25,6 +27,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/Reflection.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/TemplateBase.h"
@@ -49,6 +52,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -5271,6 +5275,419 @@ public:
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == BuiltinBitCastExprClass;
+  }
+};
+
+/// Represents a C++2c reflect expression (P2996). The operand of the expression
+/// is either a type, an expression, a template-name, or a namespace.
+class CXXReflectExpr : public Expr {
+  // The operand of the expression.
+  ReflectionValue Ref;
+
+  // Source locations.
+  SourceLocation OpLoc;
+  SourceLocation ArgLoc;
+
+  CXXReflectExpr(const ASTContext &C, QualType T, QualType Arg);
+  CXXReflectExpr(const ASTContext &C, QualType T, Expr *Arg);
+  CXXReflectExpr(const ASTContext &C, QualType T, Decl *Arg, bool IsNamespace);
+  CXXReflectExpr(const ASTContext &C, QualType T, TemplateName Arg);
+  CXXReflectExpr(const ASTContext &C, QualType T, CXXBaseSpecifier *Arg);
+  CXXReflectExpr(const ASTContext &C, QualType T, TagDataMemberSpec *Arg);
+
+public:
+  static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
+                                SourceLocation ArgLoc, QualType Operand);
+  static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
+                                Expr *Operand);
+  static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
+                                SourceLocation OperandLoc, Decl *Operand);
+  static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
+                                SourceLocation OperandLoc,
+                                const TemplateName Operand);
+  static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
+                                SourceLocation OperandLoc,
+                                CXXBaseSpecifier *Operand);
+  static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
+                                SourceLocation OperandLoc,
+                                TagDataMemberSpec *Arg);
+
+  /// Returns the operand of the reflection expression.
+  const ReflectionValue &getOperand() const { return Ref; }
+
+  SourceLocation getBeginLoc() const LLVM_READONLY { return OpLoc; }
+  SourceLocation getEndLoc() const LLVM_READONLY { return ArgLoc; }
+
+  /// Returns location of the '^'-operator.
+  SourceLocation getOperatorLoc() const { return OpLoc; }
+  SourceLocation getArgLoc() const { return ArgLoc; }
+
+  /// Sets the location of the '^'-operator.
+  void setOperatorLoc(SourceLocation L) { OpLoc = L; }
+  void setArgLoc(SourceLocation L) { ArgLoc = L; }
+
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+
+  const_child_range children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == CXXReflectExprClass;
+  }
+};
+
+/// Represents a C++2c "metafunction", a function that operates on one or more
+/// reflections (P2996). Arguments vary by function.
+class CXXMetafunctionExpr : public Expr {
+public:
+  // Type of callback provided to executing metafunctinons to help evaluate an
+  // expression in the current constant evaluation context.
+  using EvaluateFn = std::function<bool(APValue &, const Expr *,
+                                        bool ConvertToRValue)>;
+
+  // Type of callback used to evaluate the metafunction during constant
+  // evaluation. This will be a lambda with the bound 'Sema' object.
+  using ImplFn = std::function<bool(APValue &, EvaluateFn, QualType,
+                                    SourceRange, ArrayRef<Expr *>)>;
+
+private:
+
+  // The original ID of the corresponding metafunction. Needed to re-create the
+  // expression during Tree Transform.
+  unsigned MetaFnID;
+
+  // An unowned reference to a callback for executing the metafunction at
+  // constant evaluation time.
+  const ImplFn &Impl;
+
+  // Result type.
+  QualType ResultType;
+
+  // Arguments.
+  unsigned NumArgs;
+  Expr **Args;
+
+  // Source locations.
+  SourceLocation KwLoc;
+  SourceLocation LParenLoc;
+  SourceLocation RParenLoc;
+
+  CXXMetafunctionExpr(unsigned MetaFnID, const ImplFn &Impl,
+                      QualType ResultType, ExprValueKind VK, Expr ** Args,
+                      unsigned NumArgs, SourceLocation KwLoc,
+                      SourceLocation LParenLoc, SourceLocation RParenLoc);
+public:
+  static CXXMetafunctionExpr *Create(ASTContext &C, unsigned MetaFnID,
+                                     const ImplFn &Impl,
+                                     QualType ResultType,
+                                     ArrayRef<Expr *> Args,
+                                     SourceLocation KwLoc,
+                                     SourceLocation LParenLoc,
+                                     SourceLocation RParenLoc);
+
+  unsigned getMetaFnID() const {
+    return MetaFnID;
+  }
+
+  const ImplFn &getImpl() const {
+    return Impl;
+  }
+
+  QualType getResultType() const {
+    return ResultType;
+  }
+
+  unsigned getNumArgs() const {
+    return NumArgs;
+  }
+
+  Expr *getArg(unsigned I) const {
+    assert(I < NumArgs && "argument out-of-range");
+    return cast<Expr>(Args[I]);
+  }
+
+  SourceLocation getKwLoc() const {
+    return KwLoc;
+  }
+
+  SourceLocation getLParenLoc() const {
+    return LParenLoc;
+  }
+
+  SourceLocation getRParenLoc() const {
+    return RParenLoc;
+  }
+
+  SourceLocation getBeginLoc() const {
+    return KwLoc;
+  }
+
+  SourceLocation getEndLoc() const {
+    return RParenLoc;
+  }
+
+  SourceRange getSourceRange() const {
+    return SourceRange(getBeginLoc(), getEndLoc());
+  }
+
+  child_range children() {
+    return child_range(reinterpret_cast<Stmt **>(&Args[0]),
+                       reinterpret_cast<Stmt **>(&Args[NumArgs]));
+  }
+
+  const_child_range children() const {
+    return const_child_range(reinterpret_cast<Stmt **>(&Args[0]),
+                             reinterpret_cast<Stmt **>(&Args[NumArgs]));
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == CXXMetafunctionExprClass;
+  }
+};
+
+/// Represents a C++2c splice "expression". Strictly speaking, it may be a mild
+/// abuse of terminology to classify a splice as an expression, since it can
+/// yield a type, namespace, or template-id in addition to a value. That said,
+/// the -operand- of a splice is an expression (which always evaluates to a
+/// type context-convertible to 'std::meta::info'), and 'Expr' provides a
+/// convenient existing means of storing the SourceLocation of the splice
+/// operands alongside the operand. We therefore consider a "[:R:]" a "splice
+/// expression", and treat a "splice" as an operation occupying the same source
+/// range as the splice expression.
+class CXXIndeterminateSpliceExpr : public Expr {
+  SourceLocation LSpliceLoc;
+  Expr *Operand;
+  SourceLocation RSpliceLoc;
+
+  CXXIndeterminateSpliceExpr(QualType ResultTy, SourceLocation LSpliceLoc,
+                             Expr *Operand, SourceLocation RSpliceLoc);
+
+public:
+  static CXXIndeterminateSpliceExpr *Create(ASTContext &C,
+                                            SourceLocation LSpliceLoc,
+                                            Expr *Operand,
+                                            SourceLocation RSpliceLoc);
+
+  Expr *getOperand() const {
+    return Operand;
+  }
+
+  SourceLocation getLSpliceLoc() const {
+    return LSpliceLoc;
+  }
+
+  SourceLocation getRSpliceLoc() const {
+    return RSpliceLoc;
+  }
+
+  SourceLocation getBeginLoc() const {
+    return LSpliceLoc;
+  }
+
+  SourceLocation getEndLoc() const {
+    return RSpliceLoc;
+  }
+
+  child_range children() {
+    return child_range(reinterpret_cast<Stmt **>(&Operand),
+                       reinterpret_cast<Stmt **>(&Operand) + 1);
+  }
+
+  const_child_range children() const {
+    return const_child_range(
+                  reinterpret_cast<Stmt **>(const_cast<Expr **>(&Operand)),
+                  reinterpret_cast<Stmt **>(const_cast<Expr **>(&Operand) + 1));
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == CXXIndeterminateSpliceExprClass;
+  }
+};
+
+// Implementation detail of the 'is_accessible' metafunction.
+// Used to "reach up the stack" to find the context from which the metafunction
+// was called, such that the accessibility of a class member can thereafter be
+// evaluated from that context.
+class StackLocationExpr : public Expr {
+  SourceRange Range;
+  int FrameOffset;
+
+  StackLocationExpr(QualType ResultTy, SourceRange Range, int FrameOffset);
+
+public:
+  static StackLocationExpr *Create(ASTContext &C, SourceRange Range,
+                                   int FrameOffset);
+
+  int getFrameOffset() const {
+    return FrameOffset;
+  }
+
+  SourceLocation getBeginLoc() const {
+    return Range.getBegin();
+  }
+
+  SourceLocation getEndLoc() const {
+    return Range.getEnd();
+  }
+
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+
+  const_child_range children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == StackLocationExprClass;
+  }
+};
+
+// Implementation detail of the 'value_of' metafunction.
+// Used to "reach up the stack" of a constant evaluation to obtain the "most
+// recent LValue" associated with a particular variable.
+class ValueOfLValueExpr : public Expr {
+  SourceRange Range;
+  ValueDecl *Decl;
+
+  ValueOfLValueExpr(QualType ResultTy, SourceRange Range, ValueDecl *VD);
+
+public:
+  static ValueOfLValueExpr *Create(ASTContext &C, SourceRange Range,
+                                   QualType ResultTy, ValueDecl *VD);
+
+  ValueDecl *getValueDecl() const {
+    return Decl;
+  }
+
+  SourceLocation getBeginLoc() const {
+    return Range.getBegin();
+  }
+
+  SourceLocation getEndLoc() const {
+    return Range.getEnd();
+  }
+
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+
+  const_child_range children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == StackLocationExprClass;
+  }
+};
+
+class CXXExprSpliceExpr : public Expr {
+  SourceLocation LSpliceLoc;
+  Expr *Operand;
+  SourceLocation RSpliceLoc;
+
+  CXXExprSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
+                    SourceLocation LSpliceLoc, Expr *Operand,
+                    SourceLocation RSpliceLoc);
+
+public:
+  static CXXExprSpliceExpr *Create(ASTContext &C, ExprValueKind ValueKind,
+                                   SourceLocation LSpliceLoc, Expr *Operand,
+                                   SourceLocation RpliceLoc);
+
+  Expr *getOperand() const {
+    return Operand;
+  }
+
+  SourceLocation getLSpliceLoc() const {
+    return LSpliceLoc;
+  }
+
+  SourceLocation getRSpliceLoc() const {
+    return RSpliceLoc;
+  }
+
+  SourceLocation getBeginLoc() const {
+    return LSpliceLoc;
+  }
+
+  SourceLocation getEndLoc() const {
+    return RSpliceLoc;
+  }
+
+  child_range children() {
+    return child_range(reinterpret_cast<Stmt **>(&Operand),
+                       reinterpret_cast<Stmt **>(&Operand) + 1);
+  }
+
+  const_child_range children() const {
+    return const_child_range(
+                  reinterpret_cast<Stmt **>(const_cast<Expr **>(&Operand)),
+                  reinterpret_cast<Stmt **>(const_cast<Expr **>(&Operand) + 1));
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == CXXExprSpliceExprClass;
+  }
+};
+
+// Represents a member access expression having an expression splice following
+// the member access operator (e.g., 'a.[:r:]') for which the expression splice
+// is dependent on a template. This expression will be rewritten as a MemberExpr
+// (or an UnresolvedMemberExpr) during Tree Transform.
+class CXXDependentMemberSpliceExpr : public Expr {
+  Stmt *SubExprs[2];
+
+  SourceLocation OpLoc;
+  bool IsArrow;
+
+  CXXDependentMemberSpliceExpr(QualType ResultTy, Expr *Base,
+                               SourceLocation OpLoc, bool IsArrow,
+                               CXXExprSpliceExpr *RHS);
+
+public:
+  static CXXDependentMemberSpliceExpr *Create(ASTContext &C, Expr *Base,
+                                              SourceLocation OpLoc,
+                                              bool IsArrow,
+                                              CXXExprSpliceExpr *RHS);
+
+  Expr *getBase() const {
+    return cast<Expr>(SubExprs[0]);
+  }
+
+  SourceLocation getOpLoc() const {
+    return OpLoc;
+  }
+
+  bool isArrow() const {
+    return IsArrow;
+  }
+
+  CXXExprSpliceExpr *getRHS() const {
+    return cast<CXXExprSpliceExpr>(SubExprs[1]);
+  }
+
+  SourceLocation getBeginLoc() const {
+    return getBase()->getBeginLoc();
+  }
+
+  SourceLocation getEndLoc() const {
+    return getRHS()->getEndLoc();
+  }
+
+  child_range children() {
+    return child_range(SubExprs, SubExprs + 2);
+  }
+
+  const_child_range children() const {
+    return const_child_range(SubExprs, SubExprs + 2);
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == CXXDependentMemberSpliceExprClass;
   }
 };
 

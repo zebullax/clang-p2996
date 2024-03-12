@@ -1,5 +1,7 @@
 //===--- TypeNodeBitCodes.def - Type to bitcode correspondance --*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -64,7 +66,7 @@ TYPE_BIT_CODE(ConstantMatrix, CONSTANT_MATRIX, 52)
 TYPE_BIT_CODE(DependentSizedMatrix, DEPENDENT_SIZE_MATRIX, 53)
 TYPE_BIT_CODE(Using, USING, 54)
 TYPE_BIT_CODE(BTFTagAttributed, BTFTAG_ATTRIBUTED, 55)
-TYPE_BIT_CODE(PackIndexing, PACK_INDEXING, 56)
-
+TYPE_BIT_CODE(ReflectionSplice, REFLECTION_SPLICE, 56)
+TYPE_BIT_CODE(PackIndexing, PACK_INDEXING, 57)
 
 #undef TYPE_BIT_CODE

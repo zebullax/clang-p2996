@@ -87,6 +87,7 @@ namespace clang {
     TST_typeof_unqualType, // C23 typeof_unqual(type-name)
     TST_typeof_unqualExpr, // C23 typeof_unqual(expression)
     TST_decltype,          // C++11 decltype
+    TST_type_splice,       // C++2c splice of a reflection of a type (P2996)
 #define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) TST_##Trait,
 #include "clang/Basic/TransformTypeTraits.def"
     TST_auto,            // C++11 auto

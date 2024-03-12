@@ -1,5 +1,7 @@
 //===--------------------- SemaLookup.cpp - Name Lookup  ------------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -446,6 +448,11 @@ static bool isPreferredLookupResult(Sema &S, Sema::LookupNameKind Kind,
 
   // For most kinds of declaration, it doesn't really matter which one we pick.
   if (!isa<FunctionDecl>(DUnderlying) && !isa<VarDecl>(DUnderlying)) {
+    // If this is in the context of taking a reflection and the existing
+    // declaration is a namespace alias, prefer the alias decl.
+    if (S.isReflectionContext() && isa<NamespaceAliasDecl>(Existing))
+      return true;
+
     // If the existing declaration is hidden, prefer the new one. Otherwise,
     // keep what we've got.
     return !S.isVisible(Existing);
@@ -2982,6 +2989,7 @@ addAssociatedClassesAndNamespaces(AssociatedLookup &Result,
     case TemplateArgument::Integral:
     case TemplateArgument::Expression:
     case TemplateArgument::NullPtr:
+    case TemplateArgument::Reflection:
     case TemplateArgument::StructuralValue:
       // [Note: non-type template arguments do not contribute to the set of
       //  associated namespaces. ]
@@ -3248,6 +3256,13 @@ addAssociatedClassesAndNamespaces(AssociatedLookup &Result, QualType Ty) {
     if (Queue.empty())
       break;
     T = Queue.pop_back_val();
+  }
+
+  if (T->isReflectionType()) {
+    NamespaceDecl *StdMeta = Result.S.lookupStdMetaNamespace();
+    if (StdMeta) {
+      Result.Namespaces.insert(StdMeta);
+    }
   }
 }
 

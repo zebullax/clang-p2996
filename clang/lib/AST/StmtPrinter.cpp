@@ -2597,6 +2597,49 @@ void StmtPrinter::VisitCoyieldExpr(CoyieldExpr *S) {
   PrintExpr(S->getOperand());
 }
 
+void StmtPrinter::VisitCXXReflectExpr(CXXReflectExpr *S) {
+  // FIXME: Make this better.
+  OS << "^(...)";
+}
+
+void StmtPrinter::VisitCXXMetafunctionExpr(CXXMetafunctionExpr *S) {
+  OS << "__metafunction(";
+  for (unsigned I = 0; I < S->getNumArgs(); ++S) {
+    PrintExpr(S->getArg(I));
+    if (I + 1 != S->getNumArgs())
+      OS << ", ";
+  }
+  OS << ")";
+}
+
+void StmtPrinter::VisitCXXIndeterminateSpliceExpr(
+                                                CXXIndeterminateSpliceExpr *S) {
+  OS << "[: ";
+  Visit(S->getOperand());
+  OS << " :]";
+}
+
+void StmtPrinter::VisitCXXExprSpliceExpr(CXXExprSpliceExpr *S) {
+  OS << "[: ";
+  Visit(S->getOperand());
+  OS << " :]";
+}
+
+void StmtPrinter::VisitCXXDependentMemberSpliceExpr(
+                                              CXXDependentMemberSpliceExpr *S) {
+  Visit(S->getBase());
+  OS << ".";
+  Visit(S->getRHS());
+}
+
+void StmtPrinter::VisitStackLocationExpr(StackLocationExpr *S) {
+  OS << "StackLoc(" << S->getFrameOffset() << ")";
+}
+
+void StmtPrinter::VisitValueOfLValueExpr(ValueOfLValueExpr *S) {
+  OS << "ValueOfLValue(<Decl>)";
+}
+
 // Obj-C
 
 void StmtPrinter::VisitObjCStringLiteral(ObjCStringLiteral *Node) {

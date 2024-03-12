@@ -263,6 +263,10 @@ public:
       case NestedNameSpecifier::Super:
         asImpl().writeDeclRef(NNS->getAsRecordDecl());
         continue;
+
+      case NestedNameSpecifier::IndeterminateSplice:
+        asImpl().writeExprRef(NNS->getAsSpliceExpr());
+        continue;
       }
       llvm_unreachable("bad nested name specifier kind");
     }

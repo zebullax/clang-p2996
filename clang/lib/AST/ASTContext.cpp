@@ -1,5 +1,7 @@
 //===- ASTContext.cpp - Context to hold long-lived AST nodes --------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -34,6 +36,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExternalASTSource.h"
+#include "clang/AST/LocInfoType.h"
 #include "clang/AST/Mangle.h"
 #include "clang/AST/MangleNumberingContext.h"
 #include "clang/AST/NestedNameSpecifier.h"
@@ -1402,6 +1405,9 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target,
   // nullptr type (C++0x 2.14.7)
   InitBuiltinType(NullPtrTy,           BuiltinType::NullPtr);
 
+  // meta::info type (C++2c P2996)
+  InitBuiltinType(MetaInfoTy, BuiltinType::MetaInfo);
+
   // half type (OpenCL 6.1.1.1) / ARM NEON __fp16
   InitBuiltinType(HalfTy, BuiltinType::Half);
 
@@ -2133,6 +2139,10 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
       // C++ 3.9.1p11: sizeof(nullptr_t) == sizeof(void*)
       Width = Target->getPointerWidth(LangAS::Default);
       Align = Target->getPointerAlign(LangAS::Default);
+      break;
+    case BuiltinType::MetaInfo:
+      Width = Target->getMetaInfoWidth();
+      Align = Target->getMetaInfoAlign();
       break;
     case BuiltinType::ObjCId:
     case BuiltinType::ObjCClass:
@@ -3613,6 +3623,7 @@ QualType ASTContext::getVariableArrayDecayedType(QualType type) const {
   case Type::Auto:
   case Type::DeducedTemplateSpecialization:
   case Type::PackExpansion:
+  case Type::ReflectionSplice:
   case Type::PackIndexing:
   case Type::BitInt:
   case Type::DependentBitInt:
@@ -5255,6 +5266,40 @@ QualType ASTContext::getPackExpansionType(QualType Pattern,
   return QualType(T, 0);
 }
 
+QualType ASTContext::getReflectionSpliceType(Expr *Operand,
+                                             QualType UnderlyingType) const {
+  ReflectionSpliceType *RST;
+
+  // Unwrap any LocInfoType introduced by reflection operator.
+  const Type *UnderlyingTyPtr = UnderlyingType.getTypePtr();
+  if (const LocInfoType *LIT = dyn_cast_or_null<LocInfoType>(UnderlyingTyPtr))
+    UnderlyingType = LIT->getType();
+
+  if (Operand->isInstantiationDependent()) {
+    llvm::FoldingSetNodeID ID;
+    DependentReflectionSpliceType::Profile(ID, *this, Operand);
+
+    void *InsertPos = nullptr;
+    DependentReflectionSpliceType *Canon =
+        DependentReflectionSpliceTypes.FindNodeOrInsertPos(ID, InsertPos);
+    if (!Canon) {  // Build a new canonical splice type.
+      Canon = new (*this, TypeAlignment) DependentReflectionSpliceType(
+          *this, Operand);
+      DependentReflectionSpliceTypes.InsertNode(Canon, InsertPos);
+    }
+    RST = new (*this, TypeAlignment) ReflectionSpliceType(Operand,
+                                                          UnderlyingType,
+                                                          QualType(Canon, 0));
+  } else {
+    CanQualType Canon = getCanonicalType(UnderlyingType);
+    RST = new (*this, TypeAlignment) ReflectionSpliceType(Operand,
+                                                          UnderlyingType,
+                                                          Canon);
+  }
+  Types.push_back(RST);
+  return QualType(RST, 0);
+}
+
 /// CmpProtocolNames - Comparison predicate for sorting protocols
 /// alphabetically.
 static int CmpProtocolNames(ObjCProtocolDecl *const *LHS,
@@ -6493,6 +6538,11 @@ static bool isSameQualifier(const NestedNameSpecifier *X,
         Y->getAsType()->getCanonicalTypeInternal())
       return false;
     break;
+  case NestedNameSpecifier::IndeterminateSplice:
+    // TODO(P2996): This might not be good enough.
+    if (X->getAsSpliceExpr() != Y->getAsSpliceExpr())
+      return false;
+    break;
   case NestedNameSpecifier::Global:
   case NestedNameSpecifier::Super:
     return true;
@@ -6804,6 +6854,9 @@ ASTContext::getCanonicalTemplateArgument(const TemplateArgument &Arg) const {
     case TemplateArgument::Integral:
       return TemplateArgument(Arg, getCanonicalType(Arg.getIntegralType()));
 
+    case TemplateArgument::Reflection:
+      return Arg;
+
     case TemplateArgument::StructuralValue:
       return TemplateArgument(*this,
                               getCanonicalType(Arg.getStructuralValueType()),
@@ -6881,6 +6934,7 @@ ASTContext::getCanonicalNestedNameSpecifier(NestedNameSpecifier *NNS) const {
 
   case NestedNameSpecifier::Global:
   case NestedNameSpecifier::Super:
+  case NestedNameSpecifier::IndeterminateSplice:
     // The global specifier and __super specifer are canonical and unique.
     return NNS;
   }
@@ -8078,6 +8132,7 @@ static char getObjCEncodingForPrimitiveType(const ASTContext *C,
     case BuiltinType::SatUShortFract:
     case BuiltinType::SatUFract:
     case BuiltinType::SatULongFract:
+    case BuiltinType::MetaInfo:
       // FIXME: potentially need @encodes for these!
       return ' ';
 
@@ -12736,6 +12791,7 @@ static QualType getCommonNonSugarTypeNode(ASTContext &Ctx, const Type *X,
     SUGAR_FREE_TYPE(Record)
     SUGAR_FREE_TYPE(SubstTemplateTypeParmPack)
     SUGAR_FREE_TYPE(UnresolvedUsing)
+    SUGAR_FREE_TYPE(ReflectionSplice)
 #undef SUGAR_FREE_TYPE
 #define NON_UNIQUE_TYPE(Class) UNEXPECTED_TYPE(Class, "non-unique")
     NON_UNIQUE_TYPE(TypeOfExpr)
@@ -13210,6 +13266,9 @@ static QualType getCommonSugarTypeNode(ASTContext &Ctx, const Type *X,
       Kind = TypeOfKind::Unqualified;
     return Ctx.getTypeOfType(Ctx.getQualifiedType(Underlying), Kind);
   }
+  case Type::ReflectionSplice:
+    // TODO(P2996): Revisit this.
+    return QualType();
   case Type::TypeOfExpr:
     return QualType();
 

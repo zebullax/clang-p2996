@@ -1681,6 +1681,11 @@ def err_import_in_wrong_fragment : Error<
 def err_export_empty : Error<"export declaration cannot be empty">;
 }
 
+let CategoryName = "Reflection Issue" in {
+
+def err_cannot_reflect_entity : Error<"cannot reflect entity">;
+}
+
 let CategoryName = "Generics Issue" in {
 
 def err_objc_expected_type_parameter : Error<

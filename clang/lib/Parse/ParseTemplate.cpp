@@ -1,5 +1,7 @@
 //===--- ParseTemplate.cpp - Template Parsing -----------------------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -1374,6 +1376,15 @@ static bool isEndOfTemplateArgument(Token Tok) {
                      tok::greatergreatergreater);
 }
 
+/// Determine whether the given token can end a template reflection operand.
+static bool isEndOfTemplateReflectOperand(Token Tok) {
+  // The set of tokens that can follow a reflection operand is far more general
+  // than the set of tokens that can conclude a template template argument. For
+  // now, just assume that -any- token can conclude such an operand. Revisit
+  // this if the parsing turns out to be more involved.
+  return true;
+}
+
 /// Parse a C++ template template argument.
 ParsedTemplateArgument Parser::ParseTemplateTemplateArgument() {
   if (!Tok.is(tok::identifier) && !Tok.is(tok::coloncolon) &&
@@ -1440,6 +1451,75 @@ ParsedTemplateArgument Parser::ParseTemplateTemplateArgument() {
       if (TNK == TNK_Dependent_template_name || TNK == TNK_Type_template) {
         // We have an id-expression that refers to a class template or
         // (C++0x) alias template.
+        Result = ParsedTemplateArgument(SS, Template, Name.StartLocation);
+      }
+    }
+  }
+
+  // If this is a pack expansion, build it as such.
+  if (EllipsisLoc.isValid() && !Result.isInvalid())
+    Result = Actions.ActOnPackExpansion(Result, EllipsisLoc);
+
+  return Result;
+}
+
+/// Parse a C++ template operand to a reflect expression (C++2c, P2996).
+ParsedTemplateArgument Parser::ParseTemplateReflectOperand() {
+  if (!Tok.is(tok::identifier) && !Tok.is(tok::coloncolon) &&
+      !Tok.is(tok::annot_cxxscope))
+    return ParsedTemplateArgument();
+
+  CXXScopeSpec SS; // nested-name-specifier, if present
+  ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
+                                 /*ObjectHasErrors=*/false,
+                                 /*EnteringContext=*/false);
+
+  ParsedTemplateArgument Result;
+  SourceLocation EllipsisLoc;
+  if (SS.isSet() && Tok.is(tok::kw_template)) {
+    // Parse the optional 'template' keyword following the
+    // nested-name-specifier.
+    SourceLocation TemplateKWLoc = ConsumeToken();
+
+    if (Tok.is(tok::identifier)) {
+      // We appear to have a dependent template name.
+      UnqualifiedId Name;
+      Name.setIdentifier(Tok.getIdentifierInfo(), Tok.getLocation());
+      ConsumeToken(); // the identifier
+
+      TryConsumeToken(tok::ellipsis, EllipsisLoc);
+
+      // If the next token signals the end of a template argument, then we have
+      // a (possibly-dependent) template name that could be a reflect expression
+      // operand.
+      TemplateTy Template;
+      if (isEndOfTemplateReflectOperand(Tok) &&
+          Actions.ActOnTemplateName(getCurScope(), SS, TemplateKWLoc, Name,
+                                    /*ObjectType=*/nullptr,
+                                    /*EnteringContext=*/false, Template))
+        Result = ParsedTemplateArgument(SS, Template, Name.StartLocation);
+    }
+  } else if (Tok.is(tok::identifier)) {
+    // We may have a (non-dependent) template name.
+    TemplateTy Template;
+    UnqualifiedId Name;
+    Name.setIdentifier(Tok.getIdentifierInfo(), Tok.getLocation());
+    ConsumeToken(); // the identifier
+
+    TryConsumeToken(tok::ellipsis, EllipsisLoc);
+
+    if (isEndOfTemplateReflectOperand(Tok)) {
+      bool MemberOfUnknownSpecialization;
+      TemplateNameKind TNK = Actions.isTemplateName(
+          getCurScope(), SS,
+          /*hasTemplateKeyword=*/false, Name,
+          /*ObjectType=*/nullptr,
+          /*EnteringContext=*/false, Template, MemberOfUnknownSpecialization);
+      if (TNK == TNK_Dependent_template_name || TNK == TNK_Type_template ||
+          TNK == TNK_Function_template || TNK == TNK_Var_template ||
+          TNK == TNK_Concept_template) {
+        // We have an id-expression that refers to a template usable as an
+        // operand to a reflect expression.
         Result = ParsedTemplateArgument(SS, Template, Name.StartLocation);
       }
     }

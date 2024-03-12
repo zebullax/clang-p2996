@@ -7793,8 +7793,11 @@ static void visitLocalsRetainedByInitializer(IndirectLocalPath &Path,
       Init = DIE->getExpr();
     }
 
-    if (auto *FE = dyn_cast<FullExpr>(Init))
+    if (auto *FE = dyn_cast<FullExpr>(Init)) {
       Init = FE->getSubExpr();
+      if (!Init)
+        return;
+    }
 
     // Dig out the expression which constructs the extended temporary.
     Init = const_cast<Expr *>(Init->skipRValueSubobjectAdjustments());

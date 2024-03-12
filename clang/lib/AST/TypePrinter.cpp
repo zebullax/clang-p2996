@@ -1,5 +1,7 @@
 //===- TypePrinter.cpp - Pretty-Print Clang Types -------------------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -228,6 +230,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::TypeOfExpr:
     case Type::TypeOf:
     case Type::Decltype:
+    case Type::ReflectionSplice:
     case Type::UnaryTransform:
     case Type::Record:
     case Type::Enum:
@@ -1209,6 +1212,22 @@ void TypePrinter::printPackIndexingAfter(const PackIndexingType *T,
                                          raw_ostream &OS) {}
 
 void TypePrinter::printDecltypeAfter(const DecltypeType *T, raw_ostream &OS) {}
+
+void TypePrinter::printReflectionSpliceBefore(const ReflectionSpliceType *T,
+                                              raw_ostream &OS) {
+  if (T->isDependentType()) {
+    OS << "typename [:";
+    if (T->getOperand())
+      T->getOperand()->printPretty(OS, nullptr, Policy);
+    OS << ":]";
+  } else {
+    print(T->getUnderlyingType(), OS, StringRef());
+  }
+  spaceBeforePlaceHolder(OS);
+}
+
+void TypePrinter::printReflectionSpliceAfter(const ReflectionSpliceType *T,
+                                             raw_ostream &OS) { }
 
 void TypePrinter::printUnaryTransformBefore(const UnaryTransformType *T,
                                             raw_ostream &OS) {

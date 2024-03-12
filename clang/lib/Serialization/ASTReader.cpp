@@ -6947,6 +6947,11 @@ void TypeLocReader::VisitDecltypeTypeLoc(DecltypeTypeLoc TL) {
   TL.setRParenLoc(readSourceLocation());
 }
 
+void TypeLocReader::VisitReflectionSpliceTypeLoc(ReflectionSpliceTypeLoc TL) {
+  TL.setLSpliceLoc(readSourceLocation());
+  TL.setRSpliceLoc(readSourceLocation());
+}
+
 void TypeLocReader::VisitPackIndexingTypeLoc(PackIndexingTypeLoc TL) {
   TL.setEllipsisLoc(readSourceLocation());
 }
@@ -7317,6 +7322,9 @@ QualType ASTReader::GetType(TypeID ID) {
     case PREDEF_TYPE_CHAR32_ID:
       T = Context.Char32Ty;
       break;
+    case PREDEF_TYPE_META_INFO_ID:
+      T = Context.MetaInfoTy;
+      break;
     case PREDEF_TYPE_OBJC_ID:
       T = Context.ObjCBuiltinIdTy;
       break;
@@ -7463,6 +7471,7 @@ ASTRecordReader::readTemplateArgumentLocInfo(TemplateArgument::ArgKind Kind) {
   }
   case TemplateArgument::Null:
   case TemplateArgument::Integral:
+  case TemplateArgument::Reflection:
   case TemplateArgument::Declaration:
   case TemplateArgument::NullPtr:
   case TemplateArgument::StructuralValue:
@@ -9302,6 +9311,14 @@ ASTRecordReader::readNestedNameSpecifierLoc() {
       CXXRecordDecl *RD = readDeclAs<CXXRecordDecl>();
       SourceRange Range = readSourceRange();
       Builder.MakeSuper(Context, RD, Range.getBegin(), Range.getEnd());
+      break;
+    }
+
+    case NestedNameSpecifier::IndeterminateSplice: {
+      CXXIndeterminateSpliceExpr *Expr =
+            reinterpret_cast<CXXIndeterminateSpliceExpr *>(readExpr());
+      SourceLocation ColonColonLoc = readSourceLocation();
+      Builder.MakeIndeterminateSplice(Context, Expr, ColonColonLoc);
       break;
     }
     }

@@ -1,5 +1,7 @@
 //===--- APValue.h - Union class for APFloat/APSInt/Complex -----*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -13,6 +15,7 @@
 #ifndef LLVM_CLANG_AST_APVALUE_H
 #define LLVM_CLANG_AST_APVALUE_H
 
+#include "clang/AST/Reflection.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/APFixedPoint.h"
 #include "llvm/ADT/APFloat.h"
@@ -35,6 +38,7 @@ template <typename T> class BasicReaderBase;
   class DiagnosticBuilder;
   class Expr;
   class FieldDecl;
+  class NamespaceDecl;
   struct PrintingPolicy;
   class Type;
   class ValueDecl;
@@ -118,7 +122,7 @@ template<> struct PointerLikeTypeTraits<clang::DynamicAllocLValue> {
 namespace clang {
 /// APValue - This class implements a discriminated union of [uninitialized]
 /// [APSInt] [APFloat], [Complex APSInt] [Complex APFloat], [Expr + Offset],
-/// [Vector: N * APValue], [Array: N * APValue]
+/// [Vector: N * APValue], [Array: N * APValue], [ReflectionValue]
 class APValue {
   typedef llvm::APFixedPoint APFixedPoint;
   typedef llvm::APSInt APSInt;
@@ -140,7 +144,8 @@ public:
     Struct,
     Union,
     MemberPointer,
-    AddrLabelDiff
+    AddrLabelDiff,
+    Reflection
   };
 
   class LValueBase {
@@ -308,7 +313,8 @@ private:
   // We ensure elsewhere that Data is big enough for LV and MemberPointerData.
   typedef llvm::AlignedCharArrayUnion<void *, APSInt, APFloat, ComplexAPSInt,
                                       ComplexAPFloat, Vec, Arr, StructData,
-                                      UnionData, AddrLabelDiffData> DataType;
+                                      UnionData, AddrLabelDiffData,
+                                      ReflectionValue> DataType;
   static const size_t DataSize = sizeof(DataType);
 
   DataType Data;
@@ -363,6 +369,10 @@ public:
       : Kind(None) {
     MakeAddrLabelDiff(); setAddrLabelDiff(LHSExpr, RHSExpr);
   }
+  APValue(ReflectionValue::ReflectionKind ReflKind, const void *ReflEntity)
+      : Kind(None) {
+    MakeReflection(ReflKind, ReflEntity);
+  }
   static APValue IndeterminateValue() {
     APValue Result;
     Result.Kind = Indeterminate;
@@ -410,6 +420,7 @@ public:
   bool isUnion() const { return Kind == Union; }
   bool isMemberPointer() const { return Kind == MemberPointer; }
   bool isAddrLabelDiff() const { return Kind == AddrLabelDiff; }
+  bool isReflection() const { return Kind == Reflection; }
 
   void dump() const;
   void dump(raw_ostream &OS, const ASTContext &Context) const;
@@ -585,6 +596,21 @@ public:
     return ((const AddrLabelDiffData *)(const char *)&Data)->RHSExpr;
   }
 
+  ReflectionValue &getReflection() {
+    assert(isReflection() && "Invalid accessor");
+    return *(ReflectionValue *)(char *)&Data;
+  }
+  const ReflectionValue &getReflection() const {
+    return const_cast<APValue*>(this)->getReflection();
+  }
+  QualType getReflectedType() const;
+  ConstantExpr *getReflectedConstValueExpr() const;
+  ValueDecl *getReflectedDecl() const;
+  const TemplateName getReflectedTemplate() const;
+  Decl *getReflectedNamespace() const;
+  CXXBaseSpecifier *getReflectedBaseSpecifier() const;
+  TagDataMemberSpec *getReflectedDataMemberSpec() const;
+
   void setInt(APSInt I) {
     assert(isInt() && "Invalid accessor");
     *(APSInt *)(char *)&Data = std::move(I);
@@ -678,6 +704,14 @@ private:
     assert(isAbsent() && "Bad state change");
     new ((void *)(char *)&Data) AddrLabelDiffData();
     Kind = AddrLabelDiff;
+  }
+  void MakeReflection(ReflectionValue::ReflectionKind ReflKind,
+                      const void *ReflEntity) {
+    assert(isAbsent() && "Bad state change");
+
+    new ((void *)(char *)Data.buffer) ReflectionValue(
+            ReflKind, const_cast<void *>(ReflEntity));
+    Kind = Reflection;
   }
 
 private:

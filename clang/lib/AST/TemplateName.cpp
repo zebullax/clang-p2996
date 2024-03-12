@@ -281,7 +281,7 @@ bool TemplateName::containsUnexpandedParameterPack() const {
   return getDependence() & TemplateNameDependence::UnexpandedPack;
 }
 
-void TemplateName::Profile(llvm::FoldingSetNodeID &ID) {
+void TemplateName::Profile(llvm::FoldingSetNodeID &ID) const {
   if (const auto* USD = getAsUsingShadowDecl())
     ID.AddPointer(USD->getCanonicalDecl());
   else if (const auto *TD = getAsTemplateDecl())

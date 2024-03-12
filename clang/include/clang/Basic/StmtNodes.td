@@ -148,6 +148,7 @@ def ExprWithCleanups : StmtNode<FullExpr>;
 def CXXTemporaryObjectExpr : StmtNode<CXXConstructExpr>;
 def CXXUnresolvedConstructExpr : StmtNode<Expr>;
 def CXXDependentScopeMemberExpr : StmtNode<Expr>;
+def CXXDependentMemberSpliceExpr : StmtNode<Expr>;
 def OverloadExpr : StmtNode<Expr, 1>;
 def UnresolvedLookupExpr : StmtNode<OverloadExpr>;
 def UnresolvedMemberExpr : StmtNode<OverloadExpr>;
@@ -172,6 +173,14 @@ def CoyieldExpr : StmtNode<CoroutineSuspendExpr>;
 // C++20 Concepts expressions
 def ConceptSpecializationExpr : StmtNode<Expr>;
 def RequiresExpr : StmtNode<Expr>;
+
+// C++2c Reflection expressions
+def CXXReflectExpr : StmtNode<Expr>;
+def CXXMetafunctionExpr : StmtNode<Expr>;
+def CXXIndeterminateSpliceExpr : StmtNode<Expr>;
+def CXXExprSpliceExpr : StmtNode<Expr>;
+def StackLocationExpr : StmtNode<Expr>;
+def ValueOfLValueExpr : StmtNode<Expr>;
 
 // Obj-C Expressions.
 def ObjCStringLiteral : StmtNode<Expr>;

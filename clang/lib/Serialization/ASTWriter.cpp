@@ -463,6 +463,11 @@ void TypeLocWriter::VisitDecltypeTypeLoc(DecltypeTypeLoc TL) {
   addSourceLocation(TL.getRParenLoc());
 }
 
+void TypeLocWriter::VisitReflectionSpliceTypeLoc(ReflectionSpliceTypeLoc TL) {
+  addSourceLocation(TL.getLSpliceLoc());
+  addSourceLocation(TL.getRSpliceLoc());
+}
+
 void TypeLocWriter::VisitUnaryTransformTypeLoc(UnaryTransformTypeLoc TL) {
   addSourceLocation(TL.getKWLoc());
   addSourceLocation(TL.getLParenLoc());
@@ -972,6 +977,7 @@ void ASTWriter::WriteBlockInfoBlock() {
   RECORD(TYPE_DECAYED);
   RECORD(TYPE_ADJUSTED);
   RECORD(TYPE_OBJC_TYPE_PARAM);
+  RECORD(TYPE_REFLECTION_SPLICE);
   RECORD(LOCAL_REDECLARATIONS);
   RECORD(DECL_TYPEDEF);
   RECORD(DECL_TYPEALIAS);
@@ -5657,6 +5663,7 @@ void ASTRecordWriter::AddTemplateArgumentLocInfo(
     break;
   case TemplateArgument::Null:
   case TemplateArgument::Integral:
+  case TemplateArgument::Reflection:
   case TemplateArgument::Declaration:
   case TemplateArgument::NullPtr:
   case TemplateArgument::StructuralValue:
@@ -5930,6 +5937,10 @@ void ASTRecordWriter::AddNestedNameSpecifierLoc(NestedNameSpecifierLoc NNS) {
 
     case NestedNameSpecifier::Super:
       AddDeclRef(NNS.getNestedNameSpecifier()->getAsRecordDecl());
+      AddSourceRange(NNS.getLocalSourceRange());
+      break;
+
+    case NestedNameSpecifier::IndeterminateSplice:
       AddSourceRange(NNS.getLocalSourceRange());
       break;
     }

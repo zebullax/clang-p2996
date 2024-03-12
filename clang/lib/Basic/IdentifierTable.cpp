@@ -1,5 +1,7 @@
 //===- IdentifierTable.cpp - Hash table for identifier lookup -------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -109,7 +111,8 @@ namespace {
     KEYCUDA       = 0x1000000,
     KEYHLSL       = 0x2000000,
     KEYFIXEDPOINT = 0x4000000,
-    KEYMAX        = KEYFIXEDPOINT, // The maximum key
+    KEYREFLECT    = 0x8000000,
+    KEYMAX        = KEYREFLECT, // The maximum key
     KEYALLCXX = KEYCXX | KEYCXX11 | KEYCXX20,
     KEYALL = (KEYMAX | (KEYMAX-1)) & ~KEYNOMS18 &
              ~KEYNOOPENCL // KEYNOMS18 and KEYNOOPENCL are used to exclude.
@@ -213,6 +216,8 @@ static KeywordStatus getKeywordStatusHelper(const LangOptions &LangOpts,
     return KS_Unknown;
   case KEYFIXEDPOINT:
     return LangOpts.FixedPoint ? KS_Enabled : KS_Disabled;
+  case KEYREFLECT:
+    return LangOpts.Reflection ? KS_Extension : KS_Unknown;
   default:
     llvm_unreachable("Unknown KeywordStatus flag");
   }

@@ -1,5 +1,7 @@
 //===--- IgnoreExpr.h - Ignore intermediate Expressions -----------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -49,8 +51,9 @@ inline Expr *IgnoreImplicitCastsSingleStep(Expr *E) {
   if (auto *ICE = dyn_cast<ImplicitCastExpr>(E))
     return ICE->getSubExpr();
 
-  if (auto *FE = dyn_cast<FullExpr>(E))
-    return FE->getSubExpr();
+  if (auto *FE = dyn_cast<FullExpr>(E)) {
+    return FE->getSubExpr() ? FE->getSubExpr() : E;
+  }
 
   return E;
 }
@@ -77,7 +80,7 @@ inline Expr *IgnoreCastsSingleStep(Expr *E) {
     return CE->getSubExpr();
 
   if (auto *FE = dyn_cast<FullExpr>(E))
-    return FE->getSubExpr();
+    return FE->getSubExpr() ? FE->getSubExpr() : E;
 
   if (auto *MTE = dyn_cast<MaterializeTemporaryExpr>(E))
     return MTE->getSubExpr();
@@ -144,6 +147,12 @@ inline Expr *IgnoreImplicitAsWrittenSingleStep(Expr *E) {
 inline Expr *IgnoreParensOnlySingleStep(Expr *E) {
   if (auto *PE = dyn_cast<ParenExpr>(E))
     return PE->getSubExpr();
+  return E;
+}
+
+inline Expr *IgnoreExprSpliceSingleStep(Expr *E) {
+  if (auto *ESE = dyn_cast<CXXExprSpliceExpr>(E))
+    return ESE->getOperand();
   return E;
 }
 

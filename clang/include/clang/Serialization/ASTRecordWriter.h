@@ -1,5 +1,7 @@
 //===- ASTRecordWriter.h - Helper classes for writing AST -------*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -174,6 +176,11 @@ public:
   /// Emit an APvalue.
   void AddAPValue(const APValue &Value) { writeAPValue(Value); }
 
+  /// Emit a ReflectionValue.
+  void AddReflectionValue(const ReflectionValue &Value) {
+    writeReflectionValue(Value);
+  }
+
   /// Emit a reference to an identifier.
   void AddIdentifierRef(const IdentifierInfo *II) {
     return Writer->AddIdentifierRef(II, *Record);
@@ -196,6 +203,10 @@ public:
 
   /// Emit a set of C++ base specifiers.
   void AddCXXBaseSpecifiers(ArrayRef<CXXBaseSpecifier> Bases);
+
+  void writeCXXBaseSpecifierRef(const CXXBaseSpecifier *S) {
+    AddCXXBaseSpecifier(*S);
+  }
 
   /// Emit a reference to a type.
   void AddTypeRef(QualType T) {
@@ -231,6 +242,11 @@ public:
   }
   void writeDeclRef(const Decl *D) {
     AddDeclRef(D);
+  }
+
+  /// Emit a TagDataMemberSpec.
+  void writeTagDataMemberSpecRef(const TagDataMemberSpec *Spec) {
+    // TODO(P2996): Implement this.
   }
 
   /// Emit a declaration name.

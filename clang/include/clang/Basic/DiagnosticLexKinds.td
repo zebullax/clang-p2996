@@ -937,6 +937,10 @@ def warn_pp_include_angled_in_module_purview : Warning<
   "the module declaration">,
   InGroup<DiagGroup<"include-angled-in-module-purview">>;
 
+def warn_reflection_disabled : Warning<
+  "not parsing token '%0'; use '-freflection' to enable reflection features">,
+  InGroup<DiagGroup<"unparsed-reflection-token">>;
+
 def warn_header_guard : Warning<
   "%0 is used as a header guard here, followed by #define of a different macro">,
   InGroup<DiagGroup<"header-guard">>;

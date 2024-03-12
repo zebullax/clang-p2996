@@ -1,5 +1,7 @@
 //===- NestedNameSpecifier.cpp - C++ nested name specifiers ---------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -17,6 +19,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DependenceFlags.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
@@ -140,6 +143,18 @@ NestedNameSpecifier::SuperSpecifier(const ASTContext &Context,
   return FindOrInsert(Context, Mockup);
 }
 
+NestedNameSpecifier *
+NestedNameSpecifier::IndeterminateSpliceSpecifier(
+    const ASTContext &Context, const CXXIndeterminateSpliceExpr *Expr) {
+  assert(Expr && "Expr cannot be NULL");
+  NestedNameSpecifier Mockup;
+  Mockup.Prefix.setPointer(nullptr);
+  Mockup.Prefix.setInt(StoredIndeterminateSplice);
+  Mockup.Specifier = const_cast<CXXIndeterminateSpliceExpr *>(Expr);
+
+  return FindOrInsert(Context, Mockup);
+}
+
 NestedNameSpecifier::SpecifierKind NestedNameSpecifier::getKind() const {
   if (!Specifier)
     return Global;
@@ -160,8 +175,10 @@ NestedNameSpecifier::SpecifierKind NestedNameSpecifier::getKind() const {
 
   case StoredTypeSpecWithTemplate:
     return TypeSpecWithTemplate;
-  }
 
+  case StoredIndeterminateSplice:
+    return IndeterminateSplice;
+  }
   llvm_unreachable("Invalid NNS Kind!");
 }
 
@@ -185,6 +202,7 @@ NamespaceAliasDecl *NestedNameSpecifier::getAsNamespaceAlias() const {
 CXXRecordDecl *NestedNameSpecifier::getAsRecordDecl() const {
   switch (Prefix.getInt()) {
   case StoredIdentifier:
+  case StoredIndeterminateSplice:
     return nullptr;
 
   case StoredDecl:
@@ -227,6 +245,9 @@ NestedNameSpecifierDependence NestedNameSpecifier::getDependence() const {
   case TypeSpec:
   case TypeSpecWithTemplate:
     return toNestedNameSpecifierDependendence(getAsType()->getDependence());
+
+  case IndeterminateSplice:
+    return toNestedNameSpecifierDependence(getAsSpliceExpr()->getDependence());
   }
   llvm_unreachable("Invalid NNS Kind!");
 }
@@ -331,6 +352,11 @@ void NestedNameSpecifier::print(raw_ostream &OS, const PrintingPolicy &Policy,
     }
     break;
   }
+
+  case IndeterminateSplice: {
+    OS << "[: " << getAsSpliceExpr() << " :]";
+    break;
+  }
   }
 
   OS << "::";
@@ -374,7 +400,8 @@ NestedNameSpecifierLoc::getLocalDataLength(NestedNameSpecifier *Qualifier) {
 
   case NestedNameSpecifier::TypeSpecWithTemplate:
   case NestedNameSpecifier::TypeSpec:
-    // The "void*" that points at the TypeLoc data.
+  case NestedNameSpecifier::IndeterminateSplice:
+    // The "void*" that points at the TypeLoc or Expr data.
     // Note: the 'template' keyword is part of the TypeLoc.
     Length += sizeof(void *);
     break;
@@ -445,6 +472,15 @@ SourceRange NestedNameSpecifierLoc::getLocalSourceRange() const {
     return SourceRange(TL.getBeginLoc(),
                        LoadSourceLocation(Data, Offset + sizeof(void*)));
   }
+  case NestedNameSpecifier::IndeterminateSplice: {
+    // The "void*" that points at the Expr data.
+    const CXXIndeterminateSpliceExpr *Splice =
+          reinterpret_cast<CXXIndeterminateSpliceExpr *>(LoadPointer(Data,
+                                                                     Offset));
+    return SourceRange(
+        Splice->getLSpliceLoc(),
+        LoadSourceLocation(Data, Offset + sizeof(void*)));
+  }
   }
 
   llvm_unreachable("Invalid NNS Kind!");
@@ -459,6 +495,14 @@ TypeLoc NestedNameSpecifierLoc::getTypeLoc() const {
   unsigned Offset = getDataLength(Qualifier->getPrefix());
   void *TypeData = LoadPointer(Data, Offset);
   return TypeLoc(Qualifier->getAsType(), TypeData);
+}
+
+const CXXIndeterminateSpliceExpr *
+NestedNameSpecifierLoc::getSpliceExpr() const {
+  if (Qualifier->getKind() != NestedNameSpecifier::IndeterminateSplice)
+    return nullptr;
+
+  return Qualifier->getAsSpliceExpr();
 }
 
 static void Append(char *Start, char *End, char *&Buffer, unsigned &BufferSize,
@@ -628,6 +672,18 @@ void NestedNameSpecifierLocBuilder::MakeSuper(ASTContext &Context,
   SaveSourceLocation(ColonColonLoc, Buffer, BufferSize, BufferCapacity);
 }
 
+void NestedNameSpecifierLocBuilder::MakeIndeterminateSplice(
+    ASTContext &Context, const CXXIndeterminateSpliceExpr *Expr,
+    SourceLocation ColonColonLoc) {
+  Representation = NestedNameSpecifier::IndeterminateSpliceSpecifier(Context,
+                                                                     Expr);
+
+  // Push source-location info into the buffer.
+  SavePointer(const_cast<CXXIndeterminateSpliceExpr *>(Expr), Buffer,
+              BufferSize, BufferCapacity);
+  SaveSourceLocation(ColonColonLoc, Buffer, BufferSize, BufferCapacity);
+}
+
 void NestedNameSpecifierLocBuilder::MakeTrivial(ASTContext &Context,
                                                 NestedNameSpecifier *Qualifier,
                                                 SourceRange R) {
@@ -655,6 +711,14 @@ void NestedNameSpecifierLocBuilder::MakeTrivial(ASTContext &Context,
                                            R.getBegin());
         SavePointer(TSInfo->getTypeLoc().getOpaqueData(), Buffer, BufferSize,
                     BufferCapacity);
+        break;
+      }
+
+      case NestedNameSpecifier::IndeterminateSplice: {
+        SavePointer(
+              const_cast<CXXIndeterminateSpliceExpr *>(NNS->getAsSpliceExpr()),
+              Buffer, BufferSize, BufferCapacity);
+        SaveSourceLocation(R.getBegin(), Buffer, BufferSize, BufferCapacity);
         break;
       }
 

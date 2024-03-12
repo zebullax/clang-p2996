@@ -1,5 +1,7 @@
 //===--- Sema.h - Semantic Analysis & AST Building --------------*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -200,6 +202,7 @@ class TypeAliasDecl;
 class TypedefDecl;
 class TypedefNameDecl;
 class TypeLoc;
+class TypeLocBuilder;
 class TypoCorrectionConsumer;
 class UnqualifiedId;
 class UnresolvedLookupExpr;
@@ -469,6 +472,7 @@ class Sema final {
   // 40. OpenACC Constructs (SemaOpenACC.cpp)
   // 41. OpenMP Directives and Clauses (SemaOpenMP.cpp)
   // 42. SYCL Constructs (SemaSYCL.cpp)
+  // 43. P2996 Reflection Constructs (SemaReflection.cpp)
 
   /// \name Semantic Analysis
   /// Implementations are in Sema.cpp
@@ -492,6 +496,10 @@ public:
   virtual void anchor();
 
   const LangOptions &getLangOpts() const { return LangOpts; }
+  bool languageAccessControl() {
+    return getLangOpts().AccessControl && !EllideAccessControl;
+  }
+
   OpenCLOptions &getOpenCLOptions() { return OpenCLFeatures; }
   FPOptions &getCurFPFeatures() { return CurFPFeatures; }
 
@@ -4012,6 +4020,10 @@ public:
   NamespaceDecl *getStdNamespace() const;
   NamespaceDecl *getOrCreateStdNamespace();
 
+  NamespaceDecl *lookupStdMetaNamespace();
+
+  RecordDecl *lookupStdSourceLocationImpl(SourceLocation Loc);
+
   CXXRecordDecl *getStdBadAlloc() const;
   EnumDecl *getStdAlignValT() const;
 
@@ -4052,10 +4064,20 @@ public:
   /// defined in [dcl.init.list]p2.
   bool isInitListConstructor(const FunctionDecl *Ctor);
 
+  /// Resolve SS and Id as a namespace name. Returns nullptr if the pair does
+  /// not denote a namespace.
+  Decl *ActOnNamespaceName(Scope *CurScope, CXXScopeSpec &SS,
+                           IdentifierInfo *Id, SourceLocation IdLoc);
+
   Decl *ActOnUsingDirective(Scope *CurScope, SourceLocation UsingLoc,
                             SourceLocation NamespcLoc, CXXScopeSpec &SS,
                             SourceLocation IdentLoc,
                             IdentifierInfo *NamespcName,
+                            const ParsedAttributesView &AttrList);
+  Decl *ActOnUsingDirective(Scope *CurScope, SourceLocation UsingLoc,
+                            SourceLocation NamespaceLoc, CXXScopeSpec &SS,
+                            SourceLocation IdentLoc, NamedDecl *Named,
+                            NamespaceDecl *NS,
                             const ParsedAttributesView &AttrList);
 
   void PushUsingDirective(Scope *S, UsingDirectiveDecl *UDir);
@@ -4064,6 +4086,13 @@ public:
                                SourceLocation AliasLoc, IdentifierInfo *Alias,
                                CXXScopeSpec &SS, SourceLocation IdentLoc,
                                IdentifierInfo *Ident);
+  Decl *ActOnNamespaceAliasDef(Scope *CurScope,
+                               SourceLocation NamespaceLoc,
+                               SourceLocation AliasLoc,
+                               IdentifierInfo *Alias,
+                               CXXScopeSpec &SS,
+                               SourceLocation IdentLoc,
+                               NamedDecl *ND);
 
   void FilterUsingLookup(Scope *S, LookupResult &lookup);
   void HideUsingShadowDecl(Scope *S, UsingShadowDecl *Shadow);
@@ -4962,6 +4991,9 @@ public:
   /// The C++ "std" namespace, where the standard library resides.
   LazyDeclPtr StdNamespace;
 
+  /// The C++ "std::experimental::meta" namespace.
+  NamespaceDecl *StdMetaNamespace;
+
   /// The C++ "std::initializer_list" template, which is defined in
   /// \<initializer_list>.
   ClassTemplateDecl *StdInitializerList;
@@ -5157,7 +5189,11 @@ public:
     /// we would like to provide diagnostics (e.g., passing non-POD arguments
     /// through varargs) but do not want to mark declarations as "referenced"
     /// until the default argument is used.
-    PotentiallyEvaluatedIfUsed
+    PotentiallyEvaluatedIfUsed,
+
+    /// The current expression and its subexpressions occur within an
+    /// unevaluated reflection operand (C++26 P2996).
+    ReflectionContext,
   };
 
   /// Store a set of either DeclRefExprs or MemberExprs that contain a reference
@@ -5312,7 +5348,8 @@ public:
     bool isUnevaluated() const {
       return Context == ExpressionEvaluationContext::Unevaluated ||
              Context == ExpressionEvaluationContext::UnevaluatedAbstract ||
-             Context == ExpressionEvaluationContext::UnevaluatedList;
+             Context == ExpressionEvaluationContext::UnevaluatedList ||
+             Context == ExpressionEvaluationContext::ReflectionContext;
     }
 
     bool isConstantEvaluated() const {
@@ -5340,6 +5377,10 @@ public:
              (Context ==
                   ExpressionEvaluationContext::ImmediateFunctionContext &&
               InDiscardedStatement);
+    }
+
+    bool isReflectionContext() const {
+      return Context == ExpressionEvaluationContext::ReflectionContext;
     }
   };
 
@@ -6491,6 +6532,12 @@ public:
   /// is not evaluated as per C++ [expr] p5.
   bool isUnevaluatedContext() const {
     return currentEvaluationContext().isUnevaluated();
+  }
+
+  /// Determines whether we are currently in a context assembling a reflect
+  /// expression. This is akin to unevaluated, but has some special rules.
+  bool isReflectionContext() const {
+    return currentEvaluationContext().isReflectionContext();
   }
 
   bool isImmediateFunctionContext() const {
@@ -9489,6 +9536,10 @@ public:
   ExprResult
   BuildExpressionFromNonTypeTemplateArgument(const TemplateArgument &Arg,
                                              SourceLocation Loc);
+
+  ExprResult
+  BuildExpressionFromReflectionTemplateArgument(const TemplateArgument &Arg,
+                                                SourceLocation Loc);
 
   /// Enumeration describing how template parameter lists are compared
   /// for equality.
@@ -14776,6 +14827,136 @@ public:
   void deepTypeCheckForSYCLDevice(SourceLocation UsedAt,
                                   llvm::DenseSet<QualType> Visited,
                                   ValueDecl *DeclToCheck);
+
+  ///@}
+
+  //
+  //
+  // -------------------------------------------------------------------------
+  //
+  //
+
+  /// \name P2996 Reflection Constructs
+  /// Implementations are in SemaReflect.cpp
+  ///@{
+
+public:
+  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc, TypeResult T);
+  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc, Expr *E);
+  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc,
+                                 SourceLocation ArgLoc, Decl *D);
+  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc,
+                                 ParsedTemplateArgument Template);
+  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc,
+                                 CXXIndeterminateSpliceExpr *E);
+
+  ExprResult ActOnCXXMetafunction(SourceLocation KwLoc,
+                                  SourceLocation LParenLoc,
+                                  SmallVectorImpl<Expr *> &Args,
+                                  SourceLocation RParenLoc);
+  ExprResult ActOnCXXIndeterminateSpliceExpr(SourceLocation LSpliceLoc,
+                                             Expr *Operand,
+                                             SourceLocation RSpliceLoc);
+  TypeResult ActOnCXXSpliceExpectingType(SourceLocation LSplice,
+                                         Expr *Operand,
+                                         SourceLocation RSplice,
+                                         bool Complain);
+  ExprResult ActOnCXXSpliceExpectingExpr(SourceLocation LSplice,
+                                         Expr *Operand,
+                                         SourceLocation RSplice);
+  DeclResult ActOnCXXSpliceExpectingNamespace(SourceLocation LSplice,
+                                              Expr *Operand,
+                                              SourceLocation RSplice);
+  bool ActOnCXXNestedNameSpecifierReflectionSplice(
+      CXXScopeSpec &SS, CXXIndeterminateSpliceExpr *Splice,
+      SourceLocation ColonColonLoc);
+
+  ExprResult ActOnMemberAccessExpr(Scope *S, Expr *Base,
+                                   SourceLocation OpLoc,
+                                   tok::TokenKind OpKind,
+                                   CXXExprSpliceExpr *RHS,
+                                   SourceLocation TemplateKWLoc);
+
+  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
+                                 SourceLocation OperandLoc, QualType T);
+  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc, Expr *E);
+  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
+                                 SourceLocation OperandLoc, Decl *D);
+  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
+                                 UnresolvedLookupExpr *E);
+  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
+                                 SourceLocation OperandLoc,
+                                 TemplateName Template);
+
+  ExprResult BuildCXXMetafunctionExpr(SourceLocation KwLoc,
+                                      SourceLocation LParenLoc,
+                                      SourceLocation RParenLoc,
+                                      unsigned MetaFnID,
+                                      const CXXMetafunctionExpr::ImplFn &Impl,
+                                      SmallVectorImpl<Expr *> &Args);
+
+  ExprResult BuildCXXIndeterminateSpliceExpr(SourceLocation LSpliceLoc,
+                                             Expr *Operand,
+                                             SourceLocation RSpliceLoc);
+  QualType BuildReflectionSpliceType(SourceLocation LSplice,
+                                     Expr *Operand,
+                                     SourceLocation RSplice,
+                                     bool Complain);
+  QualType BuildReflectionSpliceTypeLoc(TypeLocBuilder &TLB,
+                                        SourceLocation LSpliceLoc,
+                                        Expr *E, SourceLocation RSpliceLoc,
+                                        bool Complain);
+  ExprResult BuildReflectionSpliceExpr(SourceLocation LSplice,
+                                       Expr *Operand,
+                                       SourceLocation RSplice);
+  DeclResult BuildReflectionSpliceNamespace(SourceLocation LSplice,
+                                            Expr *Operand,
+                                            SourceLocation RSplice);
+
+  ExprResult BuildMemberReferenceExpr(Scope *S, Expr *Base,
+                                      SourceLocation OpLoc,
+                                      tok::TokenKind OpKind,
+                                      CXXExprSpliceExpr *RHS,
+                                      SourceLocation TemplateKWLoc);
+  ExprResult BuildDependentMemberSpliceExpr(Expr *Base, SourceLocation OpLoc,
+                                            bool IsArrow,
+                                            CXXExprSpliceExpr *RHS);
+
+  DeclContext *TryFindDeclContextOf(const Expr *E);
+
+
+private:
+  // Lambdas having bound references to this Sema object, used to evaluate
+  // metafunction (C++26, P2996) at constant evaluation time.
+  llvm::SmallDenseMap<unsigned, std::unique_ptr<CXXMetafunctionExpr::ImplFn>>
+    MetafunctionImplCbs;
+
+  // Whether to elide access control when checking access to class members.
+  bool EllideAccessControl {false};
+
+  class AccessControlScopeGuard final {
+  public:
+    AccessControlScopeGuard(const AccessControlScopeGuard&) = delete;
+    AccessControlScopeGuard(AccessControlScopeGuard&&) = delete;
+    AccessControlScopeGuard& operator=(const AccessControlScopeGuard&) = delete;
+    AccessControlScopeGuard& operator=(AccessControlScopeGuard&&) = delete;
+
+    // Sets EllideAccessControl to the new override value & keeps the
+    // previous one, so we can revert when the scope guard exits
+    explicit AccessControlScopeGuard(Sema &S, bool ellideAccessControlOverride)
+    : S_{S}
+    , previousEllideAccessControl_{S_.EllideAccessControl} {
+      S_.EllideAccessControl = ellideAccessControlOverride;
+    }
+
+    ~AccessControlScopeGuard() {
+      S_.EllideAccessControl = previousEllideAccessControl_;
+    }
+
+  private:
+    Sema &S_;
+    bool previousEllideAccessControl_ {false};
+  };
 
   ///@}
 };

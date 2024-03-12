@@ -21,7 +21,7 @@ BLOCKLIT = '' # block Lit from interpreting a RUN/XFAIL/etc inside the generatio
 for header in public_headers:
   print(f"""\
 //--- {header}.compile.pass.cpp
-// RUN{BLOCKLIT}: %{{cxx}} %s %{{flags}} %{{compile_flags}} -fmodules -fcxx-modules -fmodules-cache-path=%t -fsyntax-only
+// RUN{BLOCKLIT}: %{{cxx}} %s %{{flags}} %{{compile_flags}} -fmodules -freflection -fcxx-modules -fmodules-cache-path=%t -fsyntax-only
 
 // GCC doesn't support -fcxx-modules
 // UNSUPPORTED{BLOCKLIT}: gcc
@@ -49,7 +49,7 @@ for header in public_headers:
 
 print(f"""\
 //--- __std_clang_module.compile.pass.mm
-// RUN{BLOCKLIT}: %{{cxx}} %s %{{flags}} %{{compile_flags}} -fmodules -fcxx-modules -fmodules-cache-path=%t -fsyntax-only
+// RUN{BLOCKLIT}: %{{cxx}} %s %{{flags}} %{{compile_flags}} -fmodules -freflection -fcxx-modules -fmodules-cache-path=%t -fsyntax-only
 
 // REQUIRES{BLOCKLIT}: clang-modules-build
 

@@ -1,5 +1,7 @@
 //===--- RAIIObjectsForParser.h - RAII helpers for the parser ---*- C++ -*-===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -377,17 +379,18 @@ namespace clang {
   /// after declaration/statement parsing, even when there's a parsing error.
   class ParenBraceBracketBalancer {
     Parser &P;
-    unsigned short ParenCount, BracketCount, BraceCount;
+    unsigned short ParenCount, BracketCount, BraceCount, SpliceCount;
   public:
     ParenBraceBracketBalancer(Parser &p)
       : P(p), ParenCount(p.ParenCount), BracketCount(p.BracketCount),
-        BraceCount(p.BraceCount) { }
+        BraceCount(p.BraceCount), SpliceCount(p.SpliceCount) { }
 
     ~ParenBraceBracketBalancer() {
       P.AngleBrackets.clear(P);
       P.ParenCount = ParenCount;
       P.BracketCount = BracketCount;
       P.BraceCount = BraceCount;
+      P.SpliceCount = SpliceCount;
     }
   };
 
@@ -428,6 +431,7 @@ namespace clang {
         case tok::l_brace: return P.BraceCount;
         case tok::l_square: return P.BracketCount;
         case tok::l_paren: return P.ParenCount;
+        case tok::l_splice: return P.SpliceCount;
         default: llvm_unreachable("Wrong token kind");
       }
     }
@@ -455,6 +459,11 @@ namespace clang {
         case tok::l_square:
           Close = tok::r_square;
           Consumer = &Parser::ConsumeBracket;
+          break;
+
+        case tok::l_splice:
+          Close = tok::r_splice;
+          Consumer = &Parser::ConsumeSplice;
           break;
       }
     }

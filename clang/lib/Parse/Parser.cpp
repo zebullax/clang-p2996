@@ -1,5 +1,7 @@
 //===--- Parser.cpp - C Language Family Parser ----------------------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -368,6 +370,14 @@ bool Parser::SkipUntil(ArrayRef<tok::TokenKind> Toks, SkipUntilFlags Flags) {
       else
         SkipUntil(tok::r_brace);
       break;
+    case tok::l_splice:
+      // Recursively skip property-nested splices.
+      ConsumeSplice();
+      if (HasFlagsSet(Flags, StopAtCodeCompletion))
+        SkipUntil(tok::r_splice, StopAtCodeCompletion);
+      else
+        SkipUntil(tok::r_splice);
+      break;
     case tok::question:
       // Recursively skip ? ... : pairs; these function as brackets. But
       // still stop at a semicolon if requested.
@@ -396,6 +406,11 @@ bool Parser::SkipUntil(ArrayRef<tok::TokenKind> Toks, SkipUntilFlags Flags) {
       if (BraceCount && !isFirstTokenSkipped)
         return false;  // Matches something.
       ConsumeBrace();
+      break;
+    case tok::r_splice:
+      if (SpliceCount && !isFirstTokenSkipped)
+        return false;  // Matches something.
+      ConsumeSplice();
       break;
 
     case tok::semi:
@@ -1994,7 +2009,7 @@ bool Parser::TryAnnotateTypeOrScopeToken(
           Tok.is(tok::kw_typename) || Tok.is(tok::annot_cxxscope) ||
           Tok.is(tok::kw_decltype) || Tok.is(tok::annot_template_id) ||
           Tok.is(tok::kw___super) || Tok.is(tok::kw_auto) ||
-          Tok.is(tok::annot_pack_indexing_type)) &&
+          Tok.is(tok::l_splice) || Tok.is(tok::annot_pack_indexing_type)) &&
          "Cannot be a type or scope token!");
 
   if (Tok.is(tok::kw_typename)) {
@@ -2022,13 +2037,15 @@ bool Parser::TryAnnotateTypeOrScopeToken(
     //     'typename' '::' [opt] nested-name-specifier template [opt]
     //            simple-template-id
     SourceLocation TypenameLoc = ConsumeToken();
+
     CXXScopeSpec SS;
     if (ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
                                        /*ObjectHasErrors=*/false,
                                        /*EnteringContext=*/false, nullptr,
                                        /*IsTypename*/ true))
       return true;
-    if (SS.isEmpty()) {
+
+    if (SS.isEmpty() && !Tok.is(tok::annot_splice)) {
       if (Tok.is(tok::identifier) || Tok.is(tok::annot_template_id) ||
           Tok.is(tok::annot_decltype)) {
         // Attempt to recover by skipping the invalid 'typename'
@@ -2075,6 +2092,15 @@ bool Parser::TryAnnotateTypeOrScopeToken(
                      TemplateId->Template, TemplateId->Name,
                      TemplateId->TemplateNameLoc, TemplateId->LAngleLoc,
                      TemplateArgsPtr, TemplateId->RAngleLoc);
+    } else if (Tok.is(tok::annot_splice)) {
+      // We parsed a 'typename' keyword, so this must be a type.
+      Token SpliceToken = Tok;
+      Ty = ParseCXXSpliceAsType(/*AllowDependent=*/true, /*Complain=*/true);
+      if (Ty.isInvalid())
+        return true;
+
+      // Unconsume splice token so it can be replaced with 'annot-typename'.
+      UnconsumeToken(SpliceToken);
     } else {
       Diag(Tok, diag::err_expected_type_name_after_typename)
         << SS.getRange();

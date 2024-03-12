@@ -876,6 +876,7 @@ llvm::DIType *CGDebugInfo::CreateType(const BuiltinType *BT) {
   case BuiltinType::ULong:
   case BuiltinType::WChar_U:
   case BuiltinType::ULongLong:
+  case BuiltinType::MetaInfo:
     Encoding = llvm::dwarf::DW_ATE_unsigned;
     break;
   case BuiltinType::Short:
@@ -2137,6 +2138,17 @@ CGDebugInfo::CollectTemplateParams(std::optional<TemplateArgs> OArgs,
       TemplateParams.push_back(DBuilder.createTemplateValueParameter(
           TheCU, Name, TTy, defaultParameter,
           llvm::ConstantInt::get(CGM.getLLVMContext(), TA.getAsIntegral())));
+    } break;
+    case TemplateArgument::Reflection: {
+      TemplateParams.push_back(
+          DBuilder.createTemplateValueParameter(
+              TheCU, Name,
+              getOrCreateType(CGM.getContext().MetaInfoTy, Unit),
+              defaultParameter,
+              llvm::ConstantInt::get(
+                  llvm::IntegerType::get(CGM.getLLVMContext(), sizeof(uintptr_t)),
+                  reinterpret_cast<uintptr_t>(
+                      TA.getAsReflection().getOpaqueValue()))));
     } break;
     case TemplateArgument::Declaration: {
       const ValueDecl *D = TA.getAsDecl();
@@ -3454,6 +3466,9 @@ static QualType UnwrapTypeForDebugInfo(QualType T, const ASTContext &C) {
     case Type::Decltype:
       T = cast<DecltypeType>(T)->getUnderlyingType();
       break;
+    case Type::ReflectionSplice:
+      T = cast<ReflectionSpliceType>(T)->getUnderlyingType();
+      break;
     case Type::UnaryTransform:
       T = cast<UnaryTransformType>(T)->getUnderlyingType();
       break;
@@ -3672,6 +3687,7 @@ llvm::DIType *CGDebugInfo::CreateTypeNode(QualType Ty, llvm::DIFile *Unit) {
   case Type::TypeOfExpr:
   case Type::TypeOf:
   case Type::Decltype:
+  case Type::ReflectionSplice:
   case Type::PackIndexing:
   case Type::UnaryTransform:
     break;
@@ -5416,6 +5432,7 @@ std::string CGDebugInfo::GetName(const Decl *D, bool Qualified) const {
             // feasible some day.
             return TA.getAsIntegral().getBitWidth() <= 64 &&
                    IsReconstitutableType(TA.getIntegralType());
+          case TemplateArgument::Reflection:
           case TemplateArgument::StructuralValue:
             return false;
           case TemplateArgument::Type:

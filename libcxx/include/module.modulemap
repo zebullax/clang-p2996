@@ -525,6 +525,10 @@ module std_experimental [system] {
     header "experimental/memory"
     export *
   }
+  module meta {
+    header "experimental/meta"
+    export *
+  }
   module propagate_const {
     header "experimental/propagate_const"
     export *

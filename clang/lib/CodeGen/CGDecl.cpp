@@ -1,5 +1,7 @@
 //===--- CGDecl.cpp - Emit LLVM Code for declarations ---------------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -159,6 +161,13 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
     const VarDecl &VD = cast<VarDecl>(D);
     assert(VD.isLocalVarDecl() &&
            "Should not see file-scope variables inside a function!");
+
+    // Meta types have no runtime meaning.
+    if (VD.getType()->isMetaType()) {
+      assert(VD.isConstexpr());
+      return;
+    }
+
     EmitVarDecl(VD);
     if (auto *DD = dyn_cast<DecompositionDecl>(&VD))
       for (auto *B : DD->bindings())

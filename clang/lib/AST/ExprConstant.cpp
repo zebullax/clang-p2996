@@ -1,5 +1,7 @@
 //===--- ExprConstant.cpp - Expression Constant Evaluator -----------------===//
 //
+// Copyright 2024 Bloomberg Finance L.P.
+//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -2610,6 +2612,7 @@ static bool HandleConversionToBool(const APValue &Val, bool &Result) {
   case APValue::Struct:
   case APValue::Union:
   case APValue::AddrLabelDiff:
+  case APValue::Reflection:
     return false;
   }
 
@@ -4385,7 +4388,6 @@ handleLValueToRValueConversion(EvalInfo &Info, const Expr *Conv, QualType Type,
       return true;
     }
   }
-
   CompleteObject Obj = findCompleteObject(Info, Conv, AK, LVal, Type);
   return Obj && extractSubobject(Info, Conv, Obj, LVal.Designator, RVal, AK);
 }
@@ -7053,6 +7055,7 @@ class APValueToBufferConverter {
     case APValue::FixedPoint:
       // FIXME: We should support these.
 
+    case APValue::Reflection:
     case APValue::Union:
     case APValue::MemberPointer:
     case APValue::AddrLabelDiff: {
@@ -8313,7 +8316,91 @@ public:
       return;
     VisitIgnoredValue(E);
   }
+
+  /// Visit a metafunction evaluation (P2996).
+  bool VisitCXXMetafunctionExpr(const CXXMetafunctionExpr *E);
+
+  bool VisitCXXIndeterminateSpliceExpr(const CXXIndeterminateSpliceExpr *E) {
+    return this->Visit(E->getOperand());
+  }
+
+  bool VisitCXXExprSpliceExpr(const CXXExprSpliceExpr *E) {
+    return this->Visit(E->getOperand());
+  }
+
+  bool VisitStackLocationExpr(const StackLocationExpr *E);
 };
+
+/// EvaluateAsRValue - Try to evaluate this expression, performing an implicit
+/// lvalue-to-rvalue cast if it is an lvalue.
+template <typename Derived>
+bool ExprEvaluatorBase<Derived>::VisitCXXMetafunctionExpr(
+                                                 const CXXMetafunctionExpr *E) {
+  EvalInfo &Info = this->Info;
+  auto Evaluator = [&Info](APValue &Result, const Expr *E,
+                           bool ConvertToRValue) {
+    assert(!E->isValueDependent());
+
+    if (E->getType().isNull())
+      return false;
+
+    if (!CheckLiteralType(Info, E))
+      return false;
+
+    if (Info.EnableNewConstInterp) {
+      if (!Info.Ctx.getInterpContext().evaluateAsRValue(Info, E, Result))
+        return false;
+    } else {
+      if (!::Evaluate(Result, Info, E))
+        return false;
+    }
+
+    if (ConvertToRValue) {
+      if (E->isGLValue()) {
+        LValue LV;
+        LV.setFrom(Info.Ctx, Result);
+        if (!handleLValueToRValueConversion(Info, E, E->getType(), LV, Result))
+          return false;
+      }
+
+      // Check this core constant expression is a constant expression.
+      return CheckConstantExpression(Info, E->getExprLoc(), E->getType(),
+                                     Result, ConstantExprKind::Normal);
+    }
+    return true;
+  };
+
+  // Construct array of arguments.
+  SmallVector<Expr *, 2> Args(E->getNumArgs() - 1);
+  for (std::size_t I = 1; I < E->getNumArgs(); ++I) {
+    Args[I - 1] = E->getArg(I);
+  }
+
+  if (Info.checkingPotentialConstantExpression())
+    return false;
+
+  // Evaluate the metafunction.
+  APValue Result;
+  const CXXMetafunctionExpr::ImplFn &Implementation = E->getImpl();
+  if (Implementation(Result, Evaluator, E->getResultType(), E->getSourceRange(),
+                     Args)) {
+    return Error(E);
+  }
+  return DerivedSuccess(Result, E);
+}
+
+template <typename Derived>
+bool ExprEvaluatorBase<Derived>::VisitStackLocationExpr(
+                                                   const StackLocationExpr *E) {
+  CallStackFrame *Frame = Info.CurrentCall;
+  for (int Offset = E->getFrameOffset(); Frame && Offset > 0; --Offset)
+    Frame = Frame->Caller;
+  if (!Frame)
+    return Error(E);
+
+  return DerivedSuccess(APValue(ReflectionValue::RK_declaration,
+                                Frame->Callee), E);
+}
 
 } // namespace
 
@@ -8514,6 +8601,8 @@ public:
       return HandleDynamicCast(Info, cast<ExplicitCastExpr>(E), Result);
     }
   }
+
+  bool VisitValueOfLValueExpr(const ValueOfLValueExpr *E);
 };
 } // end anonymous namespace
 
@@ -8907,6 +8996,20 @@ bool LValueExprEvaluator::VisitBinAssign(const BinaryOperator *E) {
 
   return handleAssignment(this->Info, E, Result, E->getLHS()->getType(),
                           NewVal);
+}
+
+bool LValueExprEvaluator::VisitValueOfLValueExpr(const ValueOfLValueExpr *E) {
+  CallStackFrame *Frame = Info.CurrentCall;
+  do {
+    if (Frame->getCurrentTemporary(E->getValueDecl())) {
+      unsigned Version = Frame->getCurrentTemporaryVersion(E->getValueDecl());
+
+      APValue::LValueBase LV(E->getValueDecl(), Frame->Index, Version);
+      return Success(LV);
+    }
+  } while ((Frame = Frame->Caller));
+
+  return Success(E->getValueDecl());
 }
 
 //===----------------------------------------------------------------------===//
@@ -10121,7 +10224,8 @@ bool MemberPointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
 bool MemberPointerExprEvaluator::VisitUnaryAddrOf(const UnaryOperator *E) {
   // C++11 [expr.unary.op]p3 has very strict rules on how the address of a
   // member can be formed.
-  return Success(cast<DeclRefExpr>(E->getSubExpr())->getDecl());
+  Expr *SubExpr = E->getSubExpr()->IgnoreExprSplices();
+  return Success(cast<DeclRefExpr>(SubExpr)->getDecl());
 }
 
 //===----------------------------------------------------------------------===//
@@ -11622,6 +11726,7 @@ GCCTypeClass EvaluateBuiltinClassifyType(QualType T,
     case BuiltinType::ULong:
     case BuiltinType::ULongLong:
     case BuiltinType::UInt128:
+    case BuiltinType::MetaInfo:
       return GCCTypeClass::Integer;
 
     case BuiltinType::UShortAccum:
@@ -13595,6 +13700,19 @@ EvaluateComparisonBinaryOperator(EvalInfo &Info, const BinaryOperator *E,
     return Success(CmpResult::Equal, E);
   }
 
+  if (LHSTy->isReflectionType() && RHSTy->isReflectionType()) {
+    APValue LHSValue, RHSValue;
+    if (!Evaluate(LHSValue, Info, E->getLHS()))
+      return false;
+    if (!Evaluate(RHSValue, Info, E->getRHS()))
+      return false;
+
+    if (LHSValue.getReflection() == RHSValue.getReflection())
+      return Success(CmpResult::Equal, E);
+    else
+      return Success(CmpResult::Unequal, E);
+  }
+
   return DoAfter();
 }
 
@@ -15418,6 +15536,94 @@ static bool EvaluateVoid(const Expr *E, EvalInfo &Info) {
 }
 
 //===----------------------------------------------------------------------===//
+// Reflection expression evaluation
+//===----------------------------------------------------------------------===//
+
+namespace {
+class ReflectionEvaluator
+  : public ExprEvaluatorBase<ReflectionEvaluator> {
+
+  using BaseType = ExprEvaluatorBase<ReflectionEvaluator>;
+
+  APValue &Result;
+public:
+  ReflectionEvaluator(EvalInfo &E, APValue &Result)
+    : ExprEvaluatorBaseTy(E), Result(Result) {}
+
+  bool Success(const APValue &V, const Expr *e) {
+    return Success(V);
+  }
+
+  bool Success(const APValue &V) {
+    Result = V;
+    return true;
+  }
+
+  bool VisitCXXReflectExpr(const CXXReflectExpr *E);
+  bool VisitCXXMetafunctionExpr(const CXXMetafunctionExpr *E);
+  bool VisitCXXIndeterminateSpliceExpr(const CXXIndeterminateSpliceExpr *E);
+  bool VisitCXXExprSpliceExpr(const CXXExprSpliceExpr *E);
+};
+
+bool ReflectionEvaluator::VisitCXXReflectExpr(const CXXReflectExpr *E) {
+  const ReflectionValue &Ref = E->getOperand();
+  switch (Ref.getKind()) {
+  case ReflectionValue::RK_type: {
+    APValue Result(ReflectionValue::RK_type, Ref.getAsType().getAsOpaquePtr());
+    return Success(Result, E);
+  }
+  case ReflectionValue::RK_const_value: {
+    APValue Result(ReflectionValue::RK_const_value, Ref.getAsConstValueExpr());
+    return Success(Result, E);
+  }
+  case ReflectionValue::RK_declaration: {
+    APValue Result(ReflectionValue::RK_declaration, Ref.getAsDecl());
+    return Success(Result, E);
+  }
+  case ReflectionValue::RK_template: {
+    APValue Result(ReflectionValue::RK_template,
+                   Ref.getAsTemplate().getAsVoidPointer());
+    return Success(Result, E);
+  }
+  case ReflectionValue::RK_namespace: {
+    APValue Result(ReflectionValue::RK_namespace, Ref.getAsNamespace());
+    return Success(Result, E);
+  }
+  case ReflectionValue::RK_base_specifier: {
+    APValue Result(ReflectionValue::RK_base_specifier,
+                   Ref.getAsBaseSpecifier());
+    return Success(Result, E);
+  }
+  case ReflectionValue::RK_data_member_spec: {
+    APValue Result(ReflectionValue::RK_data_member_spec,
+                   Ref.getAsDataMemberSpec());
+    return Success(Result, E);
+  }
+  }
+  llvm_unreachable("invalid reflection");
+}
+
+bool ReflectionEvaluator::VisitCXXMetafunctionExpr(
+                                                 const CXXMetafunctionExpr *E) {
+  return BaseType::VisitCXXMetafunctionExpr(E);
+}
+
+bool ReflectionEvaluator::VisitCXXIndeterminateSpliceExpr(
+                                          const CXXIndeterminateSpliceExpr *E) {
+  return BaseType::VisitCXXIndeterminateSpliceExpr(E);
+}
+
+bool ReflectionEvaluator::VisitCXXExprSpliceExpr(const CXXExprSpliceExpr *E) {
+  return BaseType::VisitCXXExprSpliceExpr(E);
+}
+}  // end anonymous namespace
+
+static bool EvaluateReflection(const Expr *E, APValue &Result, EvalInfo &Info) {
+  assert(E->isPRValue() && E->getType()->isReflectionType());
+  return ReflectionEvaluator(Info, Result).Visit(E);
+}
+
+//===----------------------------------------------------------------------===//
 // Top level Expr::EvaluateAsRValue method.
 //===----------------------------------------------------------------------===//
 
@@ -15436,6 +15642,9 @@ static bool Evaluate(APValue &Result, EvalInfo &Info, const Expr *E) {
       return false;
   } else if (T->isIntegralOrEnumerationType()) {
     if (!IntExprEvaluator(Info, Result).Visit(E))
+      return false;
+  } else if (T->isReflectionType()) {
+    if (!EvaluateReflection(E, Result, Info))
       return false;
   } else if (T->hasPointerRepresentation()) {
     LValue LV;
@@ -16153,6 +16362,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CoyieldExprClass:
   case Expr::SYCLUniqueStableNameExprClass:
   case Expr::CXXParenListInitExprClass:
+  case Expr::CXXDependentMemberSpliceExprClass:
     return ICEDiag(IK_NotICE, E->getBeginLoc());
 
   case Expr::InitListExprClass: {
@@ -16197,6 +16407,12 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::ArrayTypeTraitExprClass:
   case Expr::ExpressionTraitExprClass:
   case Expr::CXXNoexceptExprClass:
+  case Expr::CXXReflectExprClass:
+  case Expr::CXXMetafunctionExprClass:
+  case Expr::CXXIndeterminateSpliceExprClass:
+  case Expr::CXXExprSpliceExprClass:
+  case Expr::StackLocationExprClass:
+  case Expr::ValueOfLValueExprClass:
     return NoDiag();
   case Expr::CallExprClass:
   case Expr::CXXOperatorCallExprClass: {

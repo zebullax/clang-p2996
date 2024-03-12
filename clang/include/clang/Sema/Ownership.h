@@ -264,6 +264,7 @@ using MultiTemplateParamsArg = MutableArrayRef<TemplateParameterList *>;
 inline ExprResult ExprError() { return ExprResult(true); }
 inline StmtResult StmtError() { return StmtResult(true); }
 inline TypeResult TypeError() { return TypeResult(true); }
+inline DeclResult DeclError() { return DeclResult(true); }
 
 inline ExprResult ExprError(const StreamingDiagnostic &) { return ExprError(); }
 inline StmtResult StmtError(const StreamingDiagnostic &) { return StmtError(); }
