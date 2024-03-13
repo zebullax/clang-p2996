@@ -1,9 +1,12 @@
 ## What is this repository?
 
-This repository is a fork of Llvm's Llvm-project repository, created so that Bloomberg's
-engineering team can collaborate with each other (and the rest of the Llvm-project community)
-on enhancements to Llvm-project. Branches in this repository represent 'work in progress' that
-will be contributed to the Llvm Llvm-project repository when the work is ready for review.
+This repository is a fork of LLVM's `llvm-project` repository, created to host a fork of the
+[clang](https://clang.llvm.org) compiler front-end implementing experimental support for ISO C++
+proposal [P2996 ("_Reflection for C++26_")](https://wg21.link/p2996). Development primarily takes
+place on the [p2996](https://github.com/bloomberg/clang-p2996/tree/p2996) branch; you can
+learn more about this fork in our [project documentation](
+https://github.com/bloomberg/clang-p2996/tree/p2996/P2996.md).
 
-If you have any questions about the branches in this repository, feel free to open an issue
-so our team can discuss them with you.
+The Clang/P2996 fork is highly experimental; sharp edges abound and occasional crashes should be
+expected. Memory usage has not been optimized and is, in many cases, wasteful. **DO NOT use this
+project to build any artifacts destined for production.**
