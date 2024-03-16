@@ -160,6 +160,20 @@ static_assert(static_cast<Enum>([:rEnumCls:]::B) == [:rEnum:]::B);
 // Splicing of a dependent reflection of an enum class.
 template <info R> consteval int bval() { return int([:R:]::B); }
 static_assert(bval<^Enum>() == bval<^EnumCls>());
+
+// using-enum-declaration with a splice.
+namespace {
+using enum [:rEnumCls:];
+static_assert(int(C) == 2);
+}  // namespace
+
+// using-enum-declaration with a qualified-id having a splice as the leading
+// nested-name-specifier.
+namespace {
+constexpr auto rns = ^with_enum_types;
+using enum [:rns:]::EnumCls;
+static_assert(int(B) == 1);
+}  // namespace
 }  // namespace with_enum_types
 
                              // ===================

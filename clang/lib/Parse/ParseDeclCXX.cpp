@@ -806,6 +806,32 @@ Parser::DeclGroupPtrTy Parser::ParseUsingDeclaration(
       return nullptr;
     }
 
+    if (Tok.is(tok::annot_splice)) {
+      SourceLocation SpliceLoc = Tok.getLocation();
+      TypeResult TR = ParseCXXSpliceAsType(/*AllowDependent=*/true,
+                                           /*Complain=*/true);
+      if (TR.isInvalid()) {
+        SkipUntil(tok::semi);
+        return nullptr;
+      }
+      TypeSourceInfo *TSI;
+      QualType EnumTy = Actions.GetTypeFromParser(TR.get(), &TSI);
+      if (EnumTy.isNull()) {
+        SkipUntil(tok::semi);
+        return nullptr;
+      }
+
+      Decl *UED = Actions.ActOnUsingEnumDeclaration(getCurScope(), AS, UsingLoc,
+                                                    UELoc, SpliceLoc, EnumTy,
+                                                    TSI);
+      if (!UED) {
+        SkipUntil(tok::semi);
+        return nullptr;
+      }
+
+      return Actions.ConvertDeclToDeclGroup(UED);
+    }
+
     if (!Tok.is(tok::identifier)) {
       Diag(Tok.getLocation(), diag::err_using_enum_expect_identifier)
           << Tok.is(tok::kw_enum);

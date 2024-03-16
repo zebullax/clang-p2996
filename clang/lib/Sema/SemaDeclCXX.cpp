@@ -12466,6 +12466,16 @@ Decl *Sema::ActOnUsingEnumDeclaration(Scope *S, AccessSpecifier AS,
     return nullptr;
   }
 
+  return ActOnUsingEnumDeclaration(S, AS, UsingLoc, EnumLoc, IdentLoc, EnumTy,
+                                   TSI);
+}
+
+Decl *Sema::ActOnUsingEnumDeclaration(Scope *S, AccessSpecifier AS,
+                                      SourceLocation UsingLoc,
+                                      SourceLocation EnumLoc,
+                                      SourceLocation IdentLoc,
+                                      QualType EnumTy,
+                                      TypeSourceInfo *TSI) {
   auto *Enum = dyn_cast_if_present<EnumDecl>(EnumTy->getAsTagDecl());
   if (!Enum) {
     Diag(IdentLoc, diag::err_using_enum_not_enum) << EnumTy;

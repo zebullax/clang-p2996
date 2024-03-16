@@ -4150,6 +4150,11 @@ public:
                                   SourceLocation EnumLoc,
                                   SourceLocation IdentLoc, IdentifierInfo &II,
                                   CXXScopeSpec *SS = nullptr);
+  Decl *ActOnUsingEnumDeclaration(Scope *CurScope, AccessSpecifier AS,
+                                  SourceLocation UsingLoc,
+                                  SourceLocation EnumLoc,
+                                  SourceLocation IdentLoc, QualType EnumTy,
+                                  TypeSourceInfo *TSI);
   Decl *ActOnAliasDeclaration(Scope *CurScope, AccessSpecifier AS,
                               MultiTemplateParamsArg TemplateParams,
                               SourceLocation UsingLoc, UnqualifiedId &Name,
