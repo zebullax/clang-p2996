@@ -599,10 +599,13 @@ bool Type::isStructureType() const {
 
 bool Type::isMetaType() const {
   const Type *CanonType = getCanonicalTypeInternal().getTypePtr();
-  if (CanonType != this) {
+  if (CanonType != this)
     return CanonType->isMetaType();
-  }
-  return TypeBits.MetaType;
+  else if (TypeBits.MetaType)
+    return true;
+  else if (auto *RD = getAsRecordDecl())
+    return RD->isMetaType();
+  return false;
 }
 
 bool Type::isObjCBoxableRecordType() const {
@@ -3938,7 +3941,8 @@ DependentUnaryTransformType::DependentUnaryTransformType(const ASTContext &C,
 TagType::TagType(TypeClass TC, const TagDecl *D, QualType can)
     : Type(TC, can,
            D->isDependentType() ? TypeDependence::DependentInstantiation
-                                : TypeDependence::None, /*MetaType=*/false),
+                                : TypeDependence::None,
+           /*MetaType=*/false),
       decl(const_cast<TagDecl *>(D)) {}
 
 static TagDecl *getInterestingTagDecl(TagDecl *decl) {

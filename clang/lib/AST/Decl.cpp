@@ -4974,6 +4974,7 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
   setParamDestroyedInCallee(false);
   setArgPassingRestrictions(RecordArgPassingKind::CanPassInRegs);
   setIsRandomized(false);
+  setIsMetaType(false);
   setODRHash(0);
 }
 
@@ -5047,6 +5048,22 @@ void RecordDecl::completeDefinition() {
   TagDecl::completeDefinition();
 
   ASTContext &Ctx = getASTContext();
+
+  // Compute whether this is a meta type.
+  for (FieldDecl *FD : fields()) {
+    if (FD->getType()->isMetaType()) {
+      setIsMetaType(true);
+      break;
+    }
+  }
+  if (auto CXXRD = dyn_cast<CXXRecordDecl>(this); CXXRD && !isMetaType()) {
+    for (CXXBaseSpecifier BaseSpecifier : CXXRD->bases()) {
+      if (BaseSpecifier.getType()->isMetaType()) {
+        setIsMetaType(true);
+        break;
+      }
+    }
+  }
 
   // Layouts are dumped when computed, so if we are dumping for all complete
   // types, we need to force usage to get types that wouldn't be used elsewhere.

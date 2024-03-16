@@ -14655,14 +14655,6 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
     }
   }
 
-  bool isConstexprContext = var->isConstexpr() ||
-                            var->getDeclContext()->isConstexprContext();
-  if (!isConstexprContext && type->isMetaType()) {
-    Diag(var->getLocation(), diag::err_meta_type_constexpr);
-    var->setInvalidDecl();
-    return;
-  }
-
   // Apply section attributes and pragmas to global variables.
   if (GlobalStorage && var->isThisDeclarationADefinition() &&
       !inTemplateInstantiation()) {

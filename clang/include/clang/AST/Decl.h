@@ -4284,6 +4284,10 @@ public:
 
   void setIsRandomized(bool V) { RecordDeclBits.IsRandomized = V; }
 
+  bool isMetaType() const { return RecordDeclBits.IsMetaType; }
+
+  void setIsMetaType(bool V) { RecordDeclBits.IsMetaType = V; }
+
   void reorderDecls(const SmallVectorImpl<Decl *> &Decls);
 
   /// Determines whether this declaration represents the

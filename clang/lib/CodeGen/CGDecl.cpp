@@ -33,6 +33,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
+#include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/DataLayout.h"
@@ -164,7 +165,8 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
 
     // Meta types have no runtime meaning.
     if (VD.getType()->isMetaType()) {
-      assert(VD.isConstexpr());
+      if (!VD.isConstexpr())
+        CGM.getDiags().Report(VD.getLocation(), diag::err_runtime_meta_info);
       return;
     }
 

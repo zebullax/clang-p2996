@@ -21,6 +21,7 @@
 
 #include <experimental/meta>
 
+#include <algorithm>
 #include <array>
 #include <print>
 #include <ranges>
@@ -80,9 +81,31 @@ void run_test() {
 
   // RUN: grep "Lambda state: <1, true, \"hello\">" %t.stdout
   auto t = struct_to_tuple(fn);
-  std::println(R"(Lambda state: <{}, {}, "{}">)", get<0>(t), get<1>(t), get<2>(t));
+  std::println(R"(Lambda state: <{}, {}, "{}">)",
+               get<0>(t), get<1>(t), get<2>(t));
 }
 }  // namespace alexandrescu_lambda_to_tuple
+
+namespace pdimov_sorted_type_list {
+template<class...> struct type_list { };
+
+consteval auto sorted_impl( std::vector<std::meta::info> v )
+{
+    std::ranges::sort( v, {}, std::meta::alignment_of );
+    return v;
+}
+
+template<class... Ts> consteval auto sorted()
+{
+    using R = typename [: substitute( ^type_list, sorted_impl({ ^Ts... }) ) :];
+    return R{};
+}
+
+void run_test() {
+  static_assert(typeid(sorted<int, double, char>()) ==
+                typeid(type_list<char, int, double>));
+}
+}  // namespace pdimov_sorted_type_list
 
                        // ==============================
                        // std_apply_with_function_splice
@@ -108,5 +131,6 @@ void run_tests() {
 
 int main() {
   run_tests<^alexandrescu_lambda_to_tuple,
-            ^std_apply_with_function_splice>();
+            ^std_apply_with_function_splice,
+            ^pdimov_sorted_type_list>();
 }

@@ -1669,9 +1669,13 @@ class DeclContext {
     LLVM_PREFERRED_TYPE(bool)
     uint64_t IsRandomized : 1;
 
+    /// Indicates whether this struct is a meta type.
+    LLVM_PREFERRED_TYPE(bool)
+    uint64_t IsMetaType : 1;
+
     /// True if a valid hash is stored in ODRHash. This should shave off some
     /// extra storage and prevent CXXRecordDecl to store unused bits.
-    uint64_t ODRHash : 26;
+    uint64_t ODRHash : 25;
   };
 
   /// Number of inherited and non-inherited bits in RecordDeclBitfields.
@@ -2167,9 +2171,6 @@ public:
   /// Determines whether this context is dependent on a
   /// template parameter.
   bool isDependentContext() const;
-
-  /// Determine whether this context is a constexpr context.
-  bool isConstexprContext() const;
 
   /// isTransparentContext - Determines whether this context is a
   /// "transparent" context, meaning that the members declared in this

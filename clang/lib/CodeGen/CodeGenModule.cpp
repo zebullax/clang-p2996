@@ -3978,6 +3978,11 @@ void CodeGenModule::EmitMultiVersionFunctionDefinition(GlobalDecl GD,
 void CodeGenModule::EmitGlobalDefinition(GlobalDecl GD, llvm::GlobalValue *GV) {
   const auto *D = cast<ValueDecl>(GD.getDecl());
 
+  if (D->getType()->isMetaType()) {
+    getDiags().Report(D->getLocation(), diag::err_runtime_meta_info);
+    return;
+  }
+
   PrettyStackTraceDecl CrashInfo(const_cast<ValueDecl *>(D), D->getLocation(),
                                  Context.getSourceManager(),
                                  "Generating code for declaration");
