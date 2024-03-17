@@ -51,7 +51,7 @@ template <typename E>
   requires std::is_enum_v<E>
 constexpr std::string enum_to_string(E value) {
     std::string result = "<unnamed>";
-    [:expand(members_of(^E)):] >> [&] <auto e> {
+    [:expand(enumerators_of(^E)):] >> [&] <auto e> {
         if (value == [:e:]) {
             result = std::string(name_of(e));
         }
@@ -63,7 +63,7 @@ template <typename E>
   requires std::is_enum_v<E>
 constexpr std::optional<E> string_to_enum(std::string_view name) {
   std::optional<E> result = std::nullopt;
-  [:expand(members_of(^E)):] >> [&] <auto e> {
+  [:expand(enumerators_of(^E)):] >> [&] <auto e> {
     if (name == name_of(e)) {
       result = [:e:];
     }

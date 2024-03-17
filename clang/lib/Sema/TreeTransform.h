@@ -4451,6 +4451,12 @@ NestedNameSpecifierLoc TreeTransform<Derived>::TransformNestedNameSpecifierLoc(
 
       if (ER.isInvalid())
         return NestedNameSpecifierLoc();
+      else if (ER.get()->isValueDependent()) {
+        SS.MakeIndeterminateSplice(SemaRef.Context,
+                                   cast<CXXIndeterminateSpliceExpr>(ER.get()),
+                                   Q.getLocalEndLoc());
+        break;
+      }
       Expr *Operand = ER.get();
 
       // Should have a non-dependent expression now: Evaluate it.

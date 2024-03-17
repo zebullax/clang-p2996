@@ -950,7 +950,7 @@ bool get_begin_enumerator_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionValue::RK_type: {
     Decl *D = findTypeDecl(R.getReflectedType());
 
-    if (auto enumDecl = dyn_cast<EnumDecl>(D)) {
+    if (auto enumDecl = dyn_cast_or_null<EnumDecl>(D)) {
       if (auto itr = enumDecl->enumerator_begin();
           itr != enumDecl->enumerator_end()) {
         return SetAndSucceed(Result, makeReflection(*itr));
@@ -1030,9 +1030,9 @@ bool get_ith_base_of(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionValue::RK_type: {
     Decl *typeDecl = findTypeDecl(R.getReflectedType());
 
-    ensureInstantiated(S, typeDecl, Range);
+    if (auto cxxRecordDecl = dyn_cast_or_null<CXXRecordDecl>(typeDecl)) {
+      ensureInstantiated(S, typeDecl, Range);
 
-    if (auto cxxRecordDecl = dyn_cast<CXXRecordDecl>(typeDecl)) {
       auto numBases = cxxRecordDecl->getNumBases();
       if (idx >= numBases)
         return SetAndSucceed(Result, Sentinel);
@@ -1131,6 +1131,8 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
 
     ensureDeclared(S, QT, Range.getBegin());
     Decl *typeDecl = findTypeDecl(QT);
+    if (!typeDecl)
+      return true;
 
     DeclContext *declContext = dyn_cast<DeclContext>(typeDecl);
     assert(declContext && "no DeclContext?");
@@ -1962,8 +1964,10 @@ bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type: {
-    bool Accessible = isAccessible(S, AccessDC,
-                                   findTypeDecl(R.getReflectedType()));
+    NamedDecl *D = findTypeDecl(R.getReflectedType());
+    if (!D)
+      return true;
+    bool Accessible = isAccessible(S, AccessDC, D);
     return SetAndSucceed(Result, makeBool(S.Context, Accessible));
   }
   case ReflectionValue::RK_declaration: {
@@ -1978,6 +1982,8 @@ bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionValue::RK_base_specifier: {
     // TODO(P2996): Need an edge back to derived class.
     NamedDecl *ND = findTypeDecl(R.getReflectedBaseSpecifier()->getType());
+    if (!ND)
+      return true;
     bool Accessible = isAccessible(S, AccessDC, ND);
     return SetAndSucceed(Result, makeBool(S.Context, Accessible));
   }
