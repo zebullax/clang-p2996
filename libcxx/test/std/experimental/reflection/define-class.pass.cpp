@@ -162,6 +162,23 @@ static_assert(nonstatic_data_members_of(^S).size() == 2);
 S s;
 }  // namespace completion_of_dependent_type
 
+                          // =========================
+                          // completion_of_local_class
+                          // =========================
+
+namespace completion_of_local_class {
+consteval int fn() {
+  struct S;
+  static_assert(is_type(define_class(^S, {
+    data_member_spec(^int, {.name="member"})
+  })));
+
+  S s = {13};
+  return s.member;
+}
+static_assert(fn() == 13);
+}  // namespace completion_of_local_class
+
                              // ==================
                              // static_data_member
                              // ==================

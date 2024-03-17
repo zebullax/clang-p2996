@@ -3198,6 +3198,7 @@ bool define_class(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
                                       ParsedAttributesView::none());
 
   S.ActOnTagFinishDefinition(&ClsScope, Tag, Args[0]->getSourceRange());
+  S.ActOnPopScope(Range.getEnd(), &ClsScope);
 
   RestoreDC();
   return SetAndSucceed(Result, makeReflection(ToComplete));
