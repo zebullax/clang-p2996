@@ -29,7 +29,9 @@
 
 namespace class_members {
 struct Empty {};
-static_assert(members_of(^Empty).size() == 0);
+static_assert(members_of(^Empty).size() == 6);
+static_assert(members_of(^Empty, std::meta::is_defaulted).size() == 6);
+static_assert(members_of(^Empty, std::meta::is_special_member).size() == 6);
 
 struct NotAMember {};
 struct Cls : NotAMember {
@@ -39,6 +41,7 @@ struct Cls : NotAMember {
   Cls() = default;
   Cls(const Cls&) = default;
   constexpr ~Cls() {}
+  Cls &operator=(const Cls&) = default;
 
   int memfn1() const { return mem1; }
   float memfn2() const { return mem2; }
@@ -51,7 +54,7 @@ struct Cls : NotAMember {
   struct Inner { int c; };
 };
 
-static_assert(members_of(^Cls).size() == 11);
+static_assert(members_of(^Cls).size() == 12);
 static_assert(nonstatic_data_members_of(^Cls) ==
               std::vector{^Cls::mem1, ^Cls::mem2});
 static_assert(static_data_members_of(^Cls) == std::vector{^Cls::smem});
@@ -65,8 +68,7 @@ static_assert(members_of(^Cls, std::meta::is_function,
               std::vector{^Cls::sfn});
 static_assert(members_of(^Cls, std::meta::is_function,
                          [](auto R) { return !is_static_member(R) &&
-                                             !is_constructor(R) &&
-                                             !is_destructor(R); }) ==
+                                             !is_special_member(R); }) ==
               std::vector{^Cls::memfn1, ^Cls::memfn2});
 
 template <typename T>

@@ -1138,6 +1138,8 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
     Decl *typeDecl = findTypeDecl(QT);
     if (!typeDecl)
       return true;
+    if (auto *CXXRD = dyn_cast<CXXRecordDecl>(typeDecl))
+      S.ForceDeclarationOfImplicitMembers(CXXRD);
 
     DeclContext *declContext = dyn_cast<DeclContext>(typeDecl);
     assert(declContext && "no DeclContext?");
