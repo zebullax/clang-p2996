@@ -589,6 +589,19 @@ public:
     }
   };
 
+  class SuppressDiagnosticsRAII {
+    Sema &S;
+    bool PreviousValue;
+
+  public:
+    SuppressDiagnosticsRAII(Sema &S, bool NewValue = true)
+        : S(S), PreviousValue(S.SuppressDiagnostics) {
+      S.SuppressDiagnostics = NewValue;
+    }
+
+    ~SuppressDiagnosticsRAII() { S.SuppressDiagnostics = PreviousValue; }
+  };
+
   /// A generic diagnostic builder for errors which may or may not be deferred.
   ///
   /// In CUDA, there exist constructs (e.g. variable-length arrays, try/catch)
@@ -1180,6 +1193,8 @@ protected:
 private:
   std::optional<std::unique_ptr<DarwinSDKInfo>> CachedDarwinSDKInfo;
   bool WarnedDarwinSDKInfoMissing = false;
+
+  bool SuppressDiagnostics = false;
 
   Sema(const Sema &) = delete;
   void operator=(const Sema &) = delete;

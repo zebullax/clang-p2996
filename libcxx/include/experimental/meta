@@ -51,7 +51,8 @@ consteval auto subobjects_of(info class_type) -> vector<info>;
 consteval auto enumerators_of(info enum_type) -> vector<info>;
 
 // substitute
-consteval auto substitute(info, span<info const>) -> info;
+consteval auto can_substitute(info templ, span<info const>) -> bool;
+consteval auto substitute(info templ, span<info const>) -> info;
 
 // value_of
 template <typename Ty>
@@ -159,6 +160,7 @@ enum : unsigned {
   __metafn_parent_of,
   __metafn_dealias,
   __metafn_template_of,
+  __metafn_can_substitute,
   __metafn_substitute,
   __metafn_value_of,
   __metafn_is_public,
@@ -566,6 +568,12 @@ consteval auto enumerators_of(info r) -> vector<info> {
   using range = __range_of_infos::range<iterator>;
   auto rng = range{r};
   return vector<info>{rng.begin(), rng.end()};
+}
+
+// Returns whether 'templ' substituted with 'args' forms a valid template-id.
+consteval auto can_substitute(info templ, span<info const> args) -> bool {
+  return __metafunction(detail::__metafn_can_substitute, templ,
+                        args.data(), args.size());
 }
 
 // Returns a reflection representing the template instantiation of the entity

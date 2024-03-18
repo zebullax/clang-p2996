@@ -93,6 +93,10 @@ static bool template_of(APValue &Result, Sema &S, EvalFn Evaluator,
                         QualType ResultTy, SourceRange Range,
                         ArrayRef<Expr *> Args);
 
+static bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args);
+
 static bool substitute(APValue &Result, Sema &S, EvalFn Evaluator,
                        QualType ResultTy, SourceRange Range,
                        ArrayRef<Expr *> Args);
@@ -312,6 +316,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_metaInfo, 1, 1, parent_of },
   { Metafunction::MFRK_metaInfo, 1, 1, dealias },
   { Metafunction::MFRK_metaInfo, 1, 1, template_of },
+  { Metafunction::MFRK_bool, 3, 3, can_substitute },
   { Metafunction::MFRK_metaInfo, 3, 3, substitute },
   { Metafunction::MFRK_spliceFromArg, 2, 2, value_of },
   { Metafunction::MFRK_bool, 1, 1, is_public },
@@ -1479,6 +1484,136 @@ bool template_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
   }
   llvm_unreachable("unknown reflection kind");
+}
+
+// TODO(P2996): Abstract this out, and use as an implementation detail of
+// 'substitute'.
+bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
+                    QualType ResultTy, SourceRange Range,
+                    ArrayRef<Expr *> Args) {
+  static auto CanActAsTemplateArg = [](const ReflectionValue &RV) -> bool {
+    switch (RV.getKind()) {
+    case ReflectionValue::RK_type:
+    case ReflectionValue::RK_declaration:
+    case ReflectionValue::RK_const_value:
+    case ReflectionValue::RK_template:
+      return true;
+    case ReflectionValue::RK_namespace:
+    case ReflectionValue::RK_base_specifier:
+    case ReflectionValue::RK_data_member_spec:
+      return false;
+    }
+    llvm_unreachable("unknown reflection kind");
+  };
+
+  assert(Args[0]->getType()->isReflectionType());
+  assert(
+      Args[1]->getType()->getPointeeOrArrayElementType()->isReflectionType());
+  assert(Args[2]->getType()->isIntegerType());
+
+  APValue Template;
+  if (!Evaluator(Template, Args[0], true) ||
+      Template.getReflection().getKind() != ReflectionValue::RK_template)
+    return true;
+  TemplateDecl *TDecl = Template.getReflectedTemplate().getAsTemplateDecl();
+
+  SmallVector<TemplateArgument, 4> TArgs;
+  {
+    // Evaluate how many template arguments were provided.
+    APValue NumArgs;
+    if (!Evaluator(NumArgs, Args[2], true))
+      return true;
+    size_t nArgs = NumArgs.getInt().getExtValue();
+    TArgs.reserve(nArgs);
+
+    for (uint64_t k = 0; k < nArgs; ++k) {
+      llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
+      Expr *IdxExpr = IntegerLiteral::Create(S.Context, Idx,
+                                             S.Context.getSizeType(),
+                                             Args[1]->getExprLoc());
+
+      ArraySubscriptExpr *SubscriptExpr =
+            new (S.Context) ArraySubscriptExpr(Args[1], IdxExpr,
+                                               S.Context.MetaInfoTy,
+                                               VK_LValue, OK_Ordinary,
+                                               Range.getBegin());
+
+      ImplicitCastExpr *RVExpr = ImplicitCastExpr::Create(S.Context,
+                                                          S.Context.MetaInfoTy,
+                                                          CK_LValueToRValue,
+                                                          SubscriptExpr,
+                                                          nullptr, VK_PRValue,
+                                                          FPOptionsOverride());
+      if (RVExpr->isValueDependent() || RVExpr->isTypeDependent())
+        return true;
+
+      APValue Unwrapped;
+      if (!Evaluator(Unwrapped, RVExpr, true) || !Unwrapped.isReflection() ||
+          !CanActAsTemplateArg(Unwrapped.getReflection()))
+        return true;
+
+      switch (Unwrapped.getReflection().getKind()) {
+      case ReflectionValue::RK_type:
+        TArgs.emplace_back(Unwrapped.getReflectedType().getCanonicalType());
+        break;
+      case ReflectionValue::RK_const_value: {
+        ConstantExpr *E = Unwrapped.getReflectedConstValueExpr();
+        if (E->getType()->isIntegralOrEnumerationType()) {
+          llvm::APSInt UnwrappedIntegral = E->EvaluateKnownConstInt(S.Context);
+          TArgs.emplace_back(S.Context, UnwrappedIntegral,
+                             E->getType().getCanonicalType());
+        } else if(E->getType()->isReflectionType()) {
+          APValue R;
+          if (!Evaluator(R, E, true))
+            return true;
+          TArgs.emplace_back(S.Context, R.getReflection());
+        } else {
+          TArgs.emplace_back(Unwrapped.getReflectedConstValueExpr());
+        }
+        break;
+      }
+      case ReflectionValue::RK_declaration: {
+        ValueDecl *Decl = Unwrapped.getReflectedDecl();
+        Expr *Synthesized =
+            DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
+                                SourceLocation(), Decl, false, Range.getBegin(),
+                                Decl->getType(), VK_LValue, Decl, nullptr);
+        APValue R;
+        if (!Evaluator(Unwrapped, Synthesized, true))
+          return true;
+
+        if (Synthesized->getType()->isIntegralOrEnumerationType())
+          TArgs.emplace_back(S.Context, R.getInt(),
+                             Synthesized->getType().getCanonicalType());
+        else if(Synthesized->getType()->isReflectionType())
+          TArgs.emplace_back(S.Context, R.getReflection());
+        else
+          TArgs.emplace_back(Synthesized);
+        break;
+      }
+      case ReflectionValue::RK_template:
+        TArgs.emplace_back(Unwrapped.getReflectedTemplate());
+        break;
+      default:
+        llvm_unreachable("unimplemented for template argument kind");
+      }
+    }
+  }
+
+  TemplateArgumentListInfo TAListInfo =
+        addLocToTemplateArgs(S, TArgs, Args[1]);
+
+  SmallVector<TemplateArgument, 4> IgnoredCanonical;
+  SmallVector<TemplateArgument, 4> IgnoredSugared;
+
+  {
+    Sema::SuppressDiagnosticsRAII NoDiagnostics(S);
+    bool CanSub = !S.CheckTemplateArgumentList(TDecl, Args[0]->getExprLoc(),
+                                               TAListInfo, false,
+                                               IgnoredSugared, IgnoredCanonical,
+                                               true);
+    return SetAndSucceed(Result, makeBool(S.Context, CanSub));
+  }
 }
 
 bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,

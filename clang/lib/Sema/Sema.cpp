@@ -1849,6 +1849,9 @@ Sema::SemaDiagnosticBuilder::SemaDiagnosticBuilder(Kind K, SourceLocation Loc,
                                                    Sema &S)
     : S(S), Loc(Loc), DiagID(DiagID), Fn(Fn),
       ShowCallStack(K == K_ImmediateWithCallStack || K == K_Deferred) {
+  if (S.SuppressDiagnostics)
+    K = K_Nop;
+
   switch (K) {
   case K_Nop:
     break;
