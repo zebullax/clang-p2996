@@ -179,6 +179,30 @@ consteval int fn() {
 static_assert(fn() == 13);
 }  // namespace completion_of_local_class
 
+                   // ======================================
+                   // completion_of_template_with_pack_param
+                   // ======================================
+
+namespace completion_of_template_with_pack_param {
+template <typename...>
+struct foo;
+
+static_assert(is_type(define_class(^foo<>, {
+  data_member_spec(^int, {.name="mem1"})
+})));
+static_assert(is_type(define_class(^foo<int>, {
+  data_member_spec(^int, {.name="mem2"})
+})));
+static_assert(is_type(define_class(^foo<bool, char>, {
+  data_member_spec(^int, {.name="mem3"})
+})));
+
+constexpr foo<> f1 = {1};
+constexpr foo<int> f2 = {2};
+constexpr foo<bool, char> f3 = {3};
+static_assert(f1.mem1 + f2.mem2 + f3.mem3 == 6);
+}  // namespace completion_of_template_with_pack_param
+
                              // ==================
                              // static_data_member
                              // ==================

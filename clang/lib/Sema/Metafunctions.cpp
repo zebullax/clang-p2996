@@ -3158,8 +3158,12 @@ bool define_class(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     TemplateName TDecl(CTSD->getSpecializedTemplate());
     ParsedTemplateTy ParsedTemplate = ParsedTemplateTy::make(TDecl);
 
+
+    SmallVector<TemplateArgument, 4> TArgs = expandTemplateArgPacks(
+            CTSD->getTemplateArgs().asArray());
+
     SmallVector<ParsedTemplateArgument, 2> ParsedArgs;
-    for (const TemplateArgument &TArg : CTSD->getTemplateArgs().asArray()) {
+    for (const TemplateArgument &TArg : TArgs) {
       switch (TArg.getKind()) {
       case TemplateArgument::Type:
         ParsedArgs.emplace_back(ParsedTemplateArgument::Type,
