@@ -1508,6 +1508,9 @@ TypeResult Parser::ParseBaseTypeSpecifier(SourceLocation &BaseLoc,
     // Fall through to produce an error below.
   }
 
+  if (Tok.is(tok::annot_splice))
+    return ParseCXXSpliceAsType(/*AllowDependent=*/true, /*Complain=*/true);
+
   if (Tok.isNot(tok::identifier)) {
     Diag(Tok, diag::err_expected_class_name);
     return true;

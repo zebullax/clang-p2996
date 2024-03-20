@@ -196,3 +196,22 @@ struct S {
 
 static_assert(S::value == 13);
 }  // namespace friend_declarations
+
+                            // =====================
+                            // base_class_specifiers
+                            // =====================
+
+namespace base_class_specifiers {
+struct B1 { static constexpr int value1 = 1; };
+struct B2 { static constexpr int value2 = 2; };
+struct B3 { static constexpr int value3 = 3; };
+
+struct S : public [:^B1:] {};
+static_assert(S::value1 == 1);
+
+template <decltype(^::)... Rs>
+struct T : [:Rs:]... {};
+
+using A = T<^B1, ^B2, ^B3>;
+static_assert(A::value1 + A::value2 + A::value3 == 6);
+}  // namespace base_class_specifiers
