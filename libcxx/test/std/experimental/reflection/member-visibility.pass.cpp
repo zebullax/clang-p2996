@@ -94,6 +94,9 @@ private:
     static_assert(is_accessible(^PublicTFn));
     static_assert(is_accessible(^ProtectedTFn));
     static_assert(is_accessible(^PrivateCls));
+    static_assert(is_accessible(bases_of(^Access)[0]));
+    static_assert(is_accessible(bases_of(^Access)[1]));
+    static_assert(is_accessible(bases_of(^Access)[2]));
 
     friend struct FriendClsOfAccess;
     friend void FriendFnOfAccess();
@@ -130,6 +133,9 @@ static_assert(  // Access::ProtectedTFn
 static_assert(  // Access::PrivateTFn
         !is_accessible(members_of(^Access, std::meta::is_template,
                                            std::meta::is_private)[0]));
+static_assert(is_accessible(bases_of(^Access)[0]));   // PublicBase
+static_assert(!is_accessible(bases_of(^Access)[1]));  // ProtectedBase
+static_assert(!is_accessible(bases_of(^Access)[2]));  // PrivateBase
 
 struct FriendClsOfAccess {
   static_assert(is_accessible(^Access::pub));
@@ -143,6 +149,9 @@ struct FriendClsOfAccess {
   static_assert(is_accessible(^Access::PublicBase::mem));
   static_assert(is_accessible(^Access::ProtectedBase::mem));
   static_assert(is_accessible(^Access::PrivateBase::mem));
+  static_assert(is_accessible(bases_of(^Access)[0]));  // PublicBase
+  static_assert(is_accessible(bases_of(^Access)[1]));  // ProtectedBase
+  static_assert(is_accessible(bases_of(^Access)[2]));  // PrivateBase
 };
 
 void FriendFnOfAccess() {
@@ -157,6 +166,9 @@ void FriendFnOfAccess() {
   static_assert(is_accessible(^Access::PublicBase::mem));
   static_assert(is_accessible(^Access::ProtectedBase::mem));
   static_assert(is_accessible(^Access::PrivateBase::mem));
+  static_assert(is_accessible(bases_of(^Access)[0]));  // PublicBase
+  static_assert(is_accessible(bases_of(^Access)[1]));  // ProtectedBase
+  static_assert(is_accessible(bases_of(^Access)[2]));  // PrivateBase
 }
 
 int main() { }

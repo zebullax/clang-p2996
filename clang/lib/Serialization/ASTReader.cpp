@@ -9180,14 +9180,13 @@ void ASTRecordReader::readUnresolvedSet(LazyASTUnresolvedSet &Set) {
 CXXBaseSpecifier
 ASTRecordReader::readCXXBaseSpecifier() {
   bool isVirtual = readBool();
-  bool isBaseOfClass = readBool();
   AccessSpecifier AS = static_cast<AccessSpecifier>(readInt());
   bool inheritConstructors = readBool();
   TypeSourceInfo *TInfo = readTypeSourceInfo();
+  CXXRecordDecl *Derived = readDeclAs<CXXRecordDecl>();
   SourceRange Range = readSourceRange();
   SourceLocation EllipsisLoc = readSourceLocation();
-  CXXBaseSpecifier Result(Range, isVirtual, isBaseOfClass, AS, TInfo,
-                          EllipsisLoc);
+  CXXBaseSpecifier Result(Range, isVirtual, AS, TInfo, Derived, EllipsisLoc);
   Result.setInheritConstructors(inheritConstructors);
   return Result;
 }

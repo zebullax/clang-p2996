@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/APValue.h"
+#include "clang/AST/CXXInheritance.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
@@ -2117,11 +2118,28 @@ bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator,
     return SetAndSucceed(Result, makeBool(S.Context, Accessible));
   }
   case ReflectionValue::RK_base_specifier: {
-    // TODO(P2996): Need an edge back to derived class.
-    NamedDecl *ND = findTypeDecl(R.getReflectedBaseSpecifier()->getType());
-    if (!ND)
+    CXXBaseSpecifier *BaseSpec = R.getReflectedBaseSpecifier();
+
+    auto *Base = findTypeDecl(BaseSpec->getType());
+    if (!Base)
       return true;
-    bool Accessible = isAccessible(S, AccessDC, ND);
+
+    CXXBasePathElement bpe = { BaseSpec, BaseSpec->getDerived(), 0 };
+    CXXBasePath path;
+    path.push_back(bpe);
+    path.Access = BaseSpec->getAccessSpecifier();
+
+    Sema::AccessResult AR;
+    DeclContext *PreviousDC = S.CurContext;
+    {
+      S.CurContext = AccessDC;
+      AR = S.CheckBaseClassAccess(
+            Range.getBegin(), BaseSpec->getType(),
+            QualType(BaseSpec->getDerived()->getTypeForDecl(), 0), path, 0,
+            /*ForceCheck=*/true, /*ForceUnprivileged=*/false);
+      S.CurContext = PreviousDC;
+    }
+    bool Accessible = (AR == Sema::AR_accessible);
     return SetAndSucceed(Result, makeBool(S.Context, Accessible));
   }
   case ReflectionValue::RK_const_value:

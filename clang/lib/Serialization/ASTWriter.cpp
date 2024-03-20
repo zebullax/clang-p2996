@@ -5997,10 +5997,10 @@ void ASTRecordWriter::AddUnresolvedSet(const ASTUnresolvedSet &Set) {
 // FIXME: Move this out of the main ASTRecordWriter interface.
 void ASTRecordWriter::AddCXXBaseSpecifier(const CXXBaseSpecifier &Base) {
   Record->push_back(Base.isVirtual());
-  Record->push_back(Base.isBaseOfClass());
   Record->push_back(Base.getAccessSpecifierAsWritten());
   Record->push_back(Base.getInheritConstructors());
   AddTypeSourceInfo(Base.getTypeSourceInfo());
+  AddDeclRef(Base.getDerived());
   AddSourceRange(Base.getSourceRange());
   AddSourceLocation(Base.isPackExpansion()? Base.getEllipsisLoc()
                                           : SourceLocation());

@@ -2299,9 +2299,9 @@ Error ASTNodeImporter::ImportDefinition(
           new (Importer.getToContext()) CXXBaseSpecifier(
               *RangeOrErr,
               Base1.isVirtual(),
-              Base1.isBaseOfClass(),
               Base1.getAccessSpecifierAsWritten(),
               *TSIOrErr,
+              Base1.getDerived(),
               EllipsisLoc));
     }
     if (!Bases.empty())
@@ -10071,8 +10071,9 @@ ASTImporter::Import(const CXXBaseSpecifier *BaseSpec) {
   if (!ToEllipsisLoc)
     return ToEllipsisLoc.takeError();
   CXXBaseSpecifier *Imported = new (ToContext) CXXBaseSpecifier(
-      *ToSourceRange, BaseSpec->isVirtual(), BaseSpec->isBaseOfClass(),
-      BaseSpec->getAccessSpecifierAsWritten(), *ToTSI, *ToEllipsisLoc);
+      *ToSourceRange, BaseSpec->isVirtual(),
+      BaseSpec->getAccessSpecifierAsWritten(), *ToTSI, BaseSpec->getDerived(),
+      *ToEllipsisLoc);
   ImportedCXXBaseSpecifiers[BaseSpec] = Imported;
   return Imported;
 }

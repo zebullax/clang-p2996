@@ -2748,9 +2748,8 @@ Sema::CheckBaseSpecifier(CXXRecordDecl *Class,
     // emitted.
     if (!Class->getTypeForDecl()->isDependentType())
       Class->setInvalidDecl();
-    return new (Context) CXXBaseSpecifier(
-        SpecifierRange, Virtual, Class->getTagKind() == TagTypeKind::Class,
-        Access, TInfo, EllipsisLoc);
+    return new (Context) CXXBaseSpecifier(SpecifierRange, Virtual, Access,
+                                          TInfo, Class, EllipsisLoc);
   }
 
   // Base specifiers must be record types.
@@ -2836,9 +2835,8 @@ Sema::CheckBaseSpecifier(CXXRecordDecl *Class,
     Class->setInvalidDecl();
 
   // Create the base specifier.
-  return new (Context) CXXBaseSpecifier(
-      SpecifierRange, Virtual, Class->getTagKind() == TagTypeKind::Class,
-      Access, TInfo, EllipsisLoc);
+  return new (Context) CXXBaseSpecifier(SpecifierRange, Virtual, Access,
+                                        TInfo, Class, EllipsisLoc);
 }
 
 /// ActOnBaseSpecifier - Parsed a base specifier. A base specifier is

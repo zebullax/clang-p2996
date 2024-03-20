@@ -3264,7 +3264,9 @@ Sema::SubstBaseSpecifiers(CXXRecordDecl *Instantiation,
         if (RD->isInvalidDecl())
           Instantiation->setInvalidDecl();
       }
-      InstantiatedBases.push_back(new (Context) CXXBaseSpecifier(Base));
+      CXXBaseSpecifier *Specifier = new (Context) CXXBaseSpecifier(Base);
+      Specifier->setDerived(Instantiation);
+      InstantiatedBases.push_back(Specifier);
       continue;
     }
 
