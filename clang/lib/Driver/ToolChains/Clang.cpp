@@ -7143,6 +7143,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // -freflection is off by default, as it is experimental.
   Args.addOptInFlag(CmdArgs, options::OPT_freflection,
                     options::OPT_fno_reflection);
+  // -fparameter-reflection is likewise off by default.
+  Args.addOptInFlag(CmdArgs, options::OPT_fparameter_reflection,
+                    options::OPT_fno_parameter_reflection);
 
   // -fsized-deallocation is off by default, as it is an ABI-breaking change for
   // most platforms.

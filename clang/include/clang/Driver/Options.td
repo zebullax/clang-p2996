@@ -3337,6 +3337,11 @@ defm reflection : BoolFOption<"reflection",
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
           "Enable proposed C++26 reflection as described by P2996">,
   NegFlag<SetFalse>>;
+defm parameter_reflection : BoolFOption<"parameter-reflection",
+  LangOpts<"ParameterReflection">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option],
+          "Enable proposed parameter reflection as described by P3096">,
+  NegFlag<SetFalse>>;
 defm sized_deallocation : BoolFOption<"sized-deallocation",
   LangOpts<"SizedDeallocation">, DefaultFalse,
   PosFlag<SetTrue, [], [ClangOption, CC1Option],

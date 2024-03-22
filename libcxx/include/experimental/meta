@@ -120,6 +120,11 @@ consteval auto bit_offset_of(info) -> size_t;
 consteval auto bit_size_of(info) -> size_t;
 consteval auto alignment_of(info) -> size_t;
 
+// function parameters (P3096)
+consteval auto parameters_of(info) -> vector<info>;
+consteval auto has_unique_name(info) -> bool;
+consteval auto has_default_argument(info) -> bool;
+
 } // namespace reflection_v2
 } // namespace meta
 } // namespace std
@@ -208,6 +213,11 @@ enum : unsigned {
   __metafn_bit_offset_of,
   __metafn_bit_size_of,
   __metafn_alignment_of,
+
+  // P3096 metafunctions
+  __metafn_get_ith_parameter_of,
+  __metafn_has_unique_name,
+  __metafn_has_default_argument,
 };
 
 }  // namespace detail
@@ -403,6 +413,25 @@ constexpr struct front_enumerator_of_fn {
                           reflectedEntity, ^sentinel);
   }
 } front_enumerator;
+
+#if __has_feature(parameter_reflection)
+
+struct next_parameter_of_fn {
+  consteval info operator()(auto /* currItrInfo */, info reflectedEntity,
+                            size_t idx) const {
+    return __metafunction(detail::__metafn_get_ith_parameter_of,
+                          reflectedEntity, ^sentinel, idx);
+  }
+};
+
+struct front_parameter_of_fn {
+  consteval info operator()(info reflectedEntity) const {
+    return __metafunction(detail::__metafn_get_ith_parameter_of,
+                          reflectedEntity, ^sentinel, 0);
+  }
+};
+
+#endif  // __has_feature(parameter_reflection)
 
 }  // namespace __range_of_infos
 
@@ -821,8 +850,30 @@ consteval auto alignment_of(info r) -> size_t {
   return __metafunction(detail::__metafn_alignment_of, r);
 }
 
+#if __has_feature(parameter_reflection)
+
+consteval auto parameters_of(info r) -> vector<info> {
+  using iterator =
+    __range_of_infos::iterator<__range_of_infos::front_parameter_of_fn,
+                                __range_of_infos::next_parameter_of_fn,
+                                __range_of_infos::map_identity_fn>;
+  using range = __range_of_infos::range<iterator>;
+  auto rng = range{r};
+  return vector<info>{rng.begin(), rng.end()};
+}
+
+consteval auto has_unique_name(info r) -> bool {
+  return __metafunction(detail::__metafn_has_unique_name, r);
+}
+
+consteval auto has_default_argument(info r) -> bool {
+  return __metafunction(detail::__metafn_has_default_argument, r);
+}
+
+#endif  // __has_feature(parameter_reflection)
+
 _LIBCPP_END_NAMESPACE_META_V2
 
-#endif // __has_feature(reflection)
+#endif  // __has_feature(reflection)
 
-#endif // _LIBCPP_EXPERIMENTAL_META
+#endif  // _LIBCPP_EXPERIMENTAL_META

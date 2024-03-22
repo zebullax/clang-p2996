@@ -34,7 +34,7 @@ namespace clang {
 using EvalFn = Metafunction::EvaluateFn;
 
 // -----------------------------------------------------------------------------
-// Metafunction declarations
+// P2996 Metafunction declarations
 // -----------------------------------------------------------------------------
 
 static bool get_begin_enumerator_decl_of(APValue &Result, Sema &S,
@@ -288,6 +288,21 @@ static bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator,
                          QualType ResultTy, SourceRange Range,
                          ArrayRef<Expr *> Args);
 
+// -----------------------------------------------------------------------------
+// P3096 Metafunction declarations
+// -----------------------------------------------------------------------------
+
+static bool get_ith_parameter_of(APValue &Result, Sema &S, EvalFn Evaluator,
+                                 QualType ResultTy, SourceRange Range,
+                                 ArrayRef<Expr *> Args);
+
+static bool has_unique_name(APValue &Result, Sema &S, EvalFn Evaluator,
+                            QualType ResultTy, SourceRange Range,
+                            ArrayRef<Expr *> Args);
+
+static bool has_default_argument(APValue &Result, Sema &S, EvalFn Evaluator,
+                                 QualType ResultTy, SourceRange Range,
+                                 ArrayRef<Expr *> Args);
 
 // -----------------------------------------------------------------------------
 // Metafunction table
@@ -365,6 +380,11 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_sizeT, 1, 1, bit_offset_of },
   { Metafunction::MFRK_sizeT, 1, 1, bit_size_of },
   { Metafunction::MFRK_sizeT, 1, 1, alignment_of },
+
+  // P3096 metafunction extensions
+  { Metafunction::MFRK_metaInfo, 3, 3, get_ith_parameter_of },
+  { Metafunction::MFRK_bool, 1, 1, has_unique_name },
+  { Metafunction::MFRK_bool, 1, 1, has_default_argument },
 };
 constexpr const unsigned NumMetafunctions = sizeof(Metafunctions) /
                                             sizeof(Metafunction);
@@ -3554,5 +3574,130 @@ bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator,
   }
   llvm_unreachable("unknown reflection kind");
 }
+
+bool get_ith_parameter_of(APValue &Result, Sema &S, EvalFn Evaluator,
+                          QualType ResultTy, SourceRange Range,
+                          ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.MetaInfoTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  APValue Sentinel;
+  if (!Evaluator(Sentinel, Args[1], true))
+    return true;
+  assert(Sentinel.getReflection().getKind() == ReflectionValue::RK_type);
+
+  APValue Idx;
+  if (!Evaluator(Idx, Args[2], true))
+    return true;
+  size_t idx = Idx.getInt().getExtValue();
+
+  switch (R.getReflection().getKind()) {
+  case ReflectionValue::RK_type: {
+    if (auto FT = dyn_cast<FunctionProtoType>(R.getReflectedType())) {
+      unsigned numParams = FT->getNumParams();
+      if (idx >= numParams)
+        return SetAndSucceed(Result, Sentinel);
+
+      return SetAndSucceed(Result, makeReflection(FT->getParamType(idx)));
+    }
+    return true;
+  }
+  case ReflectionValue::RK_declaration: {
+    if (auto FD = dyn_cast<FunctionDecl>(R.getReflectedDecl())) {
+      unsigned numParams = FD->getNumParams();
+      if (idx >= numParams)
+        return SetAndSucceed(Result, Sentinel);
+
+      return SetAndSucceed(Result, makeReflection(FD->getParamDecl(idx)));
+    }
+    return true;
+  }
+  case ReflectionValue::RK_template:
+  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_namespace:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+    return true;
+  }
+  llvm_unreachable("unknown reflection kind");
+}
+
+bool has_unique_name(APValue &Result, Sema &S, EvalFn Evaluator,
+                     QualType ResultTy, SourceRange Range,
+                     ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  switch (R.getReflection().getKind()) {
+  case ReflectionValue::RK_type:
+  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_template:
+  case ReflectionValue::RK_namespace:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+    return true;
+  case ReflectionValue::RK_declaration: {
+    if (auto *PVD = dyn_cast<ParmVarDecl>(R.getReflectedDecl())) {
+      StringRef FirstNameSeen = PVD->getName();
+      ParmVarDecl *FirstParmSeen = PVD;
+
+      bool Unique = true;
+      while (PVD) {
+        FunctionDecl *FD = cast<FunctionDecl>(PVD->getDeclContext());
+        FD = FD->getPreviousDecl();
+        if (!FD)
+          break;
+
+        PVD = FD->getParamDecl(FirstParmSeen->getFunctionScopeIndex());
+        assert(PVD);
+        if (PVD->getName() != FirstNameSeen) {
+          Unique = false;
+          break;
+        }
+      }
+      return SetAndSucceed(Result, makeBool(S.Context, Unique));
+    }
+    return true;
+  }
+  }
+  llvm_unreachable("unknown reflection kind");
+}
+
+bool has_default_argument(APValue &Result, Sema &S, EvalFn Evaluator,
+                          QualType ResultTy, SourceRange Range,
+                          ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  switch (R.getReflection().getKind()) {
+  case ReflectionValue::RK_type:
+  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_template:
+  case ReflectionValue::RK_namespace:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+    return true;
+  case ReflectionValue::RK_declaration: {
+    if (auto *PVD = dyn_cast<ParmVarDecl>(R.getReflectedDecl())) {
+      return SetAndSucceed(Result, makeBool(S.Context, PVD->hasDefaultArg()));
+    }
+    return true;
+  }
+  }
+  llvm_unreachable("unknown reflection kind");
+}
+
 
 }  // end namespace clang

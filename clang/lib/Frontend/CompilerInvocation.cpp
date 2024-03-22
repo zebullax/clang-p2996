@@ -612,8 +612,11 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
     LangOpts.NewAlignOverride = 0;
   }
 
-  if (LangOpts.Reflection && Args.hasArg(OPT_fblocks)) {
+  if (LangOpts.Reflection) {
+    if (Args.hasArg(OPT_fblocks))
       Diags.Report(diag::err_fe_reflection_incompatible_with_blocks);
+  } else if (LangOpts.ParameterReflection) {
+    Diags.Report(diag::err_fe_parameter_reflection_without_reflection);
   }
 
   // Prevent the user from specifying both -fsycl-is-device and -fsycl-is-host.
