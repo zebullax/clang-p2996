@@ -69,7 +69,8 @@ struct Cls {
   ~Cls();
 
   void fn(int a, bool b = false);
-  static void sfn(int a, bool b);
+  void fn2(this Cls &self, int);
+  static void sfn(int a);
 };
 
 constexpr auto ctor = [] {
@@ -97,6 +98,23 @@ static_assert(name_of(parameters_of(^Cls::fn)[1]) == "b");
 static_assert(has_unique_name(parameters_of(^Cls::fn)[1]));
 static_assert(has_default_argument(parameters_of(^Cls::fn)[1]));
 
+static_assert(parameters_of(^Cls::fn2).size() == 2);
+static_assert(parameters_of(type_of(^Cls::fn2)) == std::vector {^Cls &, ^int});
+static_assert(type_of(parameters_of(^Cls::fn2)[0]) == ^Cls &);
+static_assert(name_of(parameters_of(^Cls::fn2)[0]) == "self");
+static_assert(has_unique_name(parameters_of(^Cls::fn2)[0]));
+static_assert(!has_default_argument(parameters_of(^Cls::fn2)[0]));
+static_assert(type_of(parameters_of(^Cls::fn2)[1]) == ^int);
+static_assert(name_of(parameters_of(^Cls::fn2)[1]) == "");
+static_assert(has_unique_name(parameters_of(^Cls::fn2)[1]));
+static_assert(!has_default_argument(parameters_of(^Cls::fn2)[1]));
+
+static_assert(parameters_of(^Cls::sfn).size() == 1);
+static_assert(parameters_of(type_of(^Cls::sfn)) == std::vector {^int});
+static_assert(type_of(parameters_of(^Cls::sfn)[0]) == ^int);
+static_assert(name_of(parameters_of(^Cls::sfn)[0]) == "a");
+static_assert(has_unique_name(parameters_of(^Cls::sfn)[0]));
+static_assert(!has_default_argument(parameters_of(^Cls::sfn)[0]));
 }  // namespace with_member_functions
 
                          // ===========================
