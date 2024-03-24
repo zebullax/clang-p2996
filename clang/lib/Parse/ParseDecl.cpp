@@ -3528,7 +3528,7 @@ void Parser::ParseDeclarationSpecifiers(
     case tok::l_splice:
       if (ParseCXXIndeterminateSplice()) {
         DS.SetTypeSpecError();
-        break;
+        return;
       }
       continue;
 
