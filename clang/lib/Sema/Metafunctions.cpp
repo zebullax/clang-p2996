@@ -3474,7 +3474,8 @@ bool bit_offset_of(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
   case ReflectionValue::RK_declaration: {
     if (const FieldDecl *FD = dyn_cast<const FieldDecl>(R.getReflectedDecl())) {
-      size_t Offset = getBitOffsetOfField(S.Context, FD);
+      size_t Offset = getBitOffsetOfField(S.Context, FD) %
+                      S.Context.getTypeSize(S.Context.CharTy);
       return SetAndSucceed(
               Result,
               APValue(S.Context.MakeIntValue(Offset, S.Context.getSizeType())));
