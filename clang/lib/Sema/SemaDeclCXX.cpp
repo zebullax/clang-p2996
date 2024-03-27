@@ -12258,6 +12258,12 @@ Decl *Sema::ActOnUsingDirective(Scope *S, SourceLocation UsingLoc,
   if (SS.isSet())
     Qualifier = SS.getScopeRep();
 
+  if (Qualifier && Qualifier->isDependent()) {
+    Diag(SS.getBeginLoc(), diag::err_using_dependent_namespace)
+        << SourceRange(SS.getBeginLoc(), IdentLoc);
+    return nullptr;
+  }
+
   // Lookup namespace name.
   LookupResult R(*this, NamespcName, IdentLoc, LookupNamespaceName);
   LookupParsedName(R, S, &SS);
@@ -12304,6 +12310,16 @@ Decl *Sema::ActOnUsingDirective(Scope *S, SourceLocation UsingLoc,
                                 const ParsedAttributesView &AttrList) {
   assert(!SS.isInvalid() && "Invalid CXXScopeSpec.");
   assert(IdentLoc.isValid() && "Invalid NamespceName location.");
+
+  // Check for dependent namespaces.
+  if (auto *DNSD = dyn_cast<DependentNamespaceDecl>(NS)) {
+    Diag(IdentLoc, diag::err_using_dependent_namespace)
+        << DNSD->getSpliceExpr()->getSourceRange();
+    return nullptr;
+  } else if (auto *A = dyn_cast<NamespaceAliasDecl>(NS); A && A->isDependent()) {
+    Diag(IdentLoc, diag::err_using_dependent_namespace) << IdentLoc;
+    return nullptr;
+  }
 
   // C++ [namespace.udir]p1:
   //   A using-directive specifies that the names in the nominated
@@ -13746,23 +13762,36 @@ Decl *Sema::ActOnNamespaceAliasDef(Scope *S, SourceLocation NamespaceLoc,
                                    IdentifierInfo *Alias, CXXScopeSpec &SS,
                                    SourceLocation IdentLoc,
                                    IdentifierInfo *Ident) {
+  NamedDecl *ND;
 
-  // Lookup the namespace name.
-  LookupResult R(*this, Ident, IdentLoc, LookupNamespaceName);
-  LookupParsedName(R, S, &SS);
+  // Scope may be dependent if it has a splice as a leading component of its
+  // qualifiers, and that splice is dependent on a template parameter.
+  if (NestedNameSpecifier *NNS = SS.getScopeRep(); NNS && NNS->isDependent()) {
+    ND = NamespaceDecl::Create(Context, CurContext, false, IdentLoc, IdentLoc,
+                               Ident, nullptr, true);
+  } else {
+    // Lookup the namespace name.
+    LookupResult R(*this, Ident, IdentLoc, LookupNamespaceName);
 
-  if (R.isAmbiguous())
-    return nullptr;
-
-  if (R.empty()) {
-    if (!TryNamespaceTypoCorrection(*this, R, S, SS, IdentLoc, Ident)) {
-      Diag(IdentLoc, diag::err_expected_namespace_name) << SS.getRange();
-      return nullptr;
+    if (S) {
+      LookupParsedName(R, S, &SS);
+    } else {
+      DeclContext *LookupCtx = computeDeclContext(SS, false);
+      LookupQualifiedName(R, LookupCtx);
     }
-  }
-  assert(!R.isAmbiguous() && !R.empty());
-  NamedDecl *ND = R.getRepresentativeDecl();
 
+    if (R.isAmbiguous())
+      return nullptr;
+
+    if (R.empty()) {
+      if (!TryNamespaceTypoCorrection(*this, R, S, SS, IdentLoc, Ident)) {
+        Diag(IdentLoc, diag::err_expected_namespace_name) << SS.getRange();
+        return nullptr;
+      }
+    }
+    assert(!R.isAmbiguous() && !R.empty());
+    ND = R.getRepresentativeDecl();
+  }
   return ActOnNamespaceAliasDef(S, NamespaceLoc, AliasLoc, Alias, SS, IdentLoc,
                                 ND);
 }
@@ -13823,7 +13852,11 @@ Decl *Sema::ActOnNamespaceAliasDef(Scope *S, SourceLocation NamespaceLoc,
   if (Prev)
     AliasDecl->setPreviousDecl(Prev);
 
-  PushOnScopeChains(AliasDecl, S);
+  if (S)
+    PushOnScopeChains(AliasDecl, S);
+  else
+    CurContext->addDecl(AliasDecl);
+
   return AliasDecl;
 }
 

@@ -993,7 +993,60 @@ TemplateDeclInstantiator::VisitNamespaceDecl(NamespaceDecl *D) {
 }
 
 Decl *
+TemplateDeclInstantiator::VisitDependentNamespaceDecl(
+      DependentNamespaceDecl *D) {
+  ExprResult ER = SemaRef.SubstExpr(D->getSpliceExpr(), TemplateArgs);
+  if (ER.isInvalid())
+    return nullptr;
+  auto *Splice = cast<CXXIndeterminateSpliceExpr>(ER.get());
+  assert(!Splice->isValueDependent());
+
+  DeclResult DR =
+        SemaRef.ActOnCXXSpliceExpectingNamespace(Splice->getLSpliceLoc(),
+                                                 Splice->getOperand(),
+                                                 Splice->getRSpliceLoc());
+  if (DR.isInvalid())
+    return nullptr;
+  return DR.get();
+}
+
+Decl *
 TemplateDeclInstantiator::VisitNamespaceAliasDecl(NamespaceAliasDecl *D) {
+  NamedDecl *NSDecl = D->getAliasedNamespace();
+
+  if (D->isDependent()) {
+    NestedNameSpecifierLoc QualifierLoc = D->getQualifierLoc();
+    if (NestedNameSpecifier *NNS = QualifierLoc.getNestedNameSpecifier();
+        NNS && NNS->isDependent()) {
+      QualifierLoc = SemaRef.SubstNestedNameSpecifierLoc(QualifierLoc,
+                                                         TemplateArgs);
+
+      CXXScopeSpec SS;
+      SS.Adopt(QualifierLoc);
+      return SemaRef.ActOnNamespaceAliasDef(/*Scope=*/nullptr,
+                                            D->getNamespaceLoc(),
+                                            D->getAliasLoc(),
+                                            D->getIdentifier(),
+                                            SS, D->getBeginLoc(),
+                                            D->getNamespace()->getIdentifier());
+    } else if (auto *DNSD = dyn_cast<DependentNamespaceDecl>(NSDecl)) {
+      assert(!D->getQualifierLoc());
+
+      Decl *Transformed = Visit(DNSD);
+      if (!Transformed)
+        return nullptr;
+      NSDecl = cast<NamedDecl>(Transformed);
+    } else if (auto *SubAlias = dyn_cast<NamespaceAliasDecl>(NSDecl)) {
+      assert(SubAlias->isDependent());
+      Decl *SubAliasResult = Visit(SubAlias);
+      if (!SubAliasResult)
+        return nullptr;
+      NSDecl = cast<NamedDecl>(SubAliasResult);
+    } else {
+      llvm_unreachable("unknown dependent namespace alias kind");
+    }
+  } else D->dump();
+
   NamespaceAliasDecl *Inst
     = NamespaceAliasDecl::Create(SemaRef.Context, Owner,
                                  D->getNamespaceLoc(),
@@ -1001,7 +1054,7 @@ TemplateDeclInstantiator::VisitNamespaceAliasDecl(NamespaceAliasDecl *D) {
                                  D->getIdentifier(),
                                  D->getQualifierLoc(),
                                  D->getTargetNameLoc(),
-                                 D->getNamespace());
+                                 NSDecl);
   Owner->addDecl(Inst);
   return Inst;
 }

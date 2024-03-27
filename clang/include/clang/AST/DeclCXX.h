@@ -61,6 +61,7 @@ class CXXBasePaths;
 class CXXConstructorDecl;
 class CXXDestructorDecl;
 class CXXFinalOverriderMap;
+class CXXIndeterminateSpliceExpr;
 class CXXIndirectPrimaryBaseSet;
 class CXXMethodDecl;
 class CXXRecordDecl;
@@ -3106,6 +3107,30 @@ public:
   static bool classofKind(Kind K) { return K == UsingDirective; }
 };
 
+class DependentNamespaceDecl : public NamespaceDecl {
+  friend class ASTDeclReader;
+
+  CXXIndeterminateSpliceExpr *SpliceExpr;
+
+  DependentNamespaceDecl(ASTContext &C, DeclContext *DC,
+                         CXXIndeterminateSpliceExpr *SpliceExpr);
+
+  void anchor() override;
+
+public:
+  static DependentNamespaceDecl *Create(ASTContext &C, DeclContext *DC,
+                                        CXXIndeterminateSpliceExpr *SpliceExpr);
+
+  static DependentNamespaceDecl *CreateDeserialized(ASTContext &C, unsigned ID);
+
+  CXXIndeterminateSpliceExpr *getSpliceExpr() const { return SpliceExpr; }
+
+  SourceRange getSourceRange() const override LLVM_READONLY;
+
+  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
+  static bool classofKind(Kind K) { return K == DependentNamespace; }
+};
+
 /// Represents a C++ namespace alias.
 ///
 /// For example:
@@ -3195,6 +3220,17 @@ public:
 
   const NamespaceDecl *getNamespace() const {
     return const_cast<NamespaceAliasDecl *>(this)->getNamespace();
+  }
+
+  bool isDependent() const {
+    if (NestedNameSpecifier *Qualifier = getQualifier();
+        Qualifier && Qualifier->isDependent())
+      return true;
+
+    if (auto *AD = dyn_cast<NamespaceAliasDecl>(Namespace))
+      return AD->isDependent();
+
+    return isa<DependentNamespaceDecl>(Namespace);
   }
 
   /// Returns the location of the alias name, i.e. 'foo' in

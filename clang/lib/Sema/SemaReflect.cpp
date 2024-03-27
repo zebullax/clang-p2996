@@ -611,9 +611,10 @@ ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation LSplice,
 DeclResult Sema::BuildReflectionSpliceNamespace(SourceLocation LSplice,
                                                 Expr *Operand,
                                                 SourceLocation RSplice) {
-  if (Operand->isTypeDependent() || Operand->isValueDependent())
-    llvm_unreachable("splicing of standalone dependent namespaces not yet "
-                     "implemented");
+  if (Operand->isTypeDependent() || Operand->isValueDependent()) {
+    auto *Splice = cast<CXXIndeterminateSpliceExpr>(Operand);
+    return DependentNamespaceDecl::Create(Context, CurContext, Splice);
+  }
 
   SmallVector<PartialDiagnosticAt, 4> Diags;
   Expr::EvalResult ER;

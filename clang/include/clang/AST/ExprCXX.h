@@ -5491,6 +5491,10 @@ public:
     return RSpliceLoc;
   }
 
+  SourceRange getSourceRange() const {
+    return SourceRange(getBeginLoc(), getEndLoc());
+  }
+
   child_range children() {
     return child_range(reinterpret_cast<Stmt **>(&Operand),
                        reinterpret_cast<Stmt **>(&Operand) + 1);

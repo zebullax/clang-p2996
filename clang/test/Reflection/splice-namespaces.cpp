@@ -17,7 +17,7 @@ int global_decl;
 constexpr int x = 1;
 
 namespace myns {
-  namespace inner { int y; }
+  namespace inner { int y; constexpr int z = 3; }
   constexpr int x = 2;
 }  // namespace myns
 
@@ -72,6 +72,17 @@ static_assert(&myns::x == &Alias2::x);
 
 namespace Alias3 = [:r_global:]::idempotency::inner;
 static_assert(Alias3::x == 3);
+
+template <info R>
+consteval int XPlusY() {
+  namespace Alias = [:R:];
+  namespace ReAlias = Alias;
+  namespace InnerAlias = [:R:]::inner;
+  namespace ReAliasInner = InnerAlias;
+
+  return ReAlias::x + ReAliasInner::z;
+}
+static_assert(XPlusY<^myns>() == 5);
 }  // namespace in_alias_defns
 
                              // ===================

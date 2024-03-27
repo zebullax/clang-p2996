@@ -361,6 +361,7 @@ bool serialization::isRedeclarableDeclKind(unsigned Kind) {
 
   case Decl::Namespace:
   case Decl::NamespaceAlias:
+  case Decl::DependentNamespace:
   case Decl::Typedef:
   case Decl::TypeAlias:
   case Decl::Enum:

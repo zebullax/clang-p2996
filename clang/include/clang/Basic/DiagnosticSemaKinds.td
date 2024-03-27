@@ -3106,6 +3106,8 @@ def err_member_access_splice_not_class_member : Error<
   "member of a class">;
 def err_unsupported_splice_kind : Error<
   "splicing %0 is %select{not|not yet}1 %select{supported|implemented}1">;
+def err_using_dependent_namespace : Error<
+  "dependent namespaces cannot appear in a using directive">;
 
 // C++11 char16_t/char32_t
 def warn_cxx98_compat_unicode_type : Warning<

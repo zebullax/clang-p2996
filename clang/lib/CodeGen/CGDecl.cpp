@@ -54,6 +54,7 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
   case Decl::TranslationUnit:
   case Decl::ExternCContext:
   case Decl::Namespace:
+  case Decl::DependentNamespace:
   case Decl::UnresolvedUsingTypename:
   case Decl::ClassTemplateSpecialization:
   case Decl::ClassTemplatePartialSpecialization:

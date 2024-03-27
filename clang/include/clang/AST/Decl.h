@@ -562,10 +562,12 @@ class NamespaceDecl : public NamedDecl, public DeclContext,
   llvm::PointerIntPair<NamespaceDecl *, 2, unsigned>
       AnonOrFirstNamespaceAndFlags;
 
-  NamespaceDecl(ASTContext &C, DeclContext *DC, bool Inline,
+protected:
+  NamespaceDecl(Kind K, ASTContext &C, DeclContext *DC, bool Inline,
                 SourceLocation StartLoc, SourceLocation IdLoc,
                 IdentifierInfo *Id, NamespaceDecl *PrevDecl, bool Nested);
 
+private:
   using redeclarable_base = Redeclarable<NamespaceDecl>;
 
   NamespaceDecl *getNextRedeclarationImpl() override;
@@ -689,7 +691,9 @@ public:
 
   // Implement isa/cast/dyncast/etc.
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
-  static bool classofKind(Kind K) { return K == Namespace; }
+  static bool classofKind(Kind K) {
+    return K >= firstNamespace && K <= lastNamespace;
+  }
   static DeclContext *castToDeclContext(const NamespaceDecl *D) {
     return static_cast<DeclContext *>(const_cast<NamespaceDecl*>(D));
   }

@@ -1646,6 +1646,10 @@ DEF_TRAVERSE_DECL(NamespaceAliasDecl, {
   ShouldVisitChildren = false;
 })
 
+DEF_TRAVERSE_DECL(DependentNamespaceDecl, {
+  TRY_TO(TraverseStmt(D->getSpliceExpr()));
+})
+
 DEF_TRAVERSE_DECL(LabelDecl, {// There is no code in a LabelDecl.
                              })
 

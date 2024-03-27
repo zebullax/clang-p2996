@@ -229,9 +229,13 @@ NestedNameSpecifierDependence NestedNameSpecifier::getDependence() const {
   }
 
   case Namespace:
-  case NamespaceAlias:
   case Global:
     return NestedNameSpecifierDependence::None;
+
+  case NamespaceAlias:
+    return getAsNamespaceAlias()->isDependent() ?
+           NestedNameSpecifierDependence::Dependent :
+           NestedNameSpecifierDependence::None;
 
   case Super: {
     CXXRecordDecl *RD = static_cast<CXXRecordDecl *>(Specifier);

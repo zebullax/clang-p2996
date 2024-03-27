@@ -892,6 +892,7 @@ unsigned Decl::getIdentifierNamespaceForKind(Kind DeclKind) {
 
     case Namespace:
     case NamespaceAlias:
+    case DependentNamespace:
       return IDNS_Namespace;
 
     case FunctionTemplate:

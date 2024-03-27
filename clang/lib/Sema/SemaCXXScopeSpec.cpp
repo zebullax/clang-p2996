@@ -165,8 +165,12 @@ DeclContext *Sema::computeDeclContext(const CXXScopeSpec &SS,
   case NestedNameSpecifier::Namespace:
     return NNS->getAsNamespace();
 
-  case NestedNameSpecifier::NamespaceAlias:
-    return NNS->getAsNamespaceAlias()->getNamespace();
+  case NestedNameSpecifier::NamespaceAlias: {
+    NamespaceAliasDecl *Alias = NNS->getAsNamespaceAlias();
+    if (Alias->isDependent())
+      return nullptr;
+    return Alias->getNamespace();
+  }
 
   case NestedNameSpecifier::TypeSpec:
   case NestedNameSpecifier::TypeSpecWithTemplate: {
@@ -505,6 +509,8 @@ bool Sema::BuildCXXNestedNameSpecifier(Scope *S, NestedNameSpecInfo &IdInfo,
     LookupCtx = computeDeclContext(SS, EnteringContext);
     isDependent = isDependentScopeSpecifier(SS);
     Found.setContextRange(SS.getRange());
+  } else if (ScopeLookupResult && isa<DependentNamespaceDecl>(ScopeLookupResult)) {
+    isDependent = true;
   }
 
   bool ObjectTypeSearchedInScope = false;
