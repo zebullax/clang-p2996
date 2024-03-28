@@ -7000,6 +7000,10 @@ void TypeLocReader::VisitAttributedTypeLoc(AttributedTypeLoc TL) {
   TL.setAttr(ReadAttr());
 }
 
+void TypeLocReader::VisitCountAttributedTypeLoc(CountAttributedTypeLoc TL) {
+  // Nothing to do
+}
+
 void TypeLocReader::VisitBTFTagAttributedTypeLoc(BTFTagAttributedTypeLoc TL) {
   // Nothing to do.
 }
@@ -9123,6 +9127,10 @@ DeclarationNameInfo ASTRecordReader::readDeclarationNameInfo() {
   NameInfo.setLoc(readSourceLocation());
   NameInfo.setInfo(readDeclarationNameLoc(NameInfo.getName()));
   return NameInfo;
+}
+
+TypeCoupledDeclRefInfo ASTRecordReader::readTypeCoupledDeclRefInfo() {
+  return TypeCoupledDeclRefInfo(readDeclAs<ValueDecl>(), readBool());
 }
 
 void ASTRecordReader::readQualifierInfo(QualifierInfo &Info) {

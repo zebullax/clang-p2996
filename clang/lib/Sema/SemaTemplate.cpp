@@ -2737,6 +2737,8 @@ bool hasDeclaredDeductionGuides(DeclarationName Name, DeclContext *DC) {
 // Build deduction guides for a type alias template.
 void DeclareImplicitDeductionGuidesForTypeAlias(
     Sema &SemaRef, TypeAliasTemplateDecl *AliasTemplate, SourceLocation Loc) {
+  if (AliasTemplate->isInvalidDecl())
+    return;
   auto &Context = SemaRef.Context;
   // FIXME: if there is an explicit deduction guide after the first use of the
   // type alias usage, we will not cover this explicit deduction guide. fix this
@@ -2980,7 +2982,7 @@ void DeclareImplicitDeductionGuidesForTypeAlias(
     if (auto *FPrime = SemaRef.InstantiateFunctionDeclaration(
             F, TemplateArgListForBuildingFPrime, AliasTemplate->getLocation(),
             Sema::CodeSynthesisContext::BuildingDeductionGuides)) {
-      auto *GG = dyn_cast<CXXDeductionGuideDecl>(FPrime);
+      auto *GG = cast<CXXDeductionGuideDecl>(FPrime);
       buildDeductionGuide(SemaRef, AliasTemplate, FPrimeTemplateParamList,
                           GG->getCorrespondingConstructor(),
                           GG->getExplicitSpecifier(), GG->getTypeSourceInfo(),
