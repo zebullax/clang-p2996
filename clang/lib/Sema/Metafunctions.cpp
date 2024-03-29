@@ -753,6 +753,9 @@ static APValue getNthTemplateArgument(Sema &S,
 
       return APValue(ReflectionValue::RK_const_value, CE);
     }
+    case TemplateArgument::IndeterminateSplice:
+      llvm_unreachable("TemplateArgument::IndeterminateSplice should have been "
+                       "transformed by now");
     case TemplateArgument::TemplateExpansion:
       llvm_unreachable("TemplateArgument::TemplateExpansion not supported");
   }

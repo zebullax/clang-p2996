@@ -3933,6 +3933,7 @@ public:
     case TemplateArgument::Null:
     case TemplateArgument::Integral:
     case TemplateArgument::Reflection:
+    case TemplateArgument::IndeterminateSplice:
     case TemplateArgument::Declaration:
     case TemplateArgument::StructuralValue:
     case TemplateArgument::Pack:
@@ -4737,6 +4738,36 @@ bool TreeTransform<Derived>::TransformTemplateArgument(
     else
       llvm_unreachable("unexpected template argument kind");
 
+    return false;
+  }
+
+  case TemplateArgument::IndeterminateSplice: {
+    // Template argument expressions are constant expressions.
+    EnterExpressionEvaluationContext Unevaluated(
+        getSema(),
+        Uneval ? Sema::ExpressionEvaluationContext::Unevaluated
+               : Sema::ExpressionEvaluationContext::ConstantEvaluated,
+        Sema::ReuseLambdaContextDecl, /*ExprContext=*/
+        Sema::ExpressionEvaluationContextRecord::EK_TemplateArgument);
+
+    ExprResult ER = getDerived().TransformCXXIndeterminateSpliceExpr(
+          Input.getArgument().getAsIndeterminateSplice());
+    if (ER.isInvalid())
+      return true;
+    CXXIndeterminateSpliceExpr *NewSplice =
+          cast<CXXIndeterminateSpliceExpr>(ER.get());
+
+    ParsedTemplateArgument ParsedTAs[1] = {
+      SemaRef.ActOnTemplateIndeterminateSpliceArgument(NewSplice)
+    };
+    if (ParsedTAs[0].isInvalid())
+      return true;
+
+    TemplateArgumentListInfo TAListInfo;
+    SemaRef.translateTemplateArguments(ParsedTAs, TAListInfo);
+    assert(TAListInfo.size() == 1);
+
+    Output = TAListInfo[0];
     return false;
   }
 

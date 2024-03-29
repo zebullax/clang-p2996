@@ -226,6 +226,48 @@ DeclResult Sema::ActOnCXXSpliceExpectingNamespace(SourceLocation LSpliceLoc,
   return BuildReflectionSpliceNamespace(LSpliceLoc, Operand, RSpliceLoc);
 }
 
+ParsedTemplateArgument Sema::ActOnTemplateIndeterminateSpliceArgument(
+      CXXIndeterminateSpliceExpr *Splice) {
+  if (Splice->isValueDependent()) {
+    return ParsedTemplateArgument(ParsedTemplateArgument::IndeterminateSplice,
+                                  Splice, Splice->getExprLoc());
+  }
+
+  SmallVector<PartialDiagnosticAt, 4> Diags;
+  Expr::EvalResult ER;
+  ER.Diag = &Diags;
+  if (!Splice->EvaluateAsRValue(ER, Context, true)) {
+    Diag(Splice->getExprLoc(), diag::err_reflect_non_constexpr)
+        << Splice->getSourceRange();
+    for (PartialDiagnosticAt PD : Diags)
+      Diag(PD.first, PD.second);
+    return ParsedTemplateArgument();
+  }
+  if (ER.Val.getKind() != APValue::Reflection) {
+    // TODO(P2996): Replace with a diagnostic.
+    llvm_unreachable("expected a reflection");
+  }
+
+  ReflectionValue RV = ER.Val.getReflection();
+  switch (RV.getKind()) {
+  case ReflectionValue::RK_type:
+    return ParsedTemplateArgument(ParsedTemplateArgument::Type,
+                                  RV.getAsType().getAsOpaquePtr(),
+                                  Splice->getExprLoc());
+  case ReflectionValue::RK_const_value:
+    return ParsedTemplateArgument(ParsedTemplateArgument::NonType,
+                                  RV.getAsConstValueExpr(),
+                                  Splice->getExprLoc());
+  case ReflectionValue::RK_template: {
+    TemplateName TName = RV.getAsTemplate();
+    return ParsedTemplateArgument(ParsedTemplateArgument::Template,
+                                  TName.getAsTemplateDecl(),
+                                  Splice->getExprLoc());
+  }
+  }
+  llvm_unreachable("unimplemented reflection kind");
+}
+
 bool Sema::ActOnCXXNestedNameSpecifierReflectionSplice(
     CXXScopeSpec &SS, CXXIndeterminateSpliceExpr *Expr,
     SourceLocation ColonColonLoc) {

@@ -943,6 +943,9 @@ static TemplateArgumentLoc translateTemplateArgument(Sema &SemaRef,
 
   case ParsedTemplateArgument::NonType: {
     Expr *E = static_cast<Expr *>(Arg.getAsExpr());
+    if (auto *S = dyn_cast<CXXIndeterminateSpliceExpr>(E))
+      return TemplateArgumentLoc(TemplateArgument(S), S);
+
     return TemplateArgumentLoc(TemplateArgument(E), E);
   }
 
@@ -957,6 +960,11 @@ static TemplateArgumentLoc translateTemplateArgument(Sema &SemaRef,
         SemaRef.Context, TArg,
         Arg.getScopeSpec().getWithLocInContext(SemaRef.Context),
         Arg.getLocation(), Arg.getEllipsisLoc());
+  }
+
+  case ParsedTemplateArgument::IndeterminateSplice: {
+    CXXIndeterminateSpliceExpr *Splice = Arg.getAsIndeterminateSplice();
+    return TemplateArgumentLoc(TemplateArgument(Splice), Splice);
   }
   }
 
@@ -4782,6 +4790,7 @@ static bool isTemplateArgumentTemplateParameter(
   case TemplateArgument::NullPtr:
   case TemplateArgument::Integral:
   case TemplateArgument::Reflection:
+  case TemplateArgument::IndeterminateSplice:
   case TemplateArgument::Declaration:
   case TemplateArgument::StructuralValue:
   case TemplateArgument::Pack:
@@ -5657,7 +5666,21 @@ bool Sema::CheckTemplateTypeArgument(
     diagnoseMissingTemplateArguments(Name, SR.getEnd());
     return true;
   }
+  case TemplateArgument::IndeterminateSplice: {
+    // These are dependent and will be converted during substitution.
+    SugaredConverted.push_back(Arg);
+    CanonicalConverted.push_back(Arg);
+    return false;
+  }
   case TemplateArgument::Expression: {
+    // Check if this is an expansion of a pack of IndeterminateSplices.
+    if (auto *P = dyn_cast<PackExpansionExpr>(Arg.getAsExpr());
+        P && isa<CXXIndeterminateSpliceExpr>(P->getPattern())) {
+      SugaredConverted.push_back(Arg);
+      CanonicalConverted.push_back(Arg);
+      return false;
+    }
+
     // We have a template type parameter but the template argument is an
     // expression; see if maybe it is missing the "typename" keyword.
     CXXScopeSpec SS;
@@ -6117,6 +6140,7 @@ bool Sema::CheckTemplateArgument(
     case TemplateArgument::Declaration:
     case TemplateArgument::Integral:
     case TemplateArgument::Reflection:
+    case TemplateArgument::IndeterminateSplice:
     case TemplateArgument::StructuralValue:
     case TemplateArgument::NullPtr:
       // We've already checked this template argument, so just copy
@@ -6263,12 +6287,29 @@ bool Sema::CheckTemplateArgument(
         Context.getCanonicalTemplateArgument(Arg.getArgument()));
     break;
 
+  case TemplateArgument::IndeterminateSplice:
+    // These are dependent and cannot yet be validated. Assume valid for now.
+    SugaredConverted.push_back(Arg.getArgument());
+    CanonicalConverted.push_back(Arg.getArgument());
+    break;
+
   case TemplateArgument::Expression:
+    if (auto *E = Arg.getArgument().getAsExpr();
+        isa<PackExpansionExpr>(E) &&
+        isa<CXXIndeterminateSpliceExpr>(
+            dyn_cast<PackExpansionExpr>(E)->getPattern())) {
+      SugaredConverted.push_back(Arg.getArgument());
+      CanonicalConverted.push_back(Arg.getArgument());
+      break;
+    }
+    [[fallthrough]];
+
   case TemplateArgument::Type:
     // We have a template template parameter but the template
     // argument does not refer to a template.
     Diag(Arg.getLocation(), diag::err_template_arg_must_be_template)
       << getLangOpts().CPlusPlus11;
+    Arg.getArgument().dump();
     return true;
 
   case TemplateArgument::Declaration:
@@ -7676,7 +7717,11 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
     auto *PE = dyn_cast<PackExpansionExpr>(Arg);
     if (PE)
       Arg = PE->getPattern();
-    ExprResult E = ImpCastExprToType(
+    ExprResult E;
+    if (isa<CXXIndeterminateSpliceExpr>(Arg))
+      E = Arg;
+    else
+      E = ImpCastExprToType(
         Arg, ParamType.getNonLValueExprType(Context), CK_Dependent,
         ParamType->isLValueReferenceType()   ? VK_LValue
         : ParamType->isRValueReferenceType() ? VK_XValue
@@ -7693,6 +7738,12 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
     CanonicalConverted = TemplateArgument(
         Context.getCanonicalTemplateArgument(SugaredConverted));
     return E;
+  }
+
+  if (isa<CXXIndeterminateSpliceExpr>(Arg)) {
+    SugaredConverted = TemplateArgument(Arg, Arg);
+    CanonicalConverted = SugaredConverted;
+    return Arg;
   }
 
   QualType CanonParamType = Context.getCanonicalType(ParamType);
@@ -8609,6 +8660,9 @@ Sema::BuildExpressionFromNonTypeTemplateArgument(const TemplateArgument &Arg,
 
   case TemplateArgument::Reflection:
     return BuildExpressionFromReflectionTemplateArgument(Arg, Loc);
+
+  case TemplateArgument::IndeterminateSplice:
+    return Arg.getAsIndeterminateSplice();
 
   case TemplateArgument::StructuralValue:
     return BuildExpressionFromNonTypeTemplateArgumentValue(

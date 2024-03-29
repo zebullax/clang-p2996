@@ -26,6 +26,7 @@
 namespace clang {
 
 class ASTContext;
+class CXXIndeterminateSpliceExpr;
 class Decl;
 class DependentTemplateName;
 class IdentifierInfo;
@@ -488,13 +489,19 @@ public:
 class DependentTemplateName : public llvm::FoldingSetNode {
   friend class ASTContext;
 
+  enum Kind {
+    DTNK_Identifier,
+    DTNK_Operator,
+    DTNK_IndeterminateSplice,
+  };
+
   /// The nested name specifier that qualifies the template
   /// name.
   ///
   /// The bit stored in this qualifier describes whether the \c Name field
   /// is interpreted as an IdentifierInfo pointer (when clear) or as an
   /// overloaded operator kind (when set).
-  llvm::PointerIntPair<NestedNameSpecifier *, 1, bool> Qualifier;
+  llvm::PointerIntPair<NestedNameSpecifier *, 2, Kind> Qualifier;
 
   /// The dependent template name.
   union {
@@ -507,6 +514,11 @@ class DependentTemplateName : public llvm::FoldingSetNode {
     ///
     /// Only valid when the bit on \c Qualifier is set.
     OverloadedOperatorKind Operator;
+
+    /// The dependent splice expression.
+    ///
+    /// Only valid when the NestedNameSpecifier on \c Qualifier is unset.
+    CXXIndeterminateSpliceExpr *SpliceExpr;
   };
 
   /// The canonical template name to which this dependent
@@ -519,32 +531,36 @@ class DependentTemplateName : public llvm::FoldingSetNode {
 
   DependentTemplateName(NestedNameSpecifier *Qualifier,
                         const IdentifierInfo *Identifier)
-      : Qualifier(Qualifier, false), Identifier(Identifier),
+      : Qualifier(Qualifier, DTNK_Identifier), Identifier(Identifier),
         CanonicalTemplateName(this) {}
 
   DependentTemplateName(NestedNameSpecifier *Qualifier,
                         const IdentifierInfo *Identifier,
                         TemplateName Canon)
-      : Qualifier(Qualifier, false), Identifier(Identifier),
+      : Qualifier(Qualifier, DTNK_Identifier), Identifier(Identifier),
         CanonicalTemplateName(Canon) {}
 
   DependentTemplateName(NestedNameSpecifier *Qualifier,
                         OverloadedOperatorKind Operator)
-      : Qualifier(Qualifier, true), Operator(Operator),
+      : Qualifier(Qualifier, DTNK_Operator), Operator(Operator),
         CanonicalTemplateName(this) {}
 
   DependentTemplateName(NestedNameSpecifier *Qualifier,
                         OverloadedOperatorKind Operator,
                         TemplateName Canon)
-       : Qualifier(Qualifier, true), Operator(Operator),
+       : Qualifier(Qualifier, DTNK_Operator), Operator(Operator),
          CanonicalTemplateName(Canon) {}
+
+  DependentTemplateName(CXXIndeterminateSpliceExpr *SpliceExpr)
+       : Qualifier(nullptr, DTNK_IndeterminateSplice), SpliceExpr(SpliceExpr),
+         CanonicalTemplateName(this) {}
 
 public:
   /// Return the nested name specifier that qualifies this name.
   NestedNameSpecifier *getQualifier() const { return Qualifier.getPointer(); }
 
   /// Determine whether this template name refers to an identifier.
-  bool isIdentifier() const { return !Qualifier.getInt(); }
+  bool isIdentifier() const { return Qualifier.getInt() == DTNK_Identifier; }
 
   /// Returns the identifier to which this template name refers.
   const IdentifierInfo *getIdentifier() const {
@@ -554,7 +570,9 @@ public:
 
   /// Determine whether this template name refers to an overloaded
   /// operator.
-  bool isOverloadedOperator() const { return Qualifier.getInt(); }
+  bool isOverloadedOperator() const {
+    return Qualifier.getInt() == DTNK_Operator;
+  }
 
   /// Return the overloaded operator to which this template name refers.
   OverloadedOperatorKind getOperator() const {
@@ -563,25 +581,45 @@ public:
     return Operator;
   }
 
+  /// Determine whether this template name refers to an indeterminate splice.
+  bool isIndeterminateSplice() const {
+    return Qualifier.getInt() == DTNK_IndeterminateSplice;
+  }
+
+  CXXIndeterminateSpliceExpr *getIndeterminateSplice() const {
+    assert(isIndeterminateSplice() &&
+           "Template name isn't an indeterminate splice?");
+    return SpliceExpr;
+  }
+
   void Profile(llvm::FoldingSetNodeID &ID) {
     if (isIdentifier())
       Profile(ID, getQualifier(), getIdentifier());
-    else
+    else if (isOverloadedOperator())
       Profile(ID, getQualifier(), getOperator());
+    else
+      Profile(ID, getIndeterminateSplice());
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID, NestedNameSpecifier *NNS,
                       const IdentifierInfo *Identifier) {
     ID.AddPointer(NNS);
-    ID.AddBoolean(false);
+    ID.AddInteger(DTNK_Identifier);
     ID.AddPointer(Identifier);
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID, NestedNameSpecifier *NNS,
                       OverloadedOperatorKind Operator) {
     ID.AddPointer(NNS);
-    ID.AddBoolean(true);
+    ID.AddInteger(DTNK_Operator);
     ID.AddInteger(Operator);
+  }
+
+  static void Profile(llvm::FoldingSetNodeID &ID,
+                      CXXIndeterminateSpliceExpr *Splice) {
+    ID.AddPointer(nullptr);
+    ID.AddPointer(Splice);
+    ID.AddInteger(DTNK_IndeterminateSplice);
   }
 };
 

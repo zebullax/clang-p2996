@@ -56,6 +56,7 @@ namespace clang {
 
 class APValue;
 class ASTContext;
+class CXXIndeterminateSpliceExpr;
 class Expr;
 struct PrintingPolicy;
 class TypeSourceInfo;
@@ -88,6 +89,10 @@ public:
     /// The template argument is a reflection value that was provided for a
     /// meta::info non-type template parameter.
     Reflection,
+
+    /// The template argument is an indeterminate splice of a reflection, which
+    /// might reflect any of: a type, an expression, or a class template.
+    IndeterminateSplice,
 
     /// The template argument is a non-type template argument that can't be
     /// represented by the special-case Declaration, NullPtr, or Integral
@@ -230,6 +235,10 @@ public:
   /// Construct a reflection template argument. The memory to store the value
   /// is allocated with Ctx.
   TemplateArgument(ASTContext &Ctx, const ReflectionValue &Value,
+                   bool IsDefaulted = false);
+
+  /// Construct an indeterminate splice template argument.
+  TemplateArgument(CXXIndeterminateSpliceExpr *Splice,
                    bool IsDefaulted = false);
 
   /// Construct an integral constant template argument with the same
@@ -401,6 +410,11 @@ public:
 
     return *reinterpret_cast<const ReflectionValue *>(
             (const char *)&ReflectionArg.Value);
+  }
+
+  CXXIndeterminateSpliceExpr *getAsIndeterminateSplice() const {
+    assert(getKind() == IndeterminateSplice && "Unexpected kind");
+    return reinterpret_cast<CXXIndeterminateSpliceExpr *>(TypeOrValue.V);
   }
 
   /// Retrieve the type of the integral value.
@@ -581,6 +595,7 @@ public:
     assert(Argument.getKind() == TemplateArgument::NullPtr ||
            Argument.getKind() == TemplateArgument::Integral ||
            Argument.getKind() == TemplateArgument::Reflection ||
+           Argument.getKind() == TemplateArgument::IndeterminateSplice ||
            Argument.getKind() == TemplateArgument::Declaration ||
            Argument.getKind() == TemplateArgument::StructuralValue ||
            Argument.getKind() == TemplateArgument::Expression);
@@ -640,6 +655,11 @@ public:
 
   Expr *getSourceReflectionExpression() const {
     assert(Argument.getKind() == TemplateArgument::Reflection);
+    return LocInfo.getAsExpr();
+  }
+
+  Expr *getSourceIndeterminateSpliceExpression() const {
+    assert(Argument.getKind() == TemplateArgument::IndeterminateSplice);
     return LocInfo.getAsExpr();
   }
 

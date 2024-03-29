@@ -6881,6 +6881,7 @@ ASTContext::getCanonicalTemplateArgument(const TemplateArgument &Arg) const {
       return TemplateArgument(Arg, getCanonicalType(Arg.getIntegralType()));
 
     case TemplateArgument::Reflection:
+    case TemplateArgument::IndeterminateSplice:
       return Arg;
 
     case TemplateArgument::StructuralValue:
@@ -9400,6 +9401,25 @@ ASTContext::getDependentTemplateName(NestedNameSpecifier *NNS,
   }
 
   DependentTemplateNames.InsertNode(QTN, InsertPos);
+  return TemplateName(QTN);
+}
+
+/// Retrieve the template name that represents a dependent
+/// template name such as \c [:R:] where \c R is dependent.
+TemplateName
+ASTContext::getDependentTemplateName(CXXIndeterminateSpliceExpr *Splice) const {
+  llvm::FoldingSetNodeID ID;
+  DependentTemplateName::Profile(ID, Splice);
+
+  void *InsertPos = nullptr;
+  DependentTemplateName *QTN
+    = DependentTemplateNames.FindNodeOrInsertPos(ID, InsertPos);
+
+  if (!QTN) {
+    QTN = new (*this, alignof(DependentTemplateName))
+        DependentTemplateName(Splice);
+    DependentTemplateNames.InsertNode(QTN, InsertPos);
+  }
   return TemplateName(QTN);
 }
 

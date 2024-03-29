@@ -35,7 +35,9 @@ namespace clang {
       /// A non-type template parameter, stored as an expression.
       NonType,
       /// A template template argument, stored as a template name.
-      Template
+      Template,
+      /// An indeterminate splice argument, stored as an expression.
+      IndeterminateSplice,
     };
 
     /// Build an empty template argument.
@@ -87,6 +89,12 @@ namespace clang {
     ParsedTemplateTy getAsTemplate() const {
       assert(Kind == Template && "Not a template template argument");
       return ParsedTemplateTy::getFromOpaquePtr(Arg);
+    }
+
+    CXXIndeterminateSpliceExpr *getAsIndeterminateSplice() const {
+      assert(Kind == IndeterminateSplice &&
+             "Not an indeterminate splice argument");
+      return static_cast<CXXIndeterminateSpliceExpr*>(Arg);
     }
 
     /// Retrieve the location of the template argument.

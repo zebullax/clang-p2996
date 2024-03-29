@@ -618,7 +618,18 @@ Sema::ActOnPackExpansion(const ParsedTemplateArgument &Arg,
     }
 
     return Arg.getTemplatePackExpansion(EllipsisLoc);
+
+  case ParsedTemplateArgument::IndeterminateSplice: {
+    ExprResult Result = ActOnPackExpansion(Arg.getAsIndeterminateSplice(),
+                                           EllipsisLoc);
+    if (Result.isInvalid())
+      return ParsedTemplateArgument();
+
+    return ParsedTemplateArgument(ParsedTemplateArgument::NonType, Result.get(),
+                                  Arg.getLocation());
   }
+  }
+
   llvm_unreachable("Unhandled template argument kind?");
 }
 
@@ -1190,6 +1201,10 @@ TemplateArgumentLoc Sema::getTemplateArgumentPackExpansionPattern(
     Expr *Pattern = Expansion->getPattern();
     Ellipsis = Expansion->getEllipsisLoc();
     NumExpansions = Expansion->getNumExpansions();
+
+    if (auto *S = dyn_cast<CXXIndeterminateSpliceExpr>(Pattern))
+      return TemplateArgumentLoc(S, S);
+
     return TemplateArgumentLoc(Pattern, Pattern);
   }
 
@@ -1209,6 +1224,9 @@ TemplateArgumentLoc Sema::getTemplateArgumentPackExpansionPattern(
   case TemplateArgument::Pack:
   case TemplateArgument::Null:
     return TemplateArgumentLoc();
+
+  case TemplateArgument::IndeterminateSplice:
+    llvm_unreachable("pack of splices should be Expression type");
   }
 
   llvm_unreachable("Invalid TemplateArgument Kind!");

@@ -3737,6 +3737,7 @@ private:
   bool ParseTemplateArgumentList(TemplateArgList &TemplateArgs,
                                  TemplateTy Template, SourceLocation OpenLoc);
   ParsedTemplateArgument ParseTemplateTemplateArgument();
+  ParsedTemplateArgument ParseIndeterminateSpliceTemplateArgument();
   ParsedTemplateArgument ParseTemplateArgument();
   ParsedTemplateArgument ParseTemplateReflectOperand();
   DeclGroupPtrTy ParseExplicitInstantiation(DeclaratorContext Context,

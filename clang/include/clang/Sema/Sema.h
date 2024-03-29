@@ -14908,6 +14908,9 @@ public:
   DeclResult ActOnCXXSpliceExpectingNamespace(SourceLocation LSplice,
                                               Expr *Operand,
                                               SourceLocation RSplice);
+  ParsedTemplateArgument
+  ActOnTemplateIndeterminateSpliceArgument(CXXIndeterminateSpliceExpr *Splice);
+
   bool ActOnCXXNestedNameSpecifierReflectionSplice(
       CXXScopeSpec &SS, CXXIndeterminateSpliceExpr *Splice,
       SourceLocation ColonColonLoc);

@@ -26,7 +26,7 @@
 
 
                                // ===============
-                               // basic_functions
+                               // class_templates
                                // ===============
 
 namespace class_templates {

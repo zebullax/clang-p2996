@@ -155,6 +155,24 @@ static void printReflection(const TemplateArgument &TemplArg, raw_ostream &Out,
   Out << "(reflection)";
 }
 
+/// Print a template indeterminate splice argument value.
+///
+/// \param TemplArg the TemplateArgument instance to print.
+///
+/// \param Out the raw_ostream instance to use for printing.
+///
+/// \param Policy the printing policy for EnumConstantDecl printing.
+///
+/// \param IncludeType If set, ensure that the type of the expression printed
+/// matches the type of the template argument.
+static void printIndeterminateSplice(const TemplateArgument &TemplArg,
+                                     raw_ostream &Out,
+                                     const PrintingPolicy &Policy,
+                                     bool IncludeType) {
+  // TODO(P2996): Implement this.
+  Out << "[:reflection-splice:]";
+}
+
 static unsigned getArrayDepth(QualType type) {
   unsigned count = 0;
   while (const auto *arrayType = type->getAsArrayTypeUnsafe()) {
@@ -225,6 +243,13 @@ TemplateArgument::TemplateArgument(ASTContext &Ctx,
   new (ReflectionArg.Value.buffer) ReflectionValue(Value);
 }
 
+TemplateArgument::TemplateArgument(CXXIndeterminateSpliceExpr *Splice,
+                                   bool IsDefaulted) {
+  TypeOrValue.Kind = IndeterminateSplice;
+  TypeOrValue.IsDefaulted = IsDefaulted;
+  TypeOrValue.V = reinterpret_cast<uintptr_t>(Splice);
+}
+
 void TemplateArgument::initFromStructural(const ASTContext &Ctx, QualType Type,
                                           const APValue &V, bool IsDefaulted) {
   Value.Kind = StructuralValue;
@@ -286,6 +311,15 @@ TemplateArgument::CreatePackCopy(ASTContext &Context,
 
 TemplateArgumentDependence TemplateArgument::getDependence() const {
   auto Deps = TemplateArgumentDependence::None;
+
+  auto computeFromExpr = [](Expr *E) {
+    auto Deps = toTemplateArgumentDependence(E->getDependence());
+    if (isa<PackExpansionExpr>(E))
+      Deps |= TemplateArgumentDependence::Dependent |
+              TemplateArgumentDependence::Instantiation;
+    return Deps;
+  };
+
   switch (getKind()) {
   case Null:
     llvm_unreachable("Should not have a NULL template argument");
@@ -319,12 +353,11 @@ TemplateArgumentDependence TemplateArgument::getDependence() const {
   case StructuralValue:
     return TemplateArgumentDependence::None;
 
+  case IndeterminateSplice:
+    return computeFromExpr(getAsIndeterminateSplice());
+
   case Expression:
-    Deps = toTemplateArgumentDependence(getAsExpr()->getDependence());
-    if (isa<PackExpansionExpr>(getAsExpr()))
-      Deps |= TemplateArgumentDependence::Dependent |
-              TemplateArgumentDependence::Instantiation;
-    return Deps;
+    return computeFromExpr(getAsExpr());
 
   case Pack:
     for (const auto &P : pack_elements())
@@ -362,6 +395,9 @@ bool TemplateArgument::isPackExpansion() const {
 
   case Expression:
     return isa<PackExpansionExpr>(getAsExpr());
+
+  case IndeterminateSplice:
+    return isa<PackExpansionExpr>(getAsIndeterminateSplice());
   }
 
   llvm_unreachable("Invalid TemplateArgument Kind!");
@@ -385,6 +421,7 @@ QualType TemplateArgument::getNonTypeTemplateArgumentType() const {
   case TemplateArgument::Type:
   case TemplateArgument::Template:
   case TemplateArgument::TemplateExpansion:
+  case TemplateArgument::IndeterminateSplice:
   case TemplateArgument::Pack:
     return QualType();
 
@@ -452,6 +489,11 @@ void TemplateArgument::Profile(llvm::FoldingSetNodeID &ID,
     getReflectionType().Profile(ID);
     break;
 
+  case IndeterminateSplice:
+    // TODO(P2996): Revisit this.
+    getAsIndeterminateSplice()->Profile(ID, Context, true);
+    break;
+
   case Expression:
     getAsExpr()->Profile(ID, Context, true);
     break;
@@ -489,6 +531,9 @@ bool TemplateArgument::structurallyEquals(const TemplateArgument &Other) const {
   case Reflection:
     return getReflectionType() == Other.getReflectionType() &&
            getAsReflection() == Other.getAsReflection();
+
+  case IndeterminateSplice:
+    return false;  // TODO(P2996): Revisit this.
 
   case StructuralValue: {
     if (getStructuralValueType().getCanonicalType() !=
@@ -528,6 +573,7 @@ TemplateArgument TemplateArgument::getPackExpansionPattern() const {
   case Declaration:
   case Integral:
   case Reflection:
+  case IndeterminateSplice:
   case StructuralValue:
   case Pack:
   case Null:
@@ -595,6 +641,10 @@ void TemplateArgument::print(const PrintingPolicy &Policy, raw_ostream &Out,
 
   case Reflection:
     printReflection(*this, Out, Policy, IncludeType);
+    break;
+
+  case IndeterminateSplice:
+    getAsIndeterminateSplice()->printPretty(Out, nullptr, Policy);
     break;
 
   case Expression:
@@ -665,6 +715,9 @@ SourceRange TemplateArgumentLoc::getSourceRange() const {
   case TemplateArgument::Reflection:
     return getSourceReflectionExpression()->getSourceRange();
 
+  case TemplateArgument::IndeterminateSplice:
+    return getSourceIndeterminateSpliceExpression()->getSourceRange();
+
   case TemplateArgument::StructuralValue:
     return getSourceStructuralValueExpression()->getSourceRange();
 
@@ -699,6 +752,10 @@ static const T &DiagTemplateArg(const T &DB, const TemplateArgument &Arg) {
   case TemplateArgument::Reflection:
     // TODO(P2996): Implement this.
     return DB << "(reflection)";
+
+  case TemplateArgument::IndeterminateSplice:
+    // TODO(P2996): Implement this.
+    return DB << "[:reflection-splice:]";
 
   case TemplateArgument::StructuralValue: {
     // FIXME: We're guessing at LangOptions!

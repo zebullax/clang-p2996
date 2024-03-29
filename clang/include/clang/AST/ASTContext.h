@@ -2217,6 +2217,7 @@ public:
                                         const IdentifierInfo *Name) const;
   TemplateName getDependentTemplateName(NestedNameSpecifier *NNS,
                                         OverloadedOperatorKind Operator) const;
+  TemplateName getDependentTemplateName(CXXIndeterminateSpliceExpr *S) const;
   TemplateName
   getSubstTemplateTemplateParm(TemplateName replacement, Decl *AssociatedDecl,
                                unsigned Index,

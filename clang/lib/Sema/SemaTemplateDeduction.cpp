@@ -283,6 +283,18 @@ checkDeducedTemplateArguments(ASTContext &Context,
     // All other combinations are incompatible.
     return DeducedTemplateArgument();
 
+  case TemplateArgument::IndeterminateSplice:
+    if (Y.getKind() == TemplateArgument::Type ||
+        Y.getKind() == TemplateArgument::Expression ||
+        Y.getKind() == TemplateArgument::Declaration ||
+        Y.getKind() == TemplateArgument::Reflection ||
+        Y.getKind() == TemplateArgument::IndeterminateSplice ||
+        Y.getKind() == TemplateArgument::Template)
+      return X;
+
+    // All other combinations are incompatible.
+    return DeducedTemplateArgument();
+
   case TemplateArgument::StructuralValue:
     // If we deduced a value and a dependent expression, keep the value.
     if (Y.getKind() == TemplateArgument::Expression ||
@@ -2384,6 +2396,9 @@ DeduceTemplateArguments(Sema &S, TemplateParameterList *TemplateParams,
     Info.SecondArg = A;
     return TemplateDeductionResult::NonDeducedMismatch;
 
+  case TemplateArgument::IndeterminateSplice:
+    llvm_unreachable("TODO");
+
   case TemplateArgument::StructuralValue:
     if (A.getKind() == TemplateArgument::StructuralValue &&
         A.structurallyEquals(P))
@@ -2401,6 +2416,7 @@ DeduceTemplateArguments(Sema &S, TemplateParameterList *TemplateParams,
       case TemplateArgument::Expression:
       case TemplateArgument::StructuralValue:
       case TemplateArgument::Reflection:
+      case TemplateArgument::IndeterminateSplice:
         return DeduceNonTypeTemplateArgument(
             S, TemplateParams, NTTP, DeducedTemplateArgument(A),
             A.getNonTypeTemplateArgumentType(), Info, Deduced);
@@ -2612,6 +2628,9 @@ static bool isSameTemplateArg(ASTContext &Context,
     case TemplateArgument::Reflection:
       return X.getAsReflection() == Y.getAsReflection();
 
+    case TemplateArgument::IndeterminateSplice:
+      return false;
+
     case TemplateArgument::StructuralValue:
       return X.structurallyEquals(Y);
 
@@ -2706,6 +2725,9 @@ Sema::getTrivialTemplateArgumentLoc(const TemplateArgument &Arg,
         BuildExpressionFromReflectionTemplateArgument(Arg, Loc).getAs<Expr>();
     return TemplateArgumentLoc(TemplateArgument(E), E);
   }
+
+  case TemplateArgument::IndeterminateSplice:
+    llvm_unreachable("TODO: unimplemented");
 
     case TemplateArgument::Template:
     case TemplateArgument::TemplateExpansion: {
@@ -6666,6 +6688,7 @@ MarkUsedTemplateParameters(ASTContext &Ctx,
   case TemplateArgument::Null:
   case TemplateArgument::Integral:
   case TemplateArgument::Reflection:
+  case TemplateArgument::IndeterminateSplice:
   case TemplateArgument::Declaration:
   case TemplateArgument::NullPtr:
   case TemplateArgument::StructuralValue:

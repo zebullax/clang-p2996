@@ -1532,6 +1532,25 @@ ParsedTemplateArgument Parser::ParseTemplateReflectOperand() {
   return Result;
 }
 
+ParsedTemplateArgument Parser::ParseIndeterminateSpliceTemplateArgument() {
+  CXXScopeSpec SS;
+  if (ParseOptionalCXXScopeSpecifier(
+          SS, /*ObjectType=*/nullptr,
+          /*ObjectHasErrors=*/false, /*EnteringContext=*/false,
+          /*MayBePseudoDestructor=*/nullptr,
+          /*IsTypename=*/false, /*LastII=*/nullptr, /*OnlyNamespace=*/true) ||
+      SS.isInvalid() || SS.isNotEmpty() || !Tok.is(tok::annot_splice))
+    return {};
+
+  ExprResult ER = getExprAnnotation(Tok);
+  assert(!ER.isInvalid());
+  CXXIndeterminateSpliceExpr *Splice =
+        cast<CXXIndeterminateSpliceExpr>(ER.get());
+  ConsumeAnnotationToken();
+
+  return Actions.ActOnTemplateIndeterminateSpliceArgument(Splice);
+}
+
 /// ParseTemplateArgument - Parse a C++ template argument (C++ [temp.names]).
 ///
 ///       template-argument: [C++ 14.2]
@@ -1555,6 +1574,7 @@ ParsedTemplateArgument Parser::ParseTemplateArgument() {
     Actions, Sema::ExpressionEvaluationContext::ConstantEvaluated,
     /*LambdaContextDecl=*/nullptr,
     /*ExprContext=*/Sema::ExpressionEvaluationContextRecord::EK_TemplateArgument);
+
   if (isCXXTypeId(TypeIdAsTemplateArgument)) {
     TypeResult TypeArg = ParseTypeName(
         /*Range=*/nullptr, DeclaratorContext::TemplateArg);
@@ -1572,7 +1592,22 @@ ParsedTemplateArgument Parser::ParseTemplateArgument() {
       return TemplateTemplateArgument;
     }
 
-    // Revert this tentative parse to parse a non-type template argument.
+    // Revert this tentative parse.
+    TPA.Revert();
+  }
+
+  // Try to parse an indeterminate splice template argument.
+  {
+    TentativeParsingAction TPA(*this);
+
+    ParsedTemplateArgument SpliceTemplateArgument
+          = ParseIndeterminateSpliceTemplateArgument();
+    if (!SpliceTemplateArgument.isInvalid()) {
+      TPA.Commit();
+      return SpliceTemplateArgument;
+    }
+
+    // Revert this tentative parse; assume a non-type template argument.
     TPA.Revert();
   }
 

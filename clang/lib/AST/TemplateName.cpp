@@ -239,8 +239,11 @@ TemplateNameDependence TemplateName::getDependence() const {
         getAsQualifiedTemplateName()->getQualifier()->getDependence());
     break;
   case TemplateName::NameKind::DependentTemplate:
-    D |= toTemplateNameDependence(
-        getAsDependentTemplateName()->getQualifier()->getDependence());
+    if (getAsDependentTemplateName()->isIndeterminateSplice())
+      D |= TemplateNameDependence::DependentInstantiation;
+    else
+      D |= toTemplateNameDependence(
+          getAsDependentTemplateName()->getQualifier()->getDependence());
     break;
   case TemplateName::NameKind::SubstTemplateTemplateParmPack:
     D |= TemplateNameDependence::UnexpandedPack;
