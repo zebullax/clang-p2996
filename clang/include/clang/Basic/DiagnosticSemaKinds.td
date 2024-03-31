@@ -3105,7 +3105,8 @@ def err_member_access_splice_not_class_member : Error<
   "use of splice as qualified member access requires the reflection to be a "
   "member of a class">;
 def err_unsupported_splice_kind : Error<
-  "splicing %0 is %select{not|not yet}1 %select{supported|implemented}1">;
+  "splicing %0 %select{as template arguments is|is}1 %select{not|not yet}2 "
+  "%select{supported|implemented}2">;
 def err_using_dependent_namespace : Error<
   "dependent namespaces cannot appear in a using directive">;
 

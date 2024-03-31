@@ -27,11 +27,11 @@ namespace {
 
 TemplateArgumentListInfo addLocToTemplateArgs(Sema &S,
                                               ArrayRef<TemplateArgument> Args,
-                                              Expr *InstExpr) {
+                                              SourceLocation ExprLoc) {
   auto convert = [&](const TemplateArgument &TA) -> TemplateArgumentLoc {
     return S.getTrivialTemplateArgumentLoc(TA,
                                            TA.getNonTypeTemplateArgumentType(),
-                                           InstExpr->getExprLoc());
+                                           ExprLoc);
   };
 
   TemplateArgumentListInfo Result;
@@ -43,6 +43,43 @@ TemplateArgumentListInfo addLocToTemplateArgs(Sema &S,
       Result.addArgument(convert(Arg));
 
   return Result;
+}
+
+Expr *CreateRefToDecl(Sema &S, ValueDecl *D,
+                      SourceLocation ExprLoc) {
+  NestedNameSpecifierLocBuilder NNSLocBuilder;
+  if (const auto *RDC = dyn_cast<RecordDecl>(D->getDeclContext())) {
+    QualType QT(RDC->getTypeForDecl(), 0);
+    TypeSourceInfo *TSI = S.Context.CreateTypeSourceInfo(QT, 0);
+    NNSLocBuilder.Extend(S.Context, SourceLocation(), TSI->getTypeLoc(),
+                         ExprLoc);
+  }
+
+  ExprValueKind ValueKind = VK_LValue;
+  if (auto *VTSD = dyn_cast<VarTemplateSpecializationDecl>(D);
+      VTSD && VTSD->getTemplateSpecializationKind() == TSK_Undeclared) {
+    const TemplateArgumentList &TAList = VTSD->getTemplateArgs();
+    TemplateArgumentListInfo TAListInfo(
+            addLocToTemplateArgs(S, TAList.asArray(), ExprLoc));
+
+    CXXScopeSpec SS;
+    DeclarationNameInfo DNI(VTSD->getDeclName(), ExprLoc);
+    ExprResult ER = S.CheckVarTemplateId(SS, DNI,
+                                         VTSD->getSpecializedTemplate(),
+                                         VTSD->getSpecializedTemplate(),
+                                         ExprLoc, &TAListInfo);
+    return ER.get();
+  } else {
+    if (isa<EnumConstantDecl>(D))
+      ValueKind = VK_PRValue;
+    else if (auto *MD = dyn_cast<CXXMethodDecl>(D); MD && !MD->isStatic())
+      ValueKind = VK_PRValue;
+
+    return DeclRefExpr::Create(
+        S.Context, NNSLocBuilder.getWithLocInContext(S.Context),
+        SourceLocation(), D, false, ExprLoc, D->getType(), ValueKind, D,
+        nullptr);
+  }
 }
 }  // anonymous namespace
 
@@ -264,8 +301,26 @@ ParsedTemplateArgument Sema::ActOnTemplateIndeterminateSpliceArgument(
                                   TName.getAsTemplateDecl(),
                                   Splice->getExprLoc());
   }
+  case ReflectionValue::RK_declaration: {
+    Expr *E = CreateRefToDecl(*this, cast<ValueDecl>(RV.getAsDecl()),
+                              Splice->getExprLoc());
+    return ParsedTemplateArgument(ParsedTemplateArgument::NonType, E,
+                                  E->getExprLoc());
   }
-  llvm_unreachable("unimplemented reflection kind");
+  case ReflectionValue::RK_namespace:
+    Diag(Splice->getExprLoc(), diag::err_unsupported_splice_kind)
+      << "namespaces" << 0 << 0;
+    break;
+  case ReflectionValue::RK_base_specifier:
+    Diag(Splice->getExprLoc(), diag::err_unsupported_splice_kind)
+      << "base specifiers" << 0 << 0;
+    break;
+  case ReflectionValue::RK_data_member_spec:
+    Diag(Splice->getExprLoc(), diag::err_unsupported_splice_kind)
+      << "data member specs" << 0 << 0;
+    break;
+  }
+  return ParsedTemplateArgument();
 }
 
 bool Sema::ActOnCXXNestedNameSpecifierReflectionSplice(
@@ -517,7 +572,8 @@ QualType Sema::BuildReflectionSpliceType(SourceLocation LSplice,
       const TemplateArgumentList &TAList =
               CTD->getTemplateInstantiationArgs();
       TemplateArgumentListInfo TAListInfo(
-              addLocToTemplateArgs(*this, TAList.asArray(), Operand));
+              addLocToTemplateArgs(*this, TAList.asArray(),
+                                   Operand->getExprLoc()));
 
       ReflectedTy = CheckTemplateIdType(TName, Operand->getExprLoc(),
                                         TAListInfo);
@@ -576,45 +632,11 @@ ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation LSplice,
       // Create a new DeclRefExpr, since the operand of the reflect expression
       // was parsed in an unevaluated context (but a splice expression is not
       // necessarily, and frequently not, in such a context).
-      auto *D = cast<ValueDecl>(RV.getAsDecl());
-
-      NestedNameSpecifierLocBuilder NNSLocBuilder;
-      if (const auto *RDC = dyn_cast<RecordDecl>(D->getDeclContext())) {
-        QualType QT(RDC->getTypeForDecl(), 0);
-        TypeSourceInfo *TSI = Context.CreateTypeSourceInfo(QT, 0);
-        NNSLocBuilder.Extend(Context, SourceLocation(), TSI->getTypeLoc(),
-                             Operand->getExprLoc());
-      }
-
-      ExprValueKind ValueKind = VK_LValue;
-      if (auto *VTSD = dyn_cast<VarTemplateSpecializationDecl>(D);
-          VTSD && VTSD->getTemplateSpecializationKind() == TSK_Undeclared) {
-        const TemplateArgumentList &TAList = VTSD->getTemplateArgs();
-        TemplateArgumentListInfo TAListInfo(
-                addLocToTemplateArgs(*this, TAList.asArray(), Operand));
-
-        CXXScopeSpec SS;
-        DeclarationNameInfo DNI(VTSD->getDeclName(), Operand->getExprLoc());
-        ExprResult ER = CheckVarTemplateId(SS, DNI,
-                                           VTSD->getSpecializedTemplate(),
-                                           VTSD->getSpecializedTemplate(),
-                                           Operand->getExprLoc(), &TAListInfo);
-        Operand = ER.get();
-      } else {
-        if (isa<EnumConstantDecl>(D))
-          ValueKind = VK_PRValue;
-        else if (auto *MD = dyn_cast<CXXMethodDecl>(D); MD && !MD->isStatic())
-          ValueKind = VK_PRValue;
-
-        Operand = DeclRefExpr::Create(
-            Context, NNSLocBuilder.getWithLocInContext(Context),
-            SourceLocation(), D, false, Operand->getExprLoc(), D->getType(),
-            ValueKind, D, nullptr);
-        MarkDeclRefReferenced(cast<DeclRefExpr>(Operand), nullptr);
-      }
-
-      Operand = CXXExprSpliceExpr::Create(Context, ValueKind, LSplice, Operand,
-                                          RSplice);
+      Operand = CreateRefToDecl(*this, cast<ValueDecl>(RV.getAsDecl()),
+                                Operand->getExprLoc());
+      MarkDeclRefReferenced(cast<DeclRefExpr>(Operand), nullptr);
+      Operand = CXXExprSpliceExpr::Create(Context, Operand->getValueKind(),
+                                          LSplice, Operand, RSplice);
       break;
     }
     case ReflectionValue::RK_const_value: {
@@ -634,7 +656,7 @@ ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation LSplice,
       // TODO(P2996): Implement splicing of class and function templates used in
       // a call expression.
       Diag(Operand->getExprLoc(), diag::err_unsupported_splice_kind)
-          << "templates" << 1;
+          << "templates" << 1 << 1;
       return ExprError();
     }
     case ReflectionValue::RK_type:
