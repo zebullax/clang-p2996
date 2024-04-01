@@ -1045,7 +1045,7 @@ TemplateDeclInstantiator::VisitNamespaceAliasDecl(NamespaceAliasDecl *D) {
     } else {
       llvm_unreachable("unknown dependent namespace alias kind");
     }
-  } else D->dump();
+  }
 
   NamespaceAliasDecl *Inst
     = NamespaceAliasDecl::Create(SemaRef.Context, Owner,

@@ -6309,7 +6309,6 @@ bool Sema::CheckTemplateArgument(
     // argument does not refer to a template.
     Diag(Arg.getLocation(), diag::err_template_arg_must_be_template)
       << getLangOpts().CPlusPlus11;
-    Arg.getArgument().dump();
     return true;
 
   case TemplateArgument::Declaration:
