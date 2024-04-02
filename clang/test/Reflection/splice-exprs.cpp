@@ -226,3 +226,26 @@ struct WithIndexOperator {
   bool operator[:>(int);  // Test interaction with ':>'-digraph (i.e., ']').
 };
 }  // namespace colon_parsing
+
+                   // =======================================
+                   // bb_clang_p2996_issue_22_regression_test
+                   // =======================================
+
+namespace bb_clang_p2996_issue_22_regression_test {
+// Issue #22 invoked a crash involving CTAD in a double templated context.
+// I wasn't able to find a more minimal reproduction of the crash, but am
+// including this test to prevent regression.
+template <decltype(^::) FN>
+struct Cls
+{
+    template <typename RESULT, typename... Args>
+    struct Impl {
+        Impl(decltype(&[:FN:]));
+    };
+    template <typename RESULT, typename... Args>
+    Impl(RESULT (*)(Args...)) -> Impl<RESULT, Args...>;
+};
+
+void fn(int);
+static_assert(^decltype(Cls<^fn>::Impl(&fn)) == ^Cls<^fn>::Impl<void, int>);
+}  // namespace bb_clang_p2996_issue_22_regression_test

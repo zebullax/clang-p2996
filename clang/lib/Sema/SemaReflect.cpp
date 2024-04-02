@@ -609,7 +609,8 @@ QualType Sema::BuildReflectionSpliceTypeLoc(TypeLocBuilder &TLB,
 ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation LSplice,
                                            Expr *Operand,
                                            SourceLocation RSplice) {
-  if (!Operand->isTypeDependent() && !Operand->isValueDependent()) {
+  if (isa<CXXIndeterminateSpliceExpr>(Operand) &&
+      !Operand->isTypeDependent() && !Operand->isValueDependent()) {
     SmallVector<PartialDiagnosticAt, 4> Diags;
     Expr::EvalResult ER;
     ER.Diag = &Diags;
@@ -668,8 +669,8 @@ ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation LSplice,
     }
     return Operand;
   }
-  return CXXExprSpliceExpr::Create(Context, VK_PRValue, LSplice, Operand,
-                                   RSplice);
+  return CXXExprSpliceExpr::Create(Context, Operand->getValueKind(), LSplice,
+                                   Operand, RSplice);
 }
 
 DeclResult Sema::BuildReflectionSpliceNamespace(SourceLocation LSplice,
