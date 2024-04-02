@@ -1125,6 +1125,10 @@ Parser::TPResult Parser::TryParseDeclarator(bool mayBeAbstract,
       ConsumeToken();
   } else if (Tok.is(tok::l_paren)) {
     ConsumeParen();
+
+    if (Tok.is(tok::l_splice) && TryAnnotateTypeOrScopeToken())
+      return TPResult::Error;
+
     if (mayBeAbstract &&
         (Tok.is(tok::r_paren) || // 'int()' is a function.
                                  // 'int(...)' is a function.

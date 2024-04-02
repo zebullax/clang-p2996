@@ -5793,6 +5793,20 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
             ClsType = Context.getElaboratedType(ElaboratedTypeKeyword::None,
                                                 NNSPrefix, ClsType);
           break;
+        case NestedNameSpecifier::IndeterminateSplice: {
+          CXXIndeterminateSpliceExpr *E =
+              const_cast<CXXIndeterminateSpliceExpr *>(NNS->getAsSpliceExpr());
+          TypeResult TR = S.ActOnCXXSpliceExpectingType(E->getLSpliceLoc(), E,
+                                                        E->getRSpliceLoc(),
+                                                        /*Complain=*/true);
+          if (TR.isInvalid())
+            D.setInvalidType(true);
+          else {
+            ClsType = TR.get().get();
+            if (auto *LIT = dyn_cast<LocInfoType>(ClsType))
+              ClsType = LIT->getType();
+          } break;
+        }
         }
       } else {
         S.Diag(DeclType.Mem.Scope().getBeginLoc(),

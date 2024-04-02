@@ -3578,9 +3578,9 @@ void Parser::ParseDeclarationSpecifiers(
       return;
 
     case tok::l_splice:
-      if (ParseCXXIndeterminateSplice()) {
+      if (TryAnnotateTypeOrScopeToken(AllowImplicitTypename)) {
         DS.SetTypeSpecError();
-        return;
+        break;
       }
       continue;
 
@@ -6481,7 +6481,8 @@ void Parser::ParseDeclaratorInternal(Declarator &D,
       (Tok.is(tok::coloncolon) || Tok.is(tok::kw_decltype) ||
        (Tok.is(tok::identifier) &&
         (NextToken().is(tok::coloncolon) || NextToken().is(tok::less))) ||
-       Tok.is(tok::annot_cxxscope))) {
+       Tok.is(tok::annot_cxxscope) || Tok.is(tok::l_splice) ||
+       Tok.is(tok::annot_splice))) {
     bool EnteringContext = D.getContext() == DeclaratorContext::File ||
                            D.getContext() == DeclaratorContext::Member;
     CXXScopeSpec SS;

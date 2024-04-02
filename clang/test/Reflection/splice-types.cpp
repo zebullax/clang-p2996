@@ -53,10 +53,10 @@ static_assert(!is_same_v<typename [:r_int_alias:],
 
 // Check use of splices in declarations.
 namespace in_decls {
-  constexpr info r_const_int = ^const int;
-  constexpr [:r_const_int:] x = 42;
-  static_assert(is_same_v<decltype(x), const int>);
-  static_assert(x == 42);
+constexpr info r_const_int = ^const int;
+constexpr [:r_const_int:] x = 42;
+static_assert(is_same_v<decltype(x), const int>);
+static_assert(x == 42);
 }  // namespace in_decls
 
                                  // ==========
@@ -98,6 +98,8 @@ constexpr auto r_S = ^S;
 constexpr auto r_S_Inner = ^S::Inner;
 static_assert(is_same_v<[:r_S:]::type, bool>);
 static_assert(is_same_v<[:r_S_Inner:]::type, int>);
+static_assert(is_same_v<int [:r_S:]::*, int S::*>);
+static_assert(is_same_v<int ([:r_S:]::*)(bool), int (S::*)(bool)>);
 static_assert([:r_S:]::s_value == 2);
 static_assert([:r_S_Inner:]::s_value == 1);
 
