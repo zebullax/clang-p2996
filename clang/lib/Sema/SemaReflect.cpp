@@ -642,15 +642,15 @@ ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation LSplice,
     }
     case ReflectionValue::RK_const_value: {
       Operand = RV.getAsConstValueExpr();
-      Operand = CXXExprSpliceExpr::Create(Context, VK_PRValue, LSplice, Operand,
-                                          RSplice);
-      if (!isConstantEvaluatedContext()) {
+      if (!isConstantEvaluatedContext() && !isa<ConstantExpr>(Operand)) {
         Operand = ConstantExpr::Create(Context, Operand,
                                        ConstantResultStorageKind::APValue,
                                        true);
         ExprEvalContexts.back().ImmediateInvocationCandidates.emplace_back(
               cast<ConstantExpr>(Operand), 0);
       }
+      Operand = CXXExprSpliceExpr::Create(Context, VK_PRValue, LSplice, Operand,
+                                          RSplice);
       break;
     }
     case ReflectionValue::RK_template: {

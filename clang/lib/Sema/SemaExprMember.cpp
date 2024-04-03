@@ -989,6 +989,15 @@ static bool IsInFnTryBlockHandler(const Scope *S) {
   return false;
 }
 
+static bool isRecordType(QualType T) {
+  return T->isRecordType();
+}
+static bool isPointerToRecordType(QualType T) {
+  if (const PointerType *PT = T->getAs<PointerType>())
+    return PT->getPointeeType()->isRecordType();
+  return false;
+}
+
 ExprResult
 Sema::BuildMemberReferenceExpr(Expr *BaseExpr, QualType BaseExprType,
                                SourceLocation OpLoc, bool IsArrow,
@@ -1231,9 +1240,30 @@ Sema::BuildMemberReferenceExpr(Scope *S, Expr *Base, SourceLocation OpLoc,
   // Disable access control for the duration of the splice expression
   AccessControlScopeGuard guard {*this, true};
 
+  bool IsRHSDependent = (RHS->isValueDependent() || RHS->isTypeDependent());
   bool IsArrow = (OpKind == tok::arrow);
-  if (RHS->isValueDependent() || RHS->isTypeDependent())
+  if (Base) {
+    const PointerType *PT = Base->getType()->getAs<PointerType>();
+    bool IsPtr = (PT != nullptr);
+    bool IsRecord = isRecordType(PT ? PT->getPointeeType() : Base->getType());
+    if (IsRecord && IsArrow != IsPtr) {
+      std::string Suggestion = IsPtr ? "." : "->";
+      Diag(OpLoc, diag::err_typecheck_member_reference_suggestion)
+        << Base->getType() << int(IsArrow) << Base->getSourceRange()
+        << FixItHint::CreateReplacement(OpLoc, Suggestion);
+      return ExprError();
+    } else if (!IsRecord && !IsRHSDependent) {
+        Base->getType()->dump();
+        Diag(OpLoc, diag::err_typecheck_member_reference_struct_union)
+          << Base->getType() << Base->getSourceRange()
+          << RHS->getSourceRange();
+      return ExprError();
+    }
+  }
+
+  if (IsRHSDependent) {
     return BuildDependentMemberSpliceExpr(Base, OpLoc, IsArrow, RHS);
+  }
 
   CXXScopeSpec SS;
   ValueDecl *VD = nullptr;
@@ -1319,15 +1349,6 @@ static bool ShouldTryAgainWithRedefinitionType(Sema &S, ExprResult &base) {
 
   base = S.ImpCastExprToType(base.get(), redef, CK_BitCast);
   return true;
-}
-
-static bool isRecordType(QualType T) {
-  return T->isRecordType();
-}
-static bool isPointerToRecordType(QualType T) {
-  if (const PointerType *PT = T->getAs<PointerType>())
-    return PT->getPointeeType()->isRecordType();
-  return false;
 }
 
 /// Perform conversions on the LHS of a member access expression.

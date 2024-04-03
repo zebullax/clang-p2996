@@ -242,6 +242,10 @@ public:
   void VisitPackIndexingExpr(PackIndexingExpr *E) {
     Visit(E->getSelectedExpr());
   }
+
+  void VisitCXXExprSpliceExpr(CXXExprSpliceExpr *E) {
+    Visit(E->getOperand());
+  }
 };
 }  // end anonymous namespace.
 
