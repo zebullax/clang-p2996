@@ -202,7 +202,7 @@ TypeResult Parser::ParseCXXSpliceAsType(bool AllowDependent,
   return Result;
 }
 
-ExprResult Parser::ParseCXXSpliceAsExpr() {
+ExprResult Parser::ParseCXXSpliceAsExpr(bool AllowMemberReference) {
   assert(Tok.is(tok::annot_splice) && "expected annot_splice");
 
   Token Splice = Tok;
@@ -211,7 +211,8 @@ ExprResult Parser::ParseCXXSpliceAsExpr() {
   assert(!ER.isInvalid());
 
   ExprResult Result = Actions.ActOnCXXSpliceExpectingExpr(
-          Splice.getLocation(), ER.get(), Splice.getAnnotationEndLoc());
+          Splice.getLocation(), ER.get(), Splice.getAnnotationEndLoc(),
+          AllowMemberReference);
   if (!Result.isInvalid())
     ConsumeAnnotationToken();
 

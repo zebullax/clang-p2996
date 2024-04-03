@@ -5592,18 +5592,24 @@ class CXXExprSpliceExpr : public Expr {
   SourceLocation LSpliceLoc;
   Expr *Operand;
   SourceLocation RSpliceLoc;
+  bool AllowMemberReference;
 
   CXXExprSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
                     SourceLocation LSpliceLoc, Expr *Operand,
-                    SourceLocation RSpliceLoc);
+                    SourceLocation RSpliceLoc, bool AllowMemberReference);
 
 public:
   static CXXExprSpliceExpr *Create(ASTContext &C, ExprValueKind ValueKind,
                                    SourceLocation LSpliceLoc, Expr *Operand,
-                                   SourceLocation RpliceLoc);
+                                   SourceLocation RSpliceLoc,
+                                   bool AllowMemberReference);
 
   Expr *getOperand() const {
     return Operand;
+  }
+
+  bool allowMemberReference() const {
+    return AllowMemberReference;
   }
 
   SourceLocation getLSpliceLoc() const {

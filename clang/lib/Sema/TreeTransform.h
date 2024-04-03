@@ -8724,7 +8724,8 @@ TreeTransform<Derived>::TransformCXXExprSpliceExpr(CXXExprSpliceExpr *E) {
     return ExprError();
 
   return getSema().BuildReflectionSpliceExpr(E->getLSpliceLoc(), ER.get(),
-                                             E->getRSpliceLoc());
+                                             E->getRSpliceLoc(),
+                                             E->allowMemberReference());
 }
 
 template <typename Derived>

@@ -3109,6 +3109,10 @@ def err_unsupported_splice_kind : Error<
   "%select{supported|implemented}2">;
 def err_using_dependent_namespace : Error<
   "dependent namespaces cannot appear in a using directive">;
+def err_dependent_splice_implicit_member_reference : Error<
+  "cannot implicitly reference a class member through a splice">;
+def note_dependent_splice_explicit_this_may_fix : Note<
+  "an explicit 'this' pointer may fix the problem">;
 
 // C++11 char16_t/char32_t
 def warn_cxx98_compat_unicode_type : Warning<

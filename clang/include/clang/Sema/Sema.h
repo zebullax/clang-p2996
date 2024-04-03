@@ -14865,7 +14865,8 @@ public:
                                          bool Complain);
   ExprResult ActOnCXXSpliceExpectingExpr(SourceLocation LSplice,
                                          Expr *Operand,
-                                         SourceLocation RSplice);
+                                         SourceLocation RSplice,
+                                         bool AllowMemberReference);
   DeclResult ActOnCXXSpliceExpectingNamespace(SourceLocation LSplice,
                                               Expr *Operand,
                                               SourceLocation RSplice);
@@ -14911,9 +14912,9 @@ public:
                                         SourceLocation LSpliceLoc,
                                         Expr *E, SourceLocation RSpliceLoc,
                                         bool Complain);
-  ExprResult BuildReflectionSpliceExpr(SourceLocation LSplice,
-                                       Expr *Operand,
-                                       SourceLocation RSplice);
+  ExprResult BuildReflectionSpliceExpr(SourceLocation LSplice, Expr *Operand,
+                                       SourceLocation RSplice,
+                                       bool AllowMemberReference);
   DeclResult BuildReflectionSpliceNamespace(SourceLocation LSplice,
                                             Expr *Operand,
                                             SourceLocation RSplice);

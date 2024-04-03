@@ -253,8 +253,10 @@ TypeResult Sema::ActOnCXXSpliceExpectingType(SourceLocation LSpliceLoc,
 
 ExprResult Sema::ActOnCXXSpliceExpectingExpr(SourceLocation LSpliceLoc,
                                              Expr *Operand,
-                                             SourceLocation RSpliceLoc) {
-  return BuildReflectionSpliceExpr(LSpliceLoc, Operand, RSpliceLoc);
+                                             SourceLocation RSpliceLoc,
+                                             bool AllowMemberReference) {
+  return BuildReflectionSpliceExpr(LSpliceLoc, Operand, RSpliceLoc,
+                                   AllowMemberReference);
 }
 
 DeclResult Sema::ActOnCXXSpliceExpectingNamespace(SourceLocation LSpliceLoc,
@@ -608,7 +610,8 @@ QualType Sema::BuildReflectionSpliceTypeLoc(TypeLocBuilder &TLB,
 
 ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation LSplice,
                                            Expr *Operand,
-                                           SourceLocation RSplice) {
+                                           SourceLocation RSplice,
+                                           bool AllowMemberReference) {
   if (isa<CXXIndeterminateSpliceExpr>(Operand) &&
       !Operand->isTypeDependent() && !Operand->isValueDependent()) {
     SmallVector<PartialDiagnosticAt, 4> Diags;
@@ -630,14 +633,30 @@ ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation LSplice,
 
     switch (RV.getKind()) {
     case ReflectionValue::RK_declaration: {
+      Decl *TheDecl = RV.getAsDecl();
+
+      // Class members may not be implicitly referenced through a splice.
+      if (!AllowMemberReference &&
+          (isa<FieldDecl>(TheDecl) ||
+           (isa<CXXMethodDecl>(TheDecl) &&
+            dyn_cast<CXXMethodDecl>(TheDecl)->isInstance()))) {
+        Diag(Operand->getExprLoc(),
+             diag::err_dependent_splice_implicit_member_reference)
+          << Operand->getSourceRange();
+        Diag(Operand->getExprLoc(),
+             diag::note_dependent_splice_explicit_this_may_fix);
+        return ExprError();
+      }
+
       // Create a new DeclRefExpr, since the operand of the reflect expression
       // was parsed in an unevaluated context (but a splice expression is not
       // necessarily, and frequently not, in such a context).
-      Operand = CreateRefToDecl(*this, cast<ValueDecl>(RV.getAsDecl()),
+      Operand = CreateRefToDecl(*this, cast<ValueDecl>(TheDecl),
                                 Operand->getExprLoc());
       MarkDeclRefReferenced(cast<DeclRefExpr>(Operand), nullptr);
       Operand = CXXExprSpliceExpr::Create(Context, Operand->getValueKind(),
-                                          LSplice, Operand, RSplice);
+                                          LSplice, Operand, RSplice,
+                                          AllowMemberReference);
       break;
     }
     case ReflectionValue::RK_const_value: {
@@ -650,7 +669,7 @@ ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation LSplice,
               cast<ConstantExpr>(Operand), 0);
       }
       Operand = CXXExprSpliceExpr::Create(Context, VK_PRValue, LSplice, Operand,
-                                          RSplice);
+                                          RSplice, AllowMemberReference);
       break;
     }
     case ReflectionValue::RK_template: {
@@ -670,7 +689,7 @@ ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation LSplice,
     return Operand;
   }
   return CXXExprSpliceExpr::Create(Context, Operand->getValueKind(), LSplice,
-                                   Operand, RSplice);
+                                   Operand, RSplice, AllowMemberReference);
 }
 
 DeclResult Sema::BuildReflectionSpliceNamespace(SourceLocation LSplice,

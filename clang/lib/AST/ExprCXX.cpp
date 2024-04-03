@@ -2008,9 +2008,11 @@ CXXIndeterminateSpliceExpr *CXXIndeterminateSpliceExpr::Create(
 
 CXXExprSpliceExpr::CXXExprSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
                                      SourceLocation LSpliceLoc, Expr *Operand,
-                                     SourceLocation RSpliceLoc)
+                                     SourceLocation RSpliceLoc,
+                                     bool AllowMemberReference)
   : Expr(CXXExprSpliceExprClass, ResultTy, ValueKind, OK_Ordinary),
-    LSpliceLoc(LSpliceLoc), Operand(Operand), RSpliceLoc(RSpliceLoc) {
+    LSpliceLoc(LSpliceLoc), Operand(Operand), RSpliceLoc(RSpliceLoc),
+    AllowMemberReference(AllowMemberReference) {
   setDependence(computeDependence(this));
 }
 
@@ -2018,13 +2020,14 @@ CXXExprSpliceExpr *CXXExprSpliceExpr::Create(ASTContext &C,
                                              ExprValueKind ValueKind,
                                              SourceLocation LSpliceLoc,
                                              Expr *Operand,
-                                             SourceLocation RSpliceLoc) {
+                                             SourceLocation RSpliceLoc,
+                                             bool AllowMemberReference) {
   QualType ResultTy = Operand->getType();
   if (Operand->isTypeDependent() || Operand->isValueDependent())
     ResultTy = C.DependentTy;
 
   return new (C) CXXExprSpliceExpr(ResultTy, ValueKind, LSpliceLoc, Operand,
-                                   RSpliceLoc);
+                                   RSpliceLoc, AllowMemberReference);
 }
 
 StackLocationExpr::StackLocationExpr(QualType ResultTy, SourceRange Range,

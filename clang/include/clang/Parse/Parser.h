@@ -3800,7 +3800,7 @@ private:
   bool ParseCXXIndeterminateSplice();
 
   TypeResult ParseCXXSpliceAsType(bool AllowDependent, bool Complain);
-  ExprResult ParseCXXSpliceAsExpr();
+  ExprResult ParseCXXSpliceAsExpr(bool AllowMemberReference);
   DeclResult ParseCXXSpliceAsNamespace();
 
   //===--------------------------------------------------------------------===//

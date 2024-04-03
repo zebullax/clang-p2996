@@ -1652,7 +1652,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::annot_splice: {
     // An 'annot_splice' was parsed by 'TryAnnotateTypeOrScopeToken', but it
     // could not be spliced as a type; it must be an expression.
-    Res = ParseCXXSpliceAsExpr();
+    Res = ParseCXXSpliceAsExpr(/*AllowMemberReference=*/isAddressOfOperand);
     break;
   }
 
@@ -2327,7 +2327,7 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
         SourceLocation Loc = ConsumeToken();
         Name.setIdentifier(Id, Loc);
       } else if (Tok.is(tok::annot_splice)) {
-        ExprResult Res = ParseCXXSpliceAsExpr();
+        ExprResult Res = ParseCXXSpliceAsExpr(/*AllowMemberReference=*/true);
         if (!Res.isInvalid() && !Diags.hasErrorOccurred()) {
           LHS = Actions.ActOnMemberAccessExpr(
                 getCurScope(), LHS.get(), OpLoc, OpKind,
