@@ -1265,28 +1265,38 @@ Sema::BuildMemberReferenceExpr(Scope *S, Expr *Base, SourceLocation OpLoc,
   }
 
   CXXScopeSpec SS;
-  ValueDecl *VD = nullptr;
+  NamedDecl *ND = nullptr;
+  TemplateArgumentListInfo TemplateArgs(RHS->getBeginLoc(), RHS->getEndLoc());
   if (auto *DRE = dyn_cast<DeclRefExpr>(RHS->getOperand())) {
     ValueDecl *D = DRE->getDecl();
-    if (isa<FieldDecl>(D) || isa<CXXMethodDecl>(D)) {
-      VD = D;
+    if (isa<FieldDecl>(D) || isa<CXXMethodDecl>(D) ||
+        (isa<VarDecl>(D) && DRE->getQualifierLoc())) {
+      ND = D;
       SS.Adopt(DRE->getQualifierLoc());
     }
+  } else if (auto *ULE = dyn_cast<UnresolvedLookupExpr>(RHS->getOperand())) {
+    assert(ULE->getNumDecls() == 1);
+
+    ND = (*ULE->decls_begin());
+    ULE->copyTemplateArgumentsInto(TemplateArgs);
+    SS.Adopt(ULE->getQualifierLoc());
   }
-  if (!VD || (SS.isSet() && SS.isInvalid())) {
+
+  if (!ND || (SS.isSet() && SS.isInvalid())) {
     Diag(RHS->getExprLoc(), diag::err_member_access_splice_not_class_member);
     return ExprError();
   }
 
-  DeclarationNameInfo NameInfo(cast<NamedDecl>(VD)->getDeclName(),
-                               VD->getLocation());
+  DeclarationNameInfo NameInfo(cast<NamedDecl>(ND)->getDeclName(),
+                               ND->getLocation());
   LookupResult LR(*this, NameInfo, LookupMemberName);
   if (LR.empty())
-    LR.addDecl(VD);
+    LR.addDecl(ND);
+  LR.resolveKind();
 
   // Obnoxious translating of TemplateArgumentList to TemplateArgumentListInfo..
-  TemplateArgumentListInfo TemplateArgs(RHS->getBeginLoc(), RHS->getEndLoc());
-  if (const auto *FD = dyn_cast<FunctionDecl>(VD)) {
+  if (auto *FD = dyn_cast<FunctionDecl>(ND);
+      FD && TemplateArgs.size() == 0) {
     if (const TemplateArgumentList *TAs = FD->getTemplateSpecializationArgs())
       for (const TemplateArgument &TA : TAs->asArray()) {
         if (TA.getKind() == TemplateArgument::Type) {

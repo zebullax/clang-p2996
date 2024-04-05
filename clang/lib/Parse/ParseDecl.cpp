@@ -3585,6 +3585,14 @@ void Parser::ParseDeclarationSpecifiers(
       continue;
 
     case tok::annot_splice: {
+      if (NextToken().is(tok::less)) {
+        // TODO(P2996): Handle 'template' keyword.
+        if (ParseTemplateAnnotationFromSplice(SourceLocation(), true, false)) {
+          DS.SetTypeSpecError();
+          break;
+        }
+        continue;
+      }
       ExprResult Result = getExprAnnotation(Tok);
       assert(!Result.isInvalid());
 

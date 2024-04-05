@@ -1861,7 +1861,8 @@ private:
                                  bool &NotCastExpr,
                                  TypeCastState isTypeCast,
                                  bool isVectorLiteral = false,
-                                 bool *NotPrimaryExpression = nullptr);
+                                 bool *NotPrimaryExpression = nullptr,
+                                 SourceLocation TemplateKWLoc = {});
   ExprResult ParseCastExpression(CastParseKind ParseKind,
                                  bool isAddressOfOperand = false,
                                  TypeCastState isTypeCast = NotTypeCast,
@@ -3797,11 +3798,17 @@ private:
   ExprResult ParseCXXReflectExpression();
   ExprResult ParseCXXMetafunctionExpression();
 
-  bool ParseCXXIndeterminateSplice();
+  bool ParseCXXIndeterminateSplice(SourceLocation TemplateKWLoc = {});
 
   TypeResult ParseCXXSpliceAsType(bool AllowDependent, bool Complain);
   ExprResult ParseCXXSpliceAsExpr(bool AllowMemberReference);
   DeclResult ParseCXXSpliceAsNamespace();
+  TemplateTy ParseCXXSpliceAsTemplate();  // TODO(P2996): Do we use this?
+
+  bool ParseTemplateAnnotationFromSplice(SourceLocation TemplateKWLoc,
+                                         bool AllowTypeAnnotation = true,
+                                         bool TypeConstraint = false,
+                                         bool Complain = true);
 
   //===--------------------------------------------------------------------===//
   // Preprocessor code-completion pass-through

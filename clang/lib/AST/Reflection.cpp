@@ -41,10 +41,8 @@ QualType ReflectionValue::getAsType() const {
   assert(getKind() == RK_type && "not a type");
 
   QualType QT = QualType::getFromOpaquePtr(Entity);
-  if (const auto *LIT = dyn_cast<LocInfoType>(QT)) {
-    assert(QT.getQualifiers() == LIT->getType().getQualifiers());
+  if (const auto *LIT = dyn_cast<LocInfoType>(QT))
     QT = LIT->getType();
-  }
   if (const auto *ET = dyn_cast<ElaboratedType>(QT)) {
     QualType New = ET->getNamedType();
     New.setLocalFastQualifiers(QT.getLocalFastQualifiers());
@@ -52,9 +50,8 @@ QualType ReflectionValue::getAsType() const {
   }
   if (const auto *RST = dyn_cast<ReflectionSpliceType>(QT))
     QT = RST->getUnderlyingType();
-  if (const auto *DTT = dyn_cast<DecltypeType>(QT)) {
+  if (const auto *DTT = dyn_cast<DecltypeType>(QT))
     QT = DTT->desugar();
-  }
 
   return QT;
 }

@@ -1743,7 +1743,11 @@ void TypePrinter::printDependentTemplateSpecializationBefore(
 
   if (T->getQualifier())
     T->getQualifier()->print(OS, Policy);
-  OS << "template " << T->getIdentifier()->getName();
+  OS << "template ";
+  if (T->hasIdentifier())
+    OS << T->getIdentifier()->getName();
+  else
+    OS << "(splice)";
   printTemplateArgumentList(OS, T->template_arguments(), Policy);
   spaceBeforePlaceHolder(OS);
 }

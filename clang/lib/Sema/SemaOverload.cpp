@@ -16299,6 +16299,7 @@ Sema::BuildForRangeBeginEndCall(SourceLocation Loc,
 /// refer (possibly indirectly) to Fn. Returns the new expr.
 ExprResult Sema::FixOverloadedFunctionReference(Expr *E, DeclAccessPair Found,
                                                 FunctionDecl *Fn) {
+  E = E->IgnoreExprSplices();
   if (ParenExpr *PE = dyn_cast<ParenExpr>(E)) {
     ExprResult SubExpr =
         FixOverloadedFunctionReference(PE->getSubExpr(), Found, Fn);

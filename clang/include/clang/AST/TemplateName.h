@@ -518,7 +518,7 @@ class DependentTemplateName : public llvm::FoldingSetNode {
     /// The dependent splice expression.
     ///
     /// Only valid when the NestedNameSpecifier on \c Qualifier is unset.
-    CXXIndeterminateSpliceExpr *SpliceExpr;
+    const CXXIndeterminateSpliceExpr *SpliceExpr;
   };
 
   /// The canonical template name to which this dependent
@@ -551,7 +551,7 @@ class DependentTemplateName : public llvm::FoldingSetNode {
        : Qualifier(Qualifier, DTNK_Operator), Operator(Operator),
          CanonicalTemplateName(Canon) {}
 
-  DependentTemplateName(CXXIndeterminateSpliceExpr *SpliceExpr)
+  DependentTemplateName(const CXXIndeterminateSpliceExpr *SpliceExpr)
        : Qualifier(nullptr, DTNK_IndeterminateSplice), SpliceExpr(SpliceExpr),
          CanonicalTemplateName(this) {}
 
@@ -586,7 +586,7 @@ public:
     return Qualifier.getInt() == DTNK_IndeterminateSplice;
   }
 
-  CXXIndeterminateSpliceExpr *getIndeterminateSplice() const {
+  const CXXIndeterminateSpliceExpr *getIndeterminateSplice() const {
     assert(isIndeterminateSplice() &&
            "Template name isn't an indeterminate splice?");
     return SpliceExpr;
@@ -616,7 +616,7 @@ public:
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID,
-                      CXXIndeterminateSpliceExpr *Splice) {
+                      const CXXIndeterminateSpliceExpr *Splice) {
     ID.AddPointer(nullptr);
     ID.AddPointer(Splice);
     ID.AddInteger(DTNK_IndeterminateSplice);

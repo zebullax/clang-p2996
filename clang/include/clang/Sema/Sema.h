@@ -14856,20 +14856,29 @@ public:
                                   SourceLocation LParenLoc,
                                   SmallVectorImpl<Expr *> &Args,
                                   SourceLocation RParenLoc);
-  ExprResult ActOnCXXIndeterminateSpliceExpr(SourceLocation LSpliceLoc,
+  ExprResult ActOnCXXIndeterminateSpliceExpr(SourceLocation TemplateKWLoc,
+                                             SourceLocation LSpliceLoc,
                                              Expr *Operand,
                                              SourceLocation RSpliceLoc);
   TypeResult ActOnCXXSpliceExpectingType(SourceLocation LSplice,
                                          Expr *Operand,
                                          SourceLocation RSplice,
                                          bool Complain);
-  ExprResult ActOnCXXSpliceExpectingExpr(SourceLocation LSplice,
+  ExprResult ActOnCXXSpliceExpectingExpr(SourceLocation TemplateKWLoc,
+                                         SourceLocation LSplice,
                                          Expr *Operand,
                                          SourceLocation RSplice,
+                                         SourceLocation LAngleLoc,
+                                         ASTTemplateArgsPtr TemplateArgs,
+                                         SourceLocation RAngleLoc,
                                          bool AllowMemberReference);
   DeclResult ActOnCXXSpliceExpectingNamespace(SourceLocation LSplice,
                                               Expr *Operand,
                                               SourceLocation RSplice);
+  TemplateTy ActOnCXXSpliceExpectingTemplate(SourceLocation LSplice,
+                                             Expr *Operand,
+                                             SourceLocation RSplice,
+                                             bool Complain);
   ParsedTemplateArgument
   ActOnTemplateIndeterminateSpliceArgument(CXXIndeterminateSpliceExpr *Splice);
 
@@ -14901,7 +14910,8 @@ public:
                                       const CXXMetafunctionExpr::ImplFn &Impl,
                                       SmallVectorImpl<Expr *> &Args);
 
-  ExprResult BuildCXXIndeterminateSpliceExpr(SourceLocation LSpliceLoc,
+  ExprResult BuildCXXIndeterminateSpliceExpr(SourceLocation TemplateKWLoc,
+                                             SourceLocation LSpliceLoc,
                                              Expr *Operand,
                                              SourceLocation RSpliceLoc);
   QualType BuildReflectionSpliceType(SourceLocation LSplice,
@@ -14912,12 +14922,18 @@ public:
                                         SourceLocation LSpliceLoc,
                                         Expr *E, SourceLocation RSpliceLoc,
                                         bool Complain);
-  ExprResult BuildReflectionSpliceExpr(SourceLocation LSplice, Expr *Operand,
+  ExprResult BuildReflectionSpliceExpr(SourceLocation TemplateKWLoc,
+                                       SourceLocation LSplice, Expr *Operand,
                                        SourceLocation RSplice,
+                                       const TemplateArgumentListInfo *TArgs,
                                        bool AllowMemberReference);
   DeclResult BuildReflectionSpliceNamespace(SourceLocation LSplice,
                                             Expr *Operand,
                                             SourceLocation RSplice);
+  TemplateTy BuildReflectionSpliceTemplate(SourceLocation LSplice,
+                                           Expr *Operand,
+                                           SourceLocation RSplice,
+                                           bool Complain);
 
   ExprResult BuildMemberReferenceExpr(Scope *S, Expr *Base,
                                       SourceLocation OpLoc,

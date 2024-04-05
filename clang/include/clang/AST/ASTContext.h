@@ -1677,6 +1677,12 @@ public:
   QualType getDependentTemplateSpecializationType(
       ElaboratedTypeKeyword Keyword, NestedNameSpecifier *NNS,
       const IdentifierInfo *Name, ArrayRef<TemplateArgument> Args) const;
+  QualType getDependentTemplateSpecializationType(
+      ElaboratedTypeKeyword Keyword, const CXXIndeterminateSpliceExpr *Splice,
+      ArrayRef<TemplateArgumentLoc> Args) const;
+  QualType getDependentTemplateSpecializationType(
+      ElaboratedTypeKeyword Keyword, const CXXIndeterminateSpliceExpr *Splice,
+      ArrayRef<TemplateArgument> Args) const;
 
   TemplateArgument getInjectedTemplateArg(NamedDecl *ParamDecl);
 
@@ -2224,7 +2230,8 @@ public:
                                         const IdentifierInfo *Name) const;
   TemplateName getDependentTemplateName(NestedNameSpecifier *NNS,
                                         OverloadedOperatorKind Operator) const;
-  TemplateName getDependentTemplateName(CXXIndeterminateSpliceExpr *S) const;
+  TemplateName
+  getDependentTemplateName(const CXXIndeterminateSpliceExpr *S) const;
   TemplateName
   getSubstTemplateTemplateParm(TemplateName replacement, Decl *AssociatedDecl,
                                unsigned Index,

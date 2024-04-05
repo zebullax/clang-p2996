@@ -1205,7 +1205,11 @@ public:
 
   void VisitDependentTemplateSpecializationType(
       const DependentTemplateSpecializationType *T) {
-    AddIdentifierInfo(T->getIdentifier());
+    Hash.AddBoolean(T->hasIdentifier());
+    if (T->hasIdentifier())
+      AddIdentifierInfo(T->getIdentifier());
+    else
+      ID.AddPointer(T->getSplice());
     AddNestedNameSpecifier(T->getQualifier());
     ID.AddInteger(T->template_arguments().size());
     for (const auto &TA : T->template_arguments()) {

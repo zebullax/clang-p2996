@@ -945,7 +945,8 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
                                        bool &NotCastExpr,
                                        TypeCastState isTypeCast,
                                        bool isVectorLiteral,
-                                       bool *NotPrimaryExpression) {
+                                       bool *NotPrimaryExpression,
+                                       SourceLocation TemplateKWLoc) {
   ExprResult Res;
   tok::TokenKind SavedKind = Tok.getKind();
   auto SavedType = PreferredType;
@@ -1649,6 +1650,16 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     break;
   }
 
+  case tok::kw_template: {
+    Token Next = NextToken();
+    if (!Next.is(tok::l_splice) ||
+        ParseCXXIndeterminateSplice(ConsumeToken())) {
+      NotCastExpr = true;
+      return ExprError();
+    }
+    [[fallthrough]];
+  }
+
   case tok::annot_splice: {
     // An 'annot_splice' was parsed by 'TryAnnotateTypeOrScopeToken', but it
     // could not be spliced as a type; it must be an expression.
@@ -1666,7 +1677,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     if (!Tok.is(tok::annot_cxxscope)) {
       auto result = ParseCastExpression(ParseKind, isAddressOfOperand, NotCastExpr,
                                  isTypeCast, isVectorLiteral,
-                                 NotPrimaryExpression);
+                                 NotPrimaryExpression, TemplateKWLoc);
       return result;
     }
 
@@ -2236,6 +2247,11 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
       ParsedType ObjectType;
       bool MayBePseudoDestructor = false;
       Expr* OrigLHS = !LHS.isInvalid() ? LHS.get() : nullptr;
+      SourceLocation TemplateKWLoc;
+
+      if (Tok.is(tok::kw_template) && NextToken().is(tok::l_splice)) {
+        ParseCXXIndeterminateSplice(ConsumeToken());
+      }
 
       PreferredType.enterMemAccess(Actions, Tok.getLocation(), OrigLHS);
 
@@ -2312,8 +2328,8 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
       // names a real destructor.
       // Allow explicit constructor calls in Microsoft mode.
       // FIXME: Add support for explicit call of template constructor.
-      SourceLocation TemplateKWLoc;
       UnqualifiedId Name;
+
       if (getLangOpts().ObjC && OpKind == tok::period &&
           Tok.is(tok::kw_class)) {
         // Objective-C++:
@@ -2331,7 +2347,7 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
         if (!Res.isInvalid() && !Diags.hasErrorOccurred()) {
           LHS = Actions.ActOnMemberAccessExpr(
                 getCurScope(), LHS.get(), OpLoc, OpKind,
-                dyn_cast<CXXExprSpliceExpr>(Res.get()), TemplateKWLoc);
+                cast<CXXExprSpliceExpr>(Res.get()), TemplateKWLoc);
           if (!LHS.isInvalid() && Tok.is(tok::less))
             checkPotentialAngleBracket(LHS);
           break;

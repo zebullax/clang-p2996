@@ -1534,13 +1534,17 @@ ParsedTemplateArgument Parser::ParseTemplateReflectOperand() {
 
 ParsedTemplateArgument Parser::ParseIndeterminateSpliceTemplateArgument() {
   CXXScopeSpec SS;
-  if (ParseOptionalCXXScopeSpecifier(
-          SS, /*ObjectType=*/nullptr,
-          /*ObjectHasErrors=*/false, /*EnteringContext=*/false,
-          /*MayBePseudoDestructor=*/nullptr,
-          /*IsTypename=*/false, /*LastII=*/nullptr, /*OnlyNamespace=*/true) ||
-      SS.isInvalid() || SS.isNotEmpty() || !Tok.is(tok::annot_splice))
-    return {};
+  if (Tok.is(tok::kw_template) && NextToken().is(tok::l_splice)) {
+    if (ParseCXXIndeterminateSplice(ConsumeToken()))
+      return ParsedTemplateArgument();
+  } else if (ParseOptionalCXXScopeSpecifier(
+      SS, /*ObjectType=*/nullptr,
+      /*ObjectHasErrors=*/false, /*EnteringContext=*/false,
+      /*MayBePseudoDestructor=*/nullptr,
+      /*IsTypename=*/false, /*LastII=*/nullptr, /*OnlyNamespace=*/true) ||
+      SS.isInvalid() || SS.isNotEmpty() || !Tok.is(tok::annot_splice)) {
+    return ParsedTemplateArgument();
+  }
 
   ExprResult ER = getExprAnnotation(Tok);
   assert(!ER.isInvalid());

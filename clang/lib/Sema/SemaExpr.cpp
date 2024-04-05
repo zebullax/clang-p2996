@@ -15074,7 +15074,7 @@ bool Sema::CheckUseOfCXXMethodAsAddressOfOperand(SourceLocation OpLoc,
 QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
   if (const BuiltinType *PTy = OrigOp.get()->getType()->getAsPlaceholderType()){
     if (PTy->getKind() == BuiltinType::Overload) {
-      Expr *E = OrigOp.get()->IgnoreParens();
+      Expr *E = OrigOp.get()->IgnoreParens()->IgnoreExprSplices();
       if (!isa<OverloadExpr>(E)) {
         assert(cast<UnaryOperator>(E)->getOpcode() == UO_AddrOf);
         Diag(OpLoc, diag::err_typecheck_invalid_lvalue_addrof_addrof_function)

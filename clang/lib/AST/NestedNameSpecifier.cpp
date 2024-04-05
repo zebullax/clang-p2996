@@ -344,9 +344,13 @@ void NestedNameSpecifier::print(raw_ostream &OS, const PrintingPolicy &Policy,
                                 InnerPolicy);
     } else if (const auto *DepSpecType =
                    dyn_cast<DependentTemplateSpecializationType>(T)) {
-      // Print the template name without its corresponding
-      // nested-name-specifier.
-      OS << DepSpecType->getIdentifier()->getName();
+      if (DepSpecType->hasIdentifier())
+        // Print the template name without its corresponding
+        // nested-name-specifier.
+        OS << DepSpecType->getIdentifier()->getName();
+      else
+        OS << "(splice)";
+
       // Print the template argument list.
       printTemplateArgumentList(OS, DepSpecType->template_arguments(),
                                 InnerPolicy);

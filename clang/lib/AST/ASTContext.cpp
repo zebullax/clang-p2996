@@ -5247,6 +5247,60 @@ ASTContext::getDependentTemplateSpecializationType(
   return QualType(T, 0);
 }
 
+QualType ASTContext::getDependentTemplateSpecializationType(
+    ElaboratedTypeKeyword Keyword, const CXXIndeterminateSpliceExpr *Splice,
+    ArrayRef<TemplateArgumentLoc> Args) const {
+  // TODO: avoid this copy
+  SmallVector<TemplateArgument, 16> ArgCopy;
+  for (unsigned I = 0, E = Args.size(); I != E; ++I)
+    ArgCopy.push_back(Args[I].getArgument());
+  return getDependentTemplateSpecializationType(Keyword, Splice, ArgCopy);
+}
+
+QualType
+ASTContext::getDependentTemplateSpecializationType(
+                                 ElaboratedTypeKeyword Keyword,
+                                 const CXXIndeterminateSpliceExpr *Splice,
+                                 ArrayRef<TemplateArgument> Args) const {
+  llvm::FoldingSetNodeID ID;
+  DependentTemplateSpecializationType::Profile(ID, *this, Keyword, Splice,
+                                               Args);
+
+  void *InsertPos = nullptr;
+  DependentTemplateSpecializationType *T
+    = DependentTemplateSpecializationTypes.FindNodeOrInsertPos(ID, InsertPos);
+  if (T)
+    return QualType(T, 0);
+
+  ElaboratedTypeKeyword CanonKeyword = Keyword;
+  if (Keyword == ElaboratedTypeKeyword::None)
+    CanonKeyword = ElaboratedTypeKeyword::Typename;
+
+  bool AnyNonCanonArgs = false;
+  auto CanonArgs =
+      ::getCanonicalTemplateArguments(*this, Args, AnyNonCanonArgs);
+
+  QualType Canon;
+  if (AnyNonCanonArgs || CanonKeyword != Keyword) {
+    Canon = getDependentTemplateSpecializationType(CanonKeyword, Splice,
+                                                   CanonArgs);
+
+    // Find the insert position again.
+    [[maybe_unused]] auto *Nothing =
+        DependentTemplateSpecializationTypes.FindNodeOrInsertPos(ID, InsertPos);
+    assert(!Nothing && "canonical type broken");
+  }
+
+  void *Mem = Allocate((sizeof(DependentTemplateSpecializationType) +
+                        sizeof(TemplateArgument) * Args.size()),
+                       alignof(DependentTemplateSpecializationType));
+  T = new (Mem) DependentTemplateSpecializationType(Keyword, Splice, Args,
+                                                    Canon);
+  Types.push_back(T);
+  DependentTemplateSpecializationTypes.InsertNode(T, InsertPos);
+  return QualType(T, 0);
+}
+
 TemplateArgument ASTContext::getInjectedTemplateArg(NamedDecl *Param) {
   TemplateArgument Arg;
   if (const auto *TTP = dyn_cast<TemplateTypeParmDecl>(Param)) {
@@ -9445,8 +9499,8 @@ ASTContext::getDependentTemplateName(NestedNameSpecifier *NNS,
 
 /// Retrieve the template name that represents a dependent
 /// template name such as \c [:R:] where \c R is dependent.
-TemplateName
-ASTContext::getDependentTemplateName(CXXIndeterminateSpliceExpr *Splice) const {
+TemplateName ASTContext::getDependentTemplateName(
+        const CXXIndeterminateSpliceExpr *Splice) const {
   llvm::FoldingSetNodeID ID;
   DependentTemplateName::Profile(ID, Splice);
 
@@ -13142,12 +13196,18 @@ static QualType getCommonNonSugarTypeNode(ASTContext &Ctx, const Type *X,
   case Type::DependentTemplateSpecialization: {
     const auto *TX = cast<DependentTemplateSpecializationType>(X),
                *TY = cast<DependentTemplateSpecializationType>(Y);
-    assert(TX->getIdentifier() == TY->getIdentifier());
     auto As = getCommonTemplateArguments(Ctx, TX->template_arguments(),
                                          TY->template_arguments());
-    return Ctx.getDependentTemplateSpecializationType(
-        getCommonTypeKeyword(TX, TY), getCommonNNS(Ctx, TX, TY),
-        TX->getIdentifier(), As);
+    if (TX->hasIdentifier()) {
+      assert(TX->getIdentifier() == TY->getIdentifier());
+      return Ctx.getDependentTemplateSpecializationType(
+          getCommonTypeKeyword(TX, TY), getCommonNNS(Ctx, TX, TY),
+          TX->getIdentifier(), As);
+    } else {
+      assert(TX->getSplice() == TY->getSplice());
+      return Ctx.getDependentTemplateSpecializationType(
+          getCommonTypeKeyword(TX, TY), TX->getSplice(), As);
+    }
   }
   case Type::UnaryTransform: {
     const auto *TX = cast<UnaryTransformType>(X),

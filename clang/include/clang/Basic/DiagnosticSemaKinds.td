@@ -3097,8 +3097,11 @@ def err_splice_operand_not_reflection : Error<
 def err_splice_operand_not_constexpr : Error<
   "splice operand must be a constant expression">;
 def err_unexpected_reflection_kind : Error<
-  "expected a reflection of %select{a|an|a}0 "
-  "%select{type|expression|namespace}0">;
+  "expected a reflection of %select{a|an|a|a}0 "
+  "%select{type|expression|namespace|template}0">;
+def err_unexpected_reflection_template_kind : Error<
+  "expected a reflection of a template of %select{a|an}0 "
+  "%select{type|expression}0">;
 def err_splice_global_scope_as_namespace : Error<
   "splice of global scope can only appear in a nested-name-specifier">;
 def err_member_access_splice_not_class_member : Error<

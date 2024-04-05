@@ -25,6 +25,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DependenceFlags.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/NonTrivialTypeVisitor.h"
 #include "clang/AST/PrettyPrinter.h"
@@ -3234,7 +3235,7 @@ DependentTemplateSpecializationType::DependentTemplateSpecializationType(
                       TypeDependence::DependentInstantiation |
                           (NNS ? toTypeDependence(NNS->getDependence())
                                : TypeDependence::None)),
-      NNS(NNS), Name(Name) {
+      NNS(NNS), Storage(Name, 0) {
   DependentTemplateSpecializationTypeBits.NumArgs = Args.size();
   assert((!NNS || NNS->isDependent()) &&
          "DependentTemplateSpecializatonType requires dependent qualifier");
@@ -3247,6 +3248,42 @@ DependentTemplateSpecializationType::DependentTemplateSpecializationType(
   }
 }
 
+DependentTemplateSpecializationType::DependentTemplateSpecializationType(
+    ElaboratedTypeKeyword Keyword,const CXXIndeterminateSpliceExpr *Splice,
+    ArrayRef<TemplateArgument> Args, QualType Canon)
+    : TypeWithKeyword(Keyword, DependentTemplateSpecialization, Canon,
+                      TypeDependence::DependentInstantiation),
+      NNS(nullptr), Storage(Splice, 1) {
+  DependentTemplateSpecializationTypeBits.NumArgs = Args.size();
+  auto *ArgBuffer = const_cast<TemplateArgument *>(template_arguments().data());
+  for (const TemplateArgument &Arg : Args) {
+    addDependence(toTypeDependence(Arg.getDependence() &
+                                   TemplateArgumentDependence::UnexpandedPack));
+
+    new (ArgBuffer++) TemplateArgument(Arg);
+  }
+}
+
+bool DependentTemplateSpecializationType::hasIdentifier() const {
+  return Storage.getInt() == 0;
+}
+
+const IdentifierInfo *
+DependentTemplateSpecializationType::getIdentifier() const {
+  assert(hasIdentifier() && "no identifier");
+  return Storage.getPointer().dyn_cast<const IdentifierInfo*>();
+}
+
+bool DependentTemplateSpecializationType::hasSplice() const {
+  return Storage.getInt() == 1;
+}
+
+const CXXIndeterminateSpliceExpr *
+DependentTemplateSpecializationType::getSplice() const {
+  assert(hasSplice() && "no identifier");
+  return Storage.getPointer().dyn_cast<const CXXIndeterminateSpliceExpr *>();
+}
+
 void
 DependentTemplateSpecializationType::Profile(llvm::FoldingSetNodeID &ID,
                                              const ASTContext &Context,
@@ -3256,7 +3293,23 @@ DependentTemplateSpecializationType::Profile(llvm::FoldingSetNodeID &ID,
                                              ArrayRef<TemplateArgument> Args) {
   ID.AddInteger(llvm::to_underlying(Keyword));
   ID.AddPointer(Qualifier);
+  ID.AddBoolean(/*isSplice=*/false);
   ID.AddPointer(Name);
+  for (const TemplateArgument &Arg : Args)
+    Arg.Profile(ID, Context);
+}
+
+void
+DependentTemplateSpecializationType::Profile(
+                                       llvm::FoldingSetNodeID &ID,
+                                       const ASTContext &Context,
+                                       ElaboratedTypeKeyword Keyword,
+                                       const CXXIndeterminateSpliceExpr *Splice,
+                                       ArrayRef<TemplateArgument> Args) {
+  ID.AddInteger(llvm::to_underlying(Keyword));
+  ID.AddPointer(/*Qualifier=*/nullptr);
+  ID.AddBoolean(/*isSplice=*/true);
+  ID.AddPointer(Splice);
   for (const TemplateArgument &Arg : Args)
     Arg.Profile(ID, Context);
 }

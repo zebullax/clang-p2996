@@ -42,19 +42,28 @@ constexpr unsigned x = 4;
 constexpr info R1a = ^ArrayCls, R1b = ^Array, R2 = ^int, R3a = ^4, R3b = ^x;
 static_assert(TCls<[:R1a:], [:R2:], [:R3a:]>::value == sizeof(int) * 4);
 static_assert(TCls<[:R1a:], [:R2:], [:R3b:]>::value == sizeof(int) * 4);
+static_assert(TCls<template [:R1a:], typename [:R2:], ([:R3b:])>::value ==
+              sizeof(int) * 4);
 static_assert(TCls<[:R1b:], [:R2:], [:R3a:]>::value == sizeof(int) * 4);
 static_assert(TAlias<[:R1b:], [:R2:], [:R3a:]>::value == sizeof(int) * 4);
 static_assert(TAlias<[:R1b:], [:R2:], [:R3b:]>::value == sizeof(int) * 4);
 static_assert(TAlias<[:R1b:], [:R2:], [:R3a:]>::value == sizeof(int) * 4);
+static_assert(TAlias<template [:R1b:], typename [:R2:], ([:R3a:])>::value ==
+              sizeof(int) * 4);
 static_assert(TFn<[:R1a:], [:R2:], [:R3a:]>() == sizeof(int) * 4);
 static_assert(TFn<[:R1a:], [:R2:], [:R3b:]>() == sizeof(int) * 4);
 static_assert(TFn<[:R1b:], [:R2:], [:R3a:]>() == sizeof(int) * 4);
+static_assert(TFn<template [:R1b:], typename [:R2:], ([:R3a:])>() ==
+              sizeof(int) * 4);
 static_assert(TVar<[:R1a:], [:R2:], [:R3a:]> == sizeof(int) * 4);
 static_assert(TVar<[:R1a:], [:R2:], [:R3b:]> == sizeof(int) * 4);
 static_assert(TVar<[:R1b:], [:R2:], [:R3a:]> == sizeof(int) * 4);
+static_assert(TVar<template [:R1b:], typename [:R2:], ([:R3a:])> ==
+              sizeof(int) * 4);
 static_assert(Concept<[:R1a:], [:R2:], [:R3a:]>);
 static_assert(Concept<[:R1a:], [:R2:], [:R3b:]>);
 static_assert(Concept<[:R1b:], [:R2:], [:R3a:]>);
+static_assert(Concept<template [:R1b:], typename [:R2:], ([:R3a:])>);
 }  // namespace non_dependent_arguments
 
                              // ===================
@@ -64,6 +73,11 @@ static_assert(Concept<[:R1b:], [:R2:], [:R3a:]>);
 namespace dependent_arguments {
 template <info TN, info T, info Sz>
 consteval unsigned szTCls() { return TCls<[:TN:], [:T:], [:Sz:]>::value; }
+
+template <info TN, info T, info Sz>
+consteval unsigned constrainedSzTCls() {
+  return TCls<template [:TN:], typename [:T:], ([:Sz:])>::value;
+}
 
 template <info TN, info T, info Sz>
 consteval unsigned szTAlias() { return TAlias<[:TN:], [:T:], [:Sz:]>::value; }
@@ -82,6 +96,7 @@ constexpr info R1a = ^ArrayCls, R1b = ^Array, R2 = ^int, R3a = ^4, R3b = ^x;
 static_assert(szTCls<R1a, R2, R3a>() == sizeof(int) * 4);
 static_assert(szTCls<R1a, R2, R3b>() == sizeof(int) * 4);
 static_assert(szTCls<R1b, R2, R3a>() == sizeof(int) * 4);
+static_assert(constrainedSzTCls<R1a, R2, R3a>() == sizeof(int) * 4);
 static_assert(szTAlias<R1a, R2, R3a>() == sizeof(int) * 4);
 static_assert(szTAlias<R1a, R2, R3b>() == sizeof(int) * 4);
 static_assert(szTAlias<R1a, R2, R3a>() == sizeof(int) * 4);
@@ -122,6 +137,11 @@ concept HasThreeTypes = requires { requires sizeof...(Ts) == 3; };
 template <template <typename...> class TN, info... Rs>
 consteval unsigned depTotalSzCls() { return TN<[:Rs:]...>::sz; }
 
+template <template <typename...> class TN, info... Rs>
+consteval unsigned constrainedDepTotalSzCls() {
+  return TN<typename [:Rs:]...>::sz;
+}
+
 template <info... Rs>
 consteval unsigned depTotalSzFn() { return TotalSzFn<[:Rs:]...>(); }
 
@@ -140,6 +160,7 @@ static_assert(TotalSzVar<[:R1:], [:R2:], [:R3:]> == Expected);
 static_assert(HasThreeTypes<[:R1:], [:R2:], [:R3:]>);
 static_assert(depTotalSzCls<TotalSzCls, R1, R2, R3>() == Expected);
 static_assert(depTotalSzCls<TotalSzAlias, R1, R2, R3>() == Expected);
+static_assert(constrainedDepTotalSzCls<TotalSzCls, R1, R2, R3>() == Expected);
 static_assert(depTotalSzFn<R1, R2, R3>() == Expected);
 static_assert(depTotalSzVar<R1, R2, R3> == Expected);
 static_assert(depHasThreeTypes<R1, R2, R3>);
@@ -168,6 +189,9 @@ concept SumMoreThan5 = requires { requires (... + Vs) > 5; };
 template <template <unsigned...> class TN, info... Rs>
 consteval unsigned depSumCls() { return TN<[:Rs:]...>::sz; }
 
+template <template <unsigned...> class TN, info... Rs>
+consteval unsigned constrainedDepSumCls() { return TN<([:Rs:])...>::sz; }
+
 template <info... Rs>
 consteval unsigned depSumFn() { return SumFn<[:Rs:]...>(); }
 
@@ -187,6 +211,7 @@ static_assert(SumVar<[:R1:], [:R2:], [:R3:]> == Expected);
 static_assert(SumMoreThan5<[:R1:], [:R2:], [:R3:]>);
 static_assert(depSumCls<SumCls, R1, R2, R3>() == Expected);
 static_assert(depSumCls<SumAlias, R1, R2, R3>() == Expected);
+static_assert(constrainedDepSumCls<SumCls, R1, R2, R3>() == Expected);
 static_assert(depSumFn<R1, R2, R3>() == Expected);
 static_assert(depSumVar<R1, R2, R3> == Expected);
 static_assert(depSumMoreThan5<R1, R2, R3>);
@@ -219,6 +244,11 @@ concept CountIs3 = requires { requires sizeof...(TNs) == 3; };
 template <template <template <typename> class...> class TN, info... Rs>
 consteval unsigned depCountCls() { return TN<[:Rs:]...>::sz; }
 
+template <template <template <typename> class...> class TN, info... Rs>
+consteval unsigned constrainedDepCountCls() {
+  return TN<template [:Rs:]...>::sz;
+}
+
 template <info... Rs>
 consteval unsigned depCountFn() { return CountFn<[:Rs:]...>(); }
 
@@ -237,6 +267,7 @@ static_assert(CountVar<[:R1:], [:R2:], [:R3:]> == Expected);
 static_assert(CountIs3<[:R1:], [:R2:], [:R3:]>);
 static_assert(depCountCls<CountCls, R1, R2, R3>() == Expected);
 static_assert(depCountCls<CountAlias, R1, R2, R3>() == Expected);
+static_assert(constrainedDepCountCls<CountCls, R1, R2, R3>() == Expected);
 static_assert(depCountFn<R1, R2, R3>() == Expected);
 static_assert(depCountVar<R1, R2, R3> == Expected);
 static_assert(depCountIs3<R1, R2, R3>);

@@ -675,6 +675,9 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
   case TemplateArgument::Reflection:
     return Arg1.getAsReflection() == Arg2.getAsReflection();
 
+  case TemplateArgument::IndeterminateSplice:
+    return Arg1.getAsIndeterminateSplice() == Arg2.getAsIndeterminateSplice();
+
   case TemplateArgument::Declaration:
     return IsStructurallyEquivalent(Context, Arg1.getAsDecl(), Arg2.getAsDecl());
 
@@ -1300,8 +1303,13 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     if (!IsStructurallyEquivalent(Context, Spec1->getQualifier(),
                                   Spec2->getQualifier()))
       return false;
-    if (!IsStructurallyEquivalent(Spec1->getIdentifier(),
-                                  Spec2->getIdentifier()))
+    if (Spec1->hasIdentifier() &&
+        !(Spec2->hasIdentifier() &&
+          IsStructurallyEquivalent(Spec1->getIdentifier(),
+                                   Spec2->getIdentifier())))
+      return false;
+    if (Spec1->hasSplice() &&
+        !(Spec2->hasSplice() && Spec1->getSplice() == Spec2->getSplice()))
       return false;
     if (!IsStructurallyEquivalent(Context, Spec1->template_arguments(),
                                   Spec2->template_arguments()))

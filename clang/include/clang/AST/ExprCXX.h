@@ -3035,7 +3035,7 @@ public:
     E = E->IgnoreParens();
     if (isa<UnaryOperator>(E)) {
       assert(cast<UnaryOperator>(E)->getOpcode() == UO_AddrOf);
-      E = cast<UnaryOperator>(E)->getSubExpr();
+      E = cast<UnaryOperator>(E)->getSubExpr()->IgnoreExprSplices();
       auto *Ovl = cast<OverloadExpr>(E->IgnoreParens());
 
       Result.HasFormOfMemberPointer = (E == Ovl && Ovl->getQualifier());
@@ -3044,7 +3044,7 @@ public:
     } else {
       Result.HasFormOfMemberPointer = false;
       Result.IsAddressOfOperand = false;
-      Result.Expression = cast<OverloadExpr>(E);
+      Result.Expression = cast<OverloadExpr>(E->IgnoreExprSplices());
     }
 
     return Result;
@@ -5458,21 +5458,28 @@ public:
 /// expression", and treat a "splice" as an operation occupying the same source
 /// range as the splice expression.
 class CXXIndeterminateSpliceExpr : public Expr {
+  SourceLocation TemplateKWLoc;
   SourceLocation LSpliceLoc;
   Expr *Operand;
   SourceLocation RSpliceLoc;
 
-  CXXIndeterminateSpliceExpr(QualType ResultTy, SourceLocation LSpliceLoc,
-                             Expr *Operand, SourceLocation RSpliceLoc);
+  CXXIndeterminateSpliceExpr(QualType ResultTy, SourceLocation TemplateKWLoc,
+                             SourceLocation LSpliceLoc, Expr *Operand,
+                             SourceLocation RSpliceLoc);
 
 public:
   static CXXIndeterminateSpliceExpr *Create(ASTContext &C,
+                                            SourceLocation TemplateKWLoc,
                                             SourceLocation LSpliceLoc,
                                             Expr *Operand,
                                             SourceLocation RSpliceLoc);
 
   Expr *getOperand() const {
     return Operand;
+  }
+
+  SourceLocation getTemplateKWLoc() const {
+    return TemplateKWLoc;
   }
 
   SourceLocation getLSpliceLoc() const {
@@ -5484,6 +5491,9 @@ public:
   }
 
   SourceLocation getBeginLoc() const {
+    if (TemplateKWLoc.isValid())
+      return TemplateKWLoc;
+
     return LSpliceLoc;
   }
 
@@ -5588,20 +5598,58 @@ public:
   }
 };
 
-class CXXExprSpliceExpr : public Expr {
+class CXXExprSpliceExpr final
+    : public Expr,
+      private llvm::TrailingObjects<CXXExprSpliceExpr, ASTTemplateKWAndArgsInfo,
+                                    TemplateArgumentLoc> {
+  friend TrailingObjects;
+
   SourceLocation LSpliceLoc;
   Expr *Operand;
   SourceLocation RSpliceLoc;
   bool AllowMemberReference;
 
   CXXExprSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
-                    SourceLocation LSpliceLoc, Expr *Operand,
-                    SourceLocation RSpliceLoc, bool AllowMemberReference);
+                    SourceLocation TemplateKWLoc, SourceLocation LSpliceLoc,
+                    Expr *Operand, SourceLocation RSpliceLoc,
+                    const TemplateArgumentListInfo *TemplateArgs,
+                    bool AllowMemberReference);
+
+  inline ASTTemplateKWAndArgsInfo *getTrailingASTTemplateKWAndArgsInfo() {
+    return getTrailingObjects<ASTTemplateKWAndArgsInfo>();
+  }
+  const ASTTemplateKWAndArgsInfo *getTrailingASTTemplateKWAndArgsInfo() const {
+    return const_cast<CXXExprSpliceExpr *>(this)
+        ->getTrailingASTTemplateKWAndArgsInfo();
+  }
+
+  inline TemplateArgumentLoc *getTrailingTemplateArgumentLoc() {
+    return getTrailingObjects<TemplateArgumentLoc>();
+  }
+  const TemplateArgumentLoc *getTrailingTemplateArgumentLoc() const {
+    return const_cast<CXXExprSpliceExpr *>(this)
+        ->getTrailingTemplateArgumentLoc();
+  }
+
+  bool hasTemplateKWAndArgsInfo() const {
+    return ExprSpliceExprBits.HasTemplateKWAndArgsInfo;
+  }
+
+  unsigned numTrailingObjects(OverloadToken<ASTTemplateKWAndArgsInfo>) const {
+    return hasTemplateKWAndArgsInfo();
+  }
+
+  unsigned numTrailingObjects(OverloadToken<TemplateArgumentLoc>) const {
+    return getNumTemplateArgs();
+  }
+
 
 public:
   static CXXExprSpliceExpr *Create(ASTContext &C, ExprValueKind ValueKind,
+                                   SourceLocation TemplateKWLoc,
                                    SourceLocation LSpliceLoc, Expr *Operand,
                                    SourceLocation RSpliceLoc,
+                                   const TemplateArgumentListInfo *TemplateArgs,
                                    bool AllowMemberReference);
 
   Expr *getOperand() const {
@@ -5610,6 +5658,57 @@ public:
 
   bool allowMemberReference() const {
     return AllowMemberReference;
+  }
+
+  /// Determines whether the splice was preceded by the template keyword.
+  bool hasTemplateKeyword() const { return getTemplateKeywordLoc().isValid(); }
+
+  /// Determines whether this splice had explicit template arguments.
+  bool hasExplicitTemplateArgs() const { return getLAngleLoc().isValid(); }
+
+  TemplateArgumentLoc const *getTemplateArgs() const {
+    return const_cast<CXXExprSpliceExpr *>(this)
+        ->getTrailingObjects<TemplateArgumentLoc>();
+  }
+
+  unsigned getNumTemplateArgs() const {
+    if (!hasExplicitTemplateArgs())
+      return 0;
+
+    return getTrailingASTTemplateKWAndArgsInfo()->NumTemplateArgs;
+  }
+
+  ArrayRef<TemplateArgumentLoc> template_arguments() const {
+    return {getTemplateArgs(), getNumTemplateArgs()};
+  }
+
+  /// Copies the template arguments into the given structure.
+  void copyTemplateArgumentsInto(TemplateArgumentListInfo &List) const {
+    if (hasExplicitTemplateArgs())
+      getTrailingASTTemplateKWAndArgsInfo()->copyInto(getTemplateArgs(), List);
+  }
+
+  /// Retrieve location of the template keyword preceding this splice, if any.
+  SourceLocation getTemplateKeywordLoc() const {
+    if (!hasTemplateKWAndArgsInfo())
+      return SourceLocation();
+    return getTrailingASTTemplateKWAndArgsInfo()->TemplateKWLoc;
+  }
+
+  /// Retrieve location of the left angle bracket starting the explicit template
+  /// argument list following the splice, if any.
+  SourceLocation getLAngleLoc() const {
+    if (!hasTemplateKWAndArgsInfo())
+      return SourceLocation();
+    return getTrailingASTTemplateKWAndArgsInfo()->LAngleLoc;
+  }
+
+  /// Retrieve the location of the right angle bracket ending the explicit
+  /// template argument list following the splice, if any.
+  SourceLocation getRAngleLoc() const {
+    if (!hasTemplateKWAndArgsInfo())
+      return SourceLocation();
+    return getTrailingASTTemplateKWAndArgsInfo()->RAngleLoc;
   }
 
   SourceLocation getLSpliceLoc() const {
@@ -5621,10 +5720,16 @@ public:
   }
 
   SourceLocation getBeginLoc() const {
+    if (SourceLocation KWLoc = getTemplateKeywordLoc(); KWLoc.isValid())
+      return KWLoc;
+
     return LSpliceLoc;
   }
 
   SourceLocation getEndLoc() const {
+    if (SourceLocation RAngleLoc = getRAngleLoc(); RAngleLoc.isValid())
+      return RAngleLoc;
+
     return RSpliceLoc;
   }
 

@@ -6321,8 +6321,11 @@ class DependentTemplateSpecializationType : public TypeWithKeyword,
   /// The nested name specifier containing the qualifier.
   NestedNameSpecifier *NNS;
 
-  /// The identifier of the template.
-  const IdentifierInfo *Name;
+  /// Either the identifier of the template, or a splice expression that
+  /// will resolve to the template.
+  llvm::PointerIntPair<llvm::PointerUnion<const IdentifierInfo *,
+                                          const CXXIndeterminateSpliceExpr *>,
+                       1, bool> Storage;
 
   DependentTemplateSpecializationType(ElaboratedTypeKeyword Keyword,
                                       NestedNameSpecifier *NNS,
@@ -6330,9 +6333,19 @@ class DependentTemplateSpecializationType : public TypeWithKeyword,
                                       ArrayRef<TemplateArgument> Args,
                                       QualType Canon);
 
+  DependentTemplateSpecializationType(ElaboratedTypeKeyword Keyword,
+                                      const CXXIndeterminateSpliceExpr *Splice,
+                                      ArrayRef<TemplateArgument> Args,
+                                      QualType Canon);
+
 public:
   NestedNameSpecifier *getQualifier() const { return NNS; }
-  const IdentifierInfo *getIdentifier() const { return Name; }
+
+  bool hasIdentifier() const;
+  const IdentifierInfo *getIdentifier() const;
+
+  bool hasSplice() const;
+  const CXXIndeterminateSpliceExpr *getSplice() const;
 
   ArrayRef<TemplateArgument> template_arguments() const {
     return {reinterpret_cast<const TemplateArgument *>(this + 1),
@@ -6343,7 +6356,14 @@ public:
   QualType desugar() const { return QualType(this, 0); }
 
   void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context) {
-    Profile(ID, Context, getKeyword(), NNS, Name, template_arguments());
+    if (hasIdentifier()) {
+      Profile(ID, Context, getKeyword(), NNS, getIdentifier(),
+              template_arguments());
+    } else if (hasSplice()) {
+      assert(!NNS);
+      Profile(ID, Context, getKeyword(), getSplice(),
+              template_arguments());
+    }
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID,
@@ -6351,6 +6371,12 @@ public:
                       ElaboratedTypeKeyword Keyword,
                       NestedNameSpecifier *Qualifier,
                       const IdentifierInfo *Name,
+                      ArrayRef<TemplateArgument> Args);
+
+  static void Profile(llvm::FoldingSetNodeID &ID,
+                      const ASTContext &Context,
+                      ElaboratedTypeKeyword Keyword,
+                      const CXXIndeterminateSpliceExpr *Splice,
                       ArrayRef<TemplateArgument> Args);
 
   static bool classof(const Type *T) {

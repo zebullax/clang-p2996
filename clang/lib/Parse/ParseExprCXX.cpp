@@ -234,25 +234,41 @@ bool Parser::ParseOptionalCXXScopeSpecifier(
 
     HasScopeSpecifier = true;
   } else if (!HasScopeSpecifier && Tok.is(tok::l_splice)) {
-    if (ParseCXXIndeterminateSplice()) {
+    if (ParseCXXIndeterminateSplice())
       return true;
-    }
 
-    if (!NextToken().is(tok::coloncolon)) {
-      // This isn't a nested-name-specifier; leave the 'annot_splice' token.
-      return false;
-    }
-    ExprResult Result = getExprAnnotation(Tok);
-    ConsumeAnnotationToken();
+    {
+      TentativeParsingAction TPA(*this);
+      if (NextToken().is(tok::less) &&
+          ParseTemplateAnnotationFromSplice(/*TemplateKWLoc=*/SourceLocation(),
+                                            false, false, /*Complain=*/false)) {
+        TPA.Revert();
+        return true;
+      }
 
-    SourceLocation CCLoc;
-    TryConsumeToken(tok::coloncolon, CCLoc);
-    CXXIndeterminateSpliceExpr *SpliceExpr =
-          dyn_cast<CXXIndeterminateSpliceExpr>(Result.get());
-    if (Actions.ActOnCXXNestedNameSpecifierReflectionSplice(SS, SpliceExpr,
-                                                            CCLoc)) {
-      SS.SetInvalid(SourceRange(SpliceExpr->getExprLoc(), CCLoc));
-      return true;
+      if (!NextToken().is(tok::coloncolon)) {
+        // This isn't a nested-name-specifier; revert any template splicing,
+        // and leave the 'annot_splice' token in place.
+        TPA.Revert();
+        return false;
+      }
+      TPA.Commit();
+    }
+    assert(Tok.is(tok::annot_splice) || Tok.is(tok::annot_template_id));
+
+    if (Tok.is(tok::annot_splice)) {
+      ExprResult Result = getExprAnnotation(Tok);
+      ConsumeAnnotationToken();
+
+      SourceLocation CCLoc;
+      TryConsumeToken(tok::coloncolon, CCLoc);
+      CXXIndeterminateSpliceExpr *SpliceExpr =
+            dyn_cast<CXXIndeterminateSpliceExpr>(Result.get());
+      if (Actions.ActOnCXXNestedNameSpecifierReflectionSplice(SS, SpliceExpr,
+                                                              CCLoc)) {
+        SS.SetInvalid(SourceRange(SpliceExpr->getExprLoc(), CCLoc));
+        return true;
+      }
     }
     HasScopeSpecifier = true;
   } else if (!HasScopeSpecifier && Tok.is(tok::identifier) &&

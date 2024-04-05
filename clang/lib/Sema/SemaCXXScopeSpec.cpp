@@ -937,13 +937,20 @@ bool Sema::ActOnCXXNestedNameSpecifier(Scope *S,
   translateTemplateArguments(TemplateArgsIn, TemplateArgs);
 
   DependentTemplateName *DTN = Template.getAsDependentTemplateName();
-  if (DTN && DTN->isIdentifier()) {
+  if (DTN && !DTN->isOverloadedOperator()) {
     // Handle a dependent template specialization for which we cannot resolve
     // the template name.
     assert(DTN->getQualifier() == SS.getScopeRep());
-    QualType T = Context.getDependentTemplateSpecializationType(
-        ElaboratedTypeKeyword::None, DTN->getQualifier(), DTN->getIdentifier(),
-        TemplateArgs.arguments());
+
+    QualType T;
+    if (DTN->isIdentifier())
+      T = Context.getDependentTemplateSpecializationType(
+            ElaboratedTypeKeyword::None, DTN->getQualifier(),
+            DTN->getIdentifier(), TemplateArgs.arguments());
+    else if (DTN->isIndeterminateSplice())
+      T = Context.getDependentTemplateSpecializationType(
+            ElaboratedTypeKeyword::None, DTN->getIndeterminateSplice(),
+            TemplateArgs.arguments());
 
     // Create source-location information for this type.
     TypeLocBuilder Builder;
@@ -961,6 +968,7 @@ bool Sema::ActOnCXXNestedNameSpecifier(Scope *S,
     SS.Extend(Context, TemplateKWLoc, Builder.getTypeLocInContext(Context, T),
               CCLoc);
     return false;
+
   }
 
   // If we assumed an undeclared identifier was a template name, try to
