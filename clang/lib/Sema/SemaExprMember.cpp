@@ -1253,7 +1253,6 @@ Sema::BuildMemberReferenceExpr(Scope *S, Expr *Base, SourceLocation OpLoc,
         << FixItHint::CreateReplacement(OpLoc, Suggestion);
       return ExprError();
     } else if (!IsRecord && !IsRHSDependent) {
-        Base->getType()->dump();
         Diag(OpLoc, diag::err_typecheck_member_reference_struct_union)
           << Base->getType() << Base->getSourceRange()
           << RHS->getSourceRange();
