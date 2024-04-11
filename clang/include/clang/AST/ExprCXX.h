@@ -1153,6 +1153,7 @@ class CXXThisExpr : public Expr {
   CXXThisExpr(SourceLocation L, QualType Ty, bool IsImplicit, ExprValueKind VK)
       : Expr(CXXThisExprClass, Ty, VK, OK_Ordinary) {
     CXXThisExprBits.IsImplicit = IsImplicit;
+    CXXThisExprBits.CapturedByCopyInLambdaWithExplicitObjectParameter = false;
     CXXThisExprBits.Loc = L;
     setDependence(computeDependence(this));
   }
@@ -1173,6 +1174,15 @@ public:
 
   bool isImplicit() const { return CXXThisExprBits.IsImplicit; }
   void setImplicit(bool I) { CXXThisExprBits.IsImplicit = I; }
+
+  bool isCapturedByCopyInLambdaWithExplicitObjectParameter() const {
+    return CXXThisExprBits.CapturedByCopyInLambdaWithExplicitObjectParameter;
+  }
+
+  void setCapturedByCopyInLambdaWithExplicitObjectParameter(bool Set) {
+    CXXThisExprBits.CapturedByCopyInLambdaWithExplicitObjectParameter = Set;
+    setDependence(computeDependence(this));
+  }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CXXThisExprClass;
@@ -2553,7 +2563,7 @@ public:
 class PseudoDestructorTypeStorage {
   /// Either the type source information or the name of the type, if
   /// it couldn't be resolved due to type-dependence.
-  llvm::PointerUnion<TypeSourceInfo *, IdentifierInfo *> Type;
+  llvm::PointerUnion<TypeSourceInfo *, const IdentifierInfo *> Type;
 
   /// The starting source location of the pseudo-destructor type.
   SourceLocation Location;
@@ -2561,7 +2571,7 @@ class PseudoDestructorTypeStorage {
 public:
   PseudoDestructorTypeStorage() = default;
 
-  PseudoDestructorTypeStorage(IdentifierInfo *II, SourceLocation Loc)
+  PseudoDestructorTypeStorage(const IdentifierInfo *II, SourceLocation Loc)
       : Type(II), Location(Loc) {}
 
   PseudoDestructorTypeStorage(TypeSourceInfo *Info);
@@ -2570,8 +2580,8 @@ public:
     return Type.dyn_cast<TypeSourceInfo *>();
   }
 
-  IdentifierInfo *getIdentifier() const {
-    return Type.dyn_cast<IdentifierInfo *>();
+  const IdentifierInfo *getIdentifier() const {
+    return Type.dyn_cast<const IdentifierInfo *>();
   }
 
   SourceLocation getLocation() const { return Location; }
@@ -2702,7 +2712,7 @@ public:
   /// In a dependent pseudo-destructor expression for which we do not
   /// have full type information on the destroyed type, provides the name
   /// of the destroyed type.
-  IdentifierInfo *getDestroyedTypeIdentifier() const {
+  const IdentifierInfo *getDestroyedTypeIdentifier() const {
     return DestroyedType.getIdentifier();
   }
 

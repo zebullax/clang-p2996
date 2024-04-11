@@ -314,6 +314,16 @@ ExprDependence clang::computeDependence(CXXThisExpr *E) {
   // 'this' is type-dependent if the class type of the enclosing
   // member function is dependent (C++ [temp.dep.expr]p2)
   auto D = toExprDependenceForImpliedType(E->getType()->getDependence());
+
+  // If a lambda with an explicit object parameter captures '*this', then
+  // 'this' now refers to the captured copy of lambda, and if the lambda
+  // is type-dependent, so is the object and thus 'this'.
+  //
+  // Note: The standard does not mention this case explicitly, but we need
+  // to do this so we can mark NSDM accesses as dependent.
+  if (E->isCapturedByCopyInLambdaWithExplicitObjectParameter())
+    D |= ExprDependence::Type;
+
   assert(!(D & ExprDependence::UnexpandedPack));
   return D;
 }
@@ -570,7 +580,11 @@ ExprDependence clang::computeDependence(DeclRefExpr *E, const ASTContext &Ctx) {
       Deps |= toExprDependence(Arg->getArgument().getDependence());
   }
 
+  auto *Decl = E->getDecl();
   auto Type = E->getType();
+
+  Deps |= toExprDependenceForImpliedType(Type->getDependence()) &
+          ExprDependence::Error;
 
   // C++ [temp.dep.expr]p3:
   //   An id-expression is type-dependent if it contains:
@@ -590,9 +604,10 @@ ExprDependence clang::computeDependence(DeclRefExpr *E, const ASTContext &Ctx) {
   else if (Type->isInstantiationDependentType())
     Deps |= ExprDependence::Instantiation;
 
-  Deps |= toExprDependenceForImpliedType(Type->getDependence()) &
-          ExprDependence::Error;
-
+  //    - an identifier associated by name lookup with an entity captured by
+  //    copy ([expr.prim.lambda.capture])
+  if (E->isCapturedByCopyInLambdaWithExplicitObjectParameter())
+    Deps |= ExprDependence::Type;
 
   Deps |= computeDeclDependence(E->getDecl(), Ctx);
 
@@ -663,6 +678,9 @@ ExprDependence clang::computeDependence(MemberExpr *E) {
     D |= toExprDependence(NNS->getDependence() &
                           ~NestedNameSpecifierDependence::Dependent);
 
+  for (const auto &A : E->template_arguments())
+    D |= toExprDependence(A.getArgument().getDependence());
+
   auto *MemberDecl = E->getMemberDecl();
   if (FieldDecl *FD = dyn_cast<FieldDecl>(MemberDecl)) {
     DeclContext *DC = MemberDecl->getDeclContext();
@@ -679,7 +697,6 @@ ExprDependence clang::computeDependence(MemberExpr *E) {
       D |= ExprDependence::Type;
     }
   }
-  // FIXME: move remaining dependence computation from MemberExpr::Create()
   return D;
 }
 

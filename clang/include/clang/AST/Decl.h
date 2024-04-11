@@ -1104,6 +1104,9 @@ protected:
 
     LLVM_PREFERRED_TYPE(bool)
     unsigned EscapingByref : 1;
+
+    LLVM_PREFERRED_TYPE(bool)
+    unsigned IsCXXCondDecl : 1;
   };
 
   union {
@@ -1593,6 +1596,15 @@ public:
     NonParmVarDeclBits.EscapingByref = true;
   }
 
+  bool isCXXCondDecl() const {
+    return isa<ParmVarDecl>(this) ? false : NonParmVarDeclBits.IsCXXCondDecl;
+  }
+
+  void setCXXCondDecl() {
+    assert(!isa<ParmVarDecl>(this));
+    NonParmVarDeclBits.IsCXXCondDecl = true;
+  }
+
   /// Determines if this variable's alignment is dependent.
   bool hasDependentAlignment() const;
 
@@ -1723,7 +1735,7 @@ public:
   static ImplicitParamDecl *CreateDeserialized(ASTContext &C, unsigned ID);
 
   ImplicitParamDecl(ASTContext &C, DeclContext *DC, SourceLocation IdLoc,
-                    IdentifierInfo *Id, QualType Type,
+                    const IdentifierInfo *Id, QualType Type,
                     ImplicitParamKind ParamKind)
       : VarDecl(ImplicitParam, C, DC, IdLoc, IdLoc, Id, Type,
                 /*TInfo=*/nullptr, SC_None) {
@@ -1757,7 +1769,7 @@ public:
 
 protected:
   ParmVarDecl(Kind DK, ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
-              SourceLocation IdLoc, IdentifierInfo *Id, QualType T,
+              SourceLocation IdLoc, const IdentifierInfo *Id, QualType T,
               TypeSourceInfo *TInfo, StorageClass S, Expr *DefArg)
       : VarDecl(DK, C, DC, StartLoc, IdLoc, Id, T, TInfo, S) {
     assert(ParmVarDeclBits.HasInheritedDefaultArg == false);
@@ -1769,10 +1781,10 @@ protected:
 
 public:
   static ParmVarDecl *Create(ASTContext &C, DeclContext *DC,
-                             SourceLocation StartLoc,
-                             SourceLocation IdLoc, IdentifierInfo *Id,
-                             QualType T, TypeSourceInfo *TInfo,
-                             StorageClass S, Expr *DefArg);
+                             SourceLocation StartLoc, SourceLocation IdLoc,
+                             const IdentifierInfo *Id, QualType T,
+                             TypeSourceInfo *TInfo, StorageClass S,
+                             Expr *DefArg);
 
   static ParmVarDecl *CreateDeserialized(ASTContext &C, unsigned ID);
 
@@ -3087,7 +3099,7 @@ class FieldDecl : public DeclaratorDecl, public Mergeable<FieldDecl> {
 
 protected:
   FieldDecl(Kind DK, DeclContext *DC, SourceLocation StartLoc,
-            SourceLocation IdLoc, IdentifierInfo *Id, QualType T,
+            SourceLocation IdLoc, const IdentifierInfo *Id, QualType T,
             TypeSourceInfo *TInfo, Expr *BW, bool Mutable,
             InClassInitStyle InitStyle)
       : DeclaratorDecl(DK, DC, IdLoc, Id, T, TInfo, StartLoc), BitField(false),
@@ -3103,7 +3115,7 @@ public:
 
   static FieldDecl *Create(const ASTContext &C, DeclContext *DC,
                            SourceLocation StartLoc, SourceLocation IdLoc,
-                           IdentifierInfo *Id, QualType T,
+                           const IdentifierInfo *Id, QualType T,
                            TypeSourceInfo *TInfo, Expr *BW, bool Mutable,
                            InClassInitStyle InitStyle);
 
@@ -3324,8 +3336,9 @@ public:
   friend class ASTDeclReader;
 
   static IndirectFieldDecl *Create(ASTContext &C, DeclContext *DC,
-                                   SourceLocation L, IdentifierInfo *Id,
-                                   QualType T, llvm::MutableArrayRef<NamedDecl *> CH);
+                                   SourceLocation L, const IdentifierInfo *Id,
+                                   QualType T,
+                                   llvm::MutableArrayRef<NamedDecl *> CH);
 
   static IndirectFieldDecl *CreateDeserialized(ASTContext &C, unsigned ID);
 
@@ -3373,9 +3386,9 @@ class TypeDecl : public NamedDecl {
   void anchor() override;
 
 protected:
-  TypeDecl(Kind DK, DeclContext *DC, SourceLocation L, IdentifierInfo *Id,
+  TypeDecl(Kind DK, DeclContext *DC, SourceLocation L, const IdentifierInfo *Id,
            SourceLocation StartL = SourceLocation())
-    : NamedDecl(DK, DC, L, Id), LocStart(StartL) {}
+      : NamedDecl(DK, DC, L, Id), LocStart(StartL) {}
 
 public:
   // Low-level accessor. If you just want the type defined by this node,
@@ -3417,7 +3430,7 @@ class TypedefNameDecl : public TypeDecl, public Redeclarable<TypedefNameDecl> {
 protected:
   TypedefNameDecl(Kind DK, ASTContext &C, DeclContext *DC,
                   SourceLocation StartLoc, SourceLocation IdLoc,
-                  IdentifierInfo *Id, TypeSourceInfo *TInfo)
+                  const IdentifierInfo *Id, TypeSourceInfo *TInfo)
       : TypeDecl(DK, DC, IdLoc, Id, StartLoc), redeclarable_base(C),
         MaybeModedTInfo(TInfo, 0) {}
 
@@ -3504,13 +3517,14 @@ private:
 /// type specifier.
 class TypedefDecl : public TypedefNameDecl {
   TypedefDecl(ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
-              SourceLocation IdLoc, IdentifierInfo *Id, TypeSourceInfo *TInfo)
+              SourceLocation IdLoc, const IdentifierInfo *Id,
+              TypeSourceInfo *TInfo)
       : TypedefNameDecl(Typedef, C, DC, StartLoc, IdLoc, Id, TInfo) {}
 
 public:
   static TypedefDecl *Create(ASTContext &C, DeclContext *DC,
                              SourceLocation StartLoc, SourceLocation IdLoc,
-                             IdentifierInfo *Id, TypeSourceInfo *TInfo);
+                             const IdentifierInfo *Id, TypeSourceInfo *TInfo);
   static TypedefDecl *CreateDeserialized(ASTContext &C, unsigned ID);
 
   SourceRange getSourceRange() const override LLVM_READONLY;
@@ -3527,14 +3541,15 @@ class TypeAliasDecl : public TypedefNameDecl {
   TypeAliasTemplateDecl *Template;
 
   TypeAliasDecl(ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
-                SourceLocation IdLoc, IdentifierInfo *Id, TypeSourceInfo *TInfo)
+                SourceLocation IdLoc, const IdentifierInfo *Id,
+                TypeSourceInfo *TInfo)
       : TypedefNameDecl(TypeAlias, C, DC, StartLoc, IdLoc, Id, TInfo),
         Template(nullptr) {}
 
 public:
   static TypeAliasDecl *Create(ASTContext &C, DeclContext *DC,
                                SourceLocation StartLoc, SourceLocation IdLoc,
-                               IdentifierInfo *Id, TypeSourceInfo *TInfo);
+                               const IdentifierInfo *Id, TypeSourceInfo *TInfo);
   static TypeAliasDecl *CreateDeserialized(ASTContext &C, unsigned ID);
 
   SourceRange getSourceRange() const override LLVM_READONLY;

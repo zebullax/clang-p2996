@@ -133,7 +133,7 @@ public:
   /// cannot be resolved.
   static NestedNameSpecifier *Create(const ASTContext &Context,
                                      NestedNameSpecifier *Prefix,
-                                     IdentifierInfo *II);
+                                     const IdentifierInfo *II);
 
   /// Builds a nested name specifier that names a namespace.
   static NestedNameSpecifier *Create(const ASTContext &Context,
@@ -143,7 +143,7 @@ public:
   /// Builds a nested name specifier that names a namespace alias.
   static NestedNameSpecifier *Create(const ASTContext &Context,
                                      NestedNameSpecifier *Prefix,
-                                     NamespaceAliasDecl *Alias);
+                                     const NamespaceAliasDecl *Alias);
 
   /// Builds a nested name specifier that names a type.
   static NestedNameSpecifier *Create(const ASTContext &Context,
@@ -157,7 +157,7 @@ public:
   /// nested name specifier, e.g., in "x->Base::f", the "x" has a dependent
   /// type.
   static NestedNameSpecifier *Create(const ASTContext &Context,
-                                     IdentifierInfo *II);
+                                     const IdentifierInfo *II);
 
   /// Returns the nested name specifier representing the global
   /// scope.
