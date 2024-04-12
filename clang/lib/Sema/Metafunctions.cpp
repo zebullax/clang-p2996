@@ -296,9 +296,9 @@ static bool get_ith_parameter_of(APValue &Result, Sema &S, EvalFn Evaluator,
                                  QualType ResultTy, SourceRange Range,
                                  ArrayRef<Expr *> Args);
 
-static bool has_unique_name(APValue &Result, Sema &S, EvalFn Evaluator,
-                            QualType ResultTy, SourceRange Range,
-                            ArrayRef<Expr *> Args);
+static bool has_consistent_name(APValue &Result, Sema &S, EvalFn Evaluator,
+                                QualType ResultTy, SourceRange Range,
+                                ArrayRef<Expr *> Args);
 
 static bool has_default_argument(APValue &Result, Sema &S, EvalFn Evaluator,
                                  QualType ResultTy, SourceRange Range,
@@ -383,7 +383,7 @@ static constexpr Metafunction Metafunctions[] = {
 
   // P3096 metafunction extensions
   { Metafunction::MFRK_metaInfo, 3, 3, get_ith_parameter_of },
-  { Metafunction::MFRK_bool, 1, 1, has_unique_name },
+  { Metafunction::MFRK_bool, 1, 1, has_consistent_name },
   { Metafunction::MFRK_bool, 1, 1, has_default_argument },
 };
 constexpr const unsigned NumMetafunctions = sizeof(Metafunctions) /
@@ -3630,9 +3630,9 @@ bool get_ith_parameter_of(APValue &Result, Sema &S, EvalFn Evaluator,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool has_unique_name(APValue &Result, Sema &S, EvalFn Evaluator,
-                     QualType ResultTy, SourceRange Range,
-                     ArrayRef<Expr *> Args) {
+bool has_consistent_name(APValue &Result, Sema &S, EvalFn Evaluator,
+                         QualType ResultTy, SourceRange Range,
+                         ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
   assert(ResultTy == S.Context.BoolTy);
 
