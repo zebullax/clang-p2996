@@ -78,11 +78,11 @@ static_assert(obj1.value == 1);
 constexpr [:^TAlias:]<int> obj2 = {2};
 static_assert(obj2.value == 2);
 
-/*constexpr [:^TCls:] obj3 = {3};
-static_assert(obj3.value == 3);*/  // TODO(P2996): CTAD.
+constexpr [:^TCls:] obj3 = {3};
+static_assert(obj3.value == 3);
 
-/*constexpr [:^TAlias:] obj4 = {4};
-static_assert(obj4.value == 4);*/  // TODO(P2996): CTAD.
+constexpr [:^TAlias:] obj4 = {4};
+static_assert(obj4.value == 4);
 
 static_assert([:^TCls:]<int>::zero == 0);
 static_assert(is_same_v<[:^TCls:]<int>::type, int>);
@@ -118,10 +118,10 @@ template <decltype(^::) R> consteval auto DepTClsStaticMember() {
   typename [:R:]<int>::type result = [:R:]<int>::zero;
   return result;
 }
-/*template <decltype(^::) R> consteval auto DepTClsCTAD() {
+template <decltype(^::) R> consteval auto DepTClsCTAD(int value) {
   typename [:R:] obj = {value};
   return obj;
-}*/
+}
 template <decltype(^::) R> consteval int DepTFnFn(int value) {
   return template [:R:]<int>(value) + template [:R:]<>(value) +
          template [:R:](value);
@@ -142,8 +142,8 @@ consteval decltype(^::) TMemFnWithDepScope() { return ^[:R:]::template tmemfn; }
 
 static_assert(DepTClsFn<^non_dependent::TCls>(11).value == 11);
 static_assert(DepTClsFn<^non_dependent::TAlias>(12).value == 12);
-//static_assert(DepTClsCTAD<^non_dependent::TCls>(13).value == 13);  // TODO(P2996): CTAD.
-//static_assert(DepTClsCTAD<^non_dependent::TAlias>(15).value == 14);  // TODO(P2996): CTAD.
+static_assert(DepTClsCTAD<^non_dependent::TCls>(13).value == 13);
+static_assert(DepTClsCTAD<^non_dependent::TAlias>(15).value == 15);
 static_assert(DepTClsStaticMember<^non_dependent::TCls>() == 0);
 static_assert(DepTClsStaticMember<^non_dependent::TAlias>() == 0);
 static_assert(DepTFnFn<^non_dependent::TFn>(3) == 9);

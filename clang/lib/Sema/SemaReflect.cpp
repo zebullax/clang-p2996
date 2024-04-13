@@ -584,7 +584,11 @@ QualType Sema::BuildReflectionSpliceType(SourceLocation LSplice,
   }
   ReflectionValue &R = ER.Val.getReflection();
 
-  if (R.getKind() != ReflectionValue::RK_type) {
+  if (R.getKind() == ReflectionValue::RK_template) {
+    return Context.getDeducedTemplateSpecializationType(R.getAsTemplate(),
+                                                        QualType(),
+                                                        false);
+  } else if (R.getKind() != ReflectionValue::RK_type) {
     if (Complain)
       Diag(Operand->getExprLoc(), diag::err_unexpected_reflection_kind) << 0;
     return QualType();
@@ -624,6 +628,10 @@ QualType Sema::BuildReflectionSpliceTypeLoc(TypeLocBuilder &TLB,
     return QualType();
   else if (isa<TemplateSpecializationType>(SpliceTy)) {
     auto TL = TLB.push<TemplateSpecializationTypeLoc>(SpliceTy);
+    TL.setTemplateNameLoc(LSpliceLoc);
+    return SpliceTy;
+  } else if (isa<DeducedTemplateSpecializationType>(SpliceTy)) {
+    auto TL = TLB.push<DeducedTemplateSpecializationTypeLoc>(SpliceTy);
     TL.setTemplateNameLoc(LSpliceLoc);
     return SpliceTy;
   }

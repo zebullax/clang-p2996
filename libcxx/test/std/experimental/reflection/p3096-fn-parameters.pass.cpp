@@ -47,15 +47,15 @@ static_assert(parameters_of(type_of(^fn)) ==
               std::vector {^int, ^bool, ^const S<int> &});
 static_assert(type_of(parameters_of(^fn)[0]) == ^int);
 static_assert(name_of(parameters_of(^fn)[0]) == "a");
-static_assert(has_unique_name(parameters_of(^fn)[0]));
+static_assert(has_consistent_name(parameters_of(^fn)[0]));
 static_assert(!has_default_argument(parameters_of(^fn)[0]));
 static_assert(type_of(parameters_of(^fn)[1]) == ^bool);
 static_assert(name_of(parameters_of(^fn)[1]) == "b");
-static_assert(has_unique_name(parameters_of(^fn)[1]));
+static_assert(has_consistent_name(parameters_of(^fn)[1]));
 static_assert(!has_default_argument(parameters_of(^fn)[1]));
 static_assert(type_of(parameters_of(^fn)[2]) == ^const S<int> &);
 static_assert(name_of(parameters_of(^fn)[2]) == "s");
-static_assert(has_unique_name(parameters_of(^fn)[2]));
+static_assert(has_consistent_name(parameters_of(^fn)[2]));
 static_assert(!has_default_argument(parameters_of(^fn)[2]));
 }  // namespace with_fixed_arguments
 
@@ -79,7 +79,7 @@ constexpr auto ctor = [] {
 static_assert(parameters_of(ctor).size() == 1);
 static_assert(type_of(parameters_of(ctor)[0]) == ^int);
 static_assert(name_of(parameters_of(ctor)[0]) == "a");
-static_assert(has_unique_name(parameters_of(ctor)[0]));
+static_assert(has_consistent_name(parameters_of(ctor)[0]));
 static_assert(!has_default_argument(parameters_of(ctor)[0]));
 
 constexpr auto dtor = [] {
@@ -91,29 +91,29 @@ static_assert(parameters_of(^Cls::fn).size() == 2);
 static_assert(parameters_of(type_of(^Cls::fn)) == std::vector {^int, ^bool});
 static_assert(type_of(parameters_of(^Cls::fn)[0]) == ^int);
 static_assert(name_of(parameters_of(^Cls::fn)[0]) == "a");
-static_assert(has_unique_name(parameters_of(^Cls::fn)[0]));
+static_assert(has_consistent_name(parameters_of(^Cls::fn)[0]));
 static_assert(!has_default_argument(parameters_of(^Cls::fn)[0]));
 static_assert(type_of(parameters_of(^Cls::fn)[1]) == ^bool);
 static_assert(name_of(parameters_of(^Cls::fn)[1]) == "b");
-static_assert(has_unique_name(parameters_of(^Cls::fn)[1]));
+static_assert(has_consistent_name(parameters_of(^Cls::fn)[1]));
 static_assert(has_default_argument(parameters_of(^Cls::fn)[1]));
 
 static_assert(parameters_of(^Cls::fn2).size() == 2);
 static_assert(parameters_of(type_of(^Cls::fn2)) == std::vector {^Cls &, ^int});
 static_assert(type_of(parameters_of(^Cls::fn2)[0]) == ^Cls &);
 static_assert(name_of(parameters_of(^Cls::fn2)[0]) == "self");
-static_assert(has_unique_name(parameters_of(^Cls::fn2)[0]));
+static_assert(has_consistent_name(parameters_of(^Cls::fn2)[0]));
 static_assert(!has_default_argument(parameters_of(^Cls::fn2)[0]));
 static_assert(type_of(parameters_of(^Cls::fn2)[1]) == ^int);
 static_assert(name_of(parameters_of(^Cls::fn2)[1]) == "");
-static_assert(has_unique_name(parameters_of(^Cls::fn2)[1]));
+static_assert(has_consistent_name(parameters_of(^Cls::fn2)[1]));
 static_assert(!has_default_argument(parameters_of(^Cls::fn2)[1]));
 
 static_assert(parameters_of(^Cls::sfn).size() == 1);
 static_assert(parameters_of(type_of(^Cls::sfn)) == std::vector {^int});
 static_assert(type_of(parameters_of(^Cls::sfn)[0]) == ^int);
 static_assert(name_of(parameters_of(^Cls::sfn)[0]) == "a");
-static_assert(has_unique_name(parameters_of(^Cls::sfn)[0]));
+static_assert(has_consistent_name(parameters_of(^Cls::sfn)[0]));
 static_assert(!has_default_argument(parameters_of(^Cls::sfn)[0]));
 }  // namespace with_member_functions
 
@@ -133,15 +133,15 @@ consteval bool check() {
                 std::vector {^int &&, ^char &&, ^bool &&});
   static_assert(type_of(parameters_of(Fn)[0]) == ^int &&);
   static_assert(name_of(parameters_of(Fn)[0]) == "ts");
-  static_assert(has_unique_name(parameters_of(Fn)[0]));
+  static_assert(has_consistent_name(parameters_of(Fn)[0]));
   static_assert(!has_default_argument(parameters_of(Fn)[0]));
   static_assert(type_of(parameters_of(Fn)[1]) == ^char &&);
   static_assert(name_of(parameters_of(Fn)[1]) == "ts");
-  static_assert(has_unique_name(parameters_of(Fn)[1]));
+  static_assert(has_consistent_name(parameters_of(Fn)[1]));
   static_assert(!has_default_argument(parameters_of(Fn)[1]));
   static_assert(type_of(parameters_of(Fn)[2]) == ^bool &&);
   static_assert(name_of(parameters_of(Fn)[2]) == "ts");
-  static_assert(has_unique_name(parameters_of(Fn)[2]));
+  static_assert(has_consistent_name(parameters_of(Fn)[2]));
   static_assert(!has_default_argument(parameters_of(Fn)[2]));
 
   return true;
@@ -163,11 +163,11 @@ static_assert(parameters_of(^fn).size() == 2);
 static_assert(parameters_of(type_of(^fn)) == std::vector {^int, ^bool});
 static_assert(type_of(parameters_of(^fn)[0]) == ^int);
 static_assert(name_of(parameters_of(^fn)[0]) == "a");
-static_assert(has_unique_name(parameters_of(^fn)[0]));
+static_assert(has_consistent_name(parameters_of(^fn)[0]));
 static_assert(!has_default_argument(parameters_of(^fn)[0]));
 static_assert(type_of(parameters_of(^fn)[1]) == ^bool);
 static_assert(name_of(parameters_of(^fn)[1]) == "b");
-static_assert(has_unique_name(parameters_of(^fn)[1]));
+static_assert(has_consistent_name(parameters_of(^fn)[1]));
 static_assert(has_default_argument(parameters_of(^fn)[1]));
 }  // namespace with_default_arguments
 
@@ -185,12 +185,12 @@ static_assert(parameters_of(type_of(^fn)) == std::vector {^int, ^bool, ^char});
 static_assert(name_of(parameters_of(^fn)[0]) == "a1" ||
               name_of(parameters_of(^fn)[0]) == "a2" ||
               name_of(parameters_of(^fn)[0]) == "a3");
-static_assert(!has_unique_name(parameters_of(^fn)[0]));
+static_assert(!has_consistent_name(parameters_of(^fn)[0]));
 static_assert(name_of(parameters_of(^fn)[1]) == "b");
-static_assert(has_unique_name(parameters_of(^fn)[1]));
+static_assert(has_consistent_name(parameters_of(^fn)[1]));
 static_assert(name_of(parameters_of(^fn)[2]) == "c1" ||
               name_of(parameters_of(^fn)[2]) == "c2");
-static_assert(!has_unique_name(parameters_of(^fn)[2]));
+static_assert(!has_consistent_name(parameters_of(^fn)[2]));
 }  // namespace with_ambiguous_names
 
 
