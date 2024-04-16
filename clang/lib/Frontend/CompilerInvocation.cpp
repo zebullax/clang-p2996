@@ -613,7 +613,7 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
   }
 
   if (LangOpts.Reflection) {
-    if (Args.hasArg(OPT_fblocks))
+    if (LangOpts.Blocks)
       Diags.Report(diag::err_fe_reflection_incompatible_with_blocks);
   } else if (LangOpts.ParameterReflection) {
     Diags.Report(diag::err_fe_parameter_reflection_without_reflection);
