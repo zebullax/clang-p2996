@@ -32,6 +32,9 @@ struct Cls {
   int k;
   void fn();
 };
+template <int K> struct TCls {
+  static constexpr int value = K;
+};
 
                        // ==============================
                        // reflections_of_argument_values
@@ -68,6 +71,9 @@ static_assert(CheckValueIs<42>([]() {
   constexpr int x = 42;
   return ^x;
 }()));
+
+[[maybe_unused]] TCls<3> ignored;
+static_assert(CheckValueIs<3>(static_data_members_of(substitute(^TCls, {^3}))[0]));
 }  // namespace values_of_reflection_arguments
 
                                   // =========

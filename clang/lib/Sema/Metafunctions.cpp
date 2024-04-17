@@ -800,6 +800,10 @@ static bool ensureInstantiated(Sema &S, Decl *D, SourceRange Range) {
     return true;
   };
 
+  // Cover case of static variables in a specialization not yet referenced.
+  if (auto *VD = dyn_cast<VarDecl>(D); VD && VD->hasGlobalStorage())
+    S.MarkVariableReferenced(Range.getBegin(), VD);
+
   if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(D);
       CTSD && !CTSD->isCompleteDefinition()) {
     if (!validateConstraints(CTSD->getSpecializedTemplate(),
