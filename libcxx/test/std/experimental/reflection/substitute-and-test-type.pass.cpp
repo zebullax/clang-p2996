@@ -376,9 +376,20 @@ static_assert(template_arguments_of(substitute(^Alias, {^void})) ==
               std::vector{^void, ^3});
 }  // namespace with_template_arguments_of
 
-// ====================
-// invalid_template_ids
-// ====================
+                       // ==============================
+                       // with_reflection_of_declaration
+                       // ==============================
+
+namespace with_reflection_of_declaration {
+template <int V> constexpr int Plus1 = V + 1;
+struct S { static constexpr int val = 4; };
+
+static_assert([:substitute(^Plus1, {static_data_members_of(^S)[0]}):] == 5);
+}  // namespace with_reflection_of_declaration
+
+                            // ====================
+                            // invalid_template_ids
+                            // ====================
 
 namespace invalid_template_ids {
 template <typename T, auto V, template <typename, size_t> class C>

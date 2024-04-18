@@ -1736,7 +1736,7 @@ bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
                                 SourceLocation(), Decl, false, Range.getBegin(),
                                 Decl->getType(), VK_LValue, Decl, nullptr);
         APValue R;
-        if (!Evaluator(Unwrapped, Synthesized, true))
+        if (!Evaluator(R, Synthesized, true))
           return true;
 
         if (Synthesized->getType()->isIntegralOrEnumerationType())
