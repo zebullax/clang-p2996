@@ -55,6 +55,10 @@ struct Cls {
 };
 static_assert([:reflect_invoke(^Cls::fn, {^4}):] == 16);
 
+// With reflection of constexpr variable as an argument.
+static constexpr int five = 5;
+static_assert([:reflect_invoke(^fn1, {^five}):] == 47);
+
 // TODO(P2996): Support nonstatic member functions.
 }  // namespace basic_functions
 

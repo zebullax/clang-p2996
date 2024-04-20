@@ -2942,12 +2942,21 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
         return true;
 
       APValue ArgResult;
-      if (!Evaluator(ArgResult, RVExpr, true) ||
-          ArgResult.getReflection().getKind() != ReflectionValue::RK_const_value)
+      if (!Evaluator(ArgResult, RVExpr, true))
         return true;
 
-      Expr *CE = ArgResult.getReflectedConstValueExpr();
-      ArgExprs.push_back(CE);
+      ReflectionValue RV = ArgResult.getReflection();
+      if (RV.getKind() == ReflectionValue::RK_const_value) {
+        ArgExprs.push_back(RV.getAsConstValueExpr());
+      } else if (RV.getKind() == ReflectionValue::RK_declaration) {
+        ValueDecl *D = RV.getAsDecl();
+        ArgExprs.push_back(
+              DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
+                                  SourceLocation(), D, false, Range.getBegin(),
+                                  D->getType(), VK_LValue, D, nullptr));
+      } else {
+        return true;
+      }
     }
   }
 
