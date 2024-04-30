@@ -754,11 +754,14 @@ Sema::ActOnDependentIdExpression(const CXXScopeSpec &SS,
 
   // Check if the nested name specifier is an enum type.
   bool IsEnum = false;
-  if (NestedNameSpecifier *NNS = SS.getScopeRep())
+  bool HasLeadingSplice = false;
+  if (NestedNameSpecifier *NNS = SS.getScopeRep()) {
     IsEnum = isa_and_nonnull<EnumType>(NNS->getAsType());
+    HasLeadingSplice = NNS->getAsSpliceExpr();
+  }
 
   if (!MightBeCxx11UnevalField && !isAddressOfOperand && !IsEnum &&
-      isa<CXXMethodDecl>(DC) &&
+      !HasLeadingSplice && isa<CXXMethodDecl>(DC) &&
       cast<CXXMethodDecl>(DC)->isImplicitObjectMemberFunction()) {
     QualType ThisType = cast<CXXMethodDecl>(DC)->getThisType().getNonReferenceType();
 

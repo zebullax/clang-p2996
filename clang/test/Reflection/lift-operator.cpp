@@ -109,3 +109,12 @@ constexpr info info_nonstructural = ^Nonstructural{42};
 
 namespace ns {}
 constexpr info info_ns = ^ns;
+
+                   // =======================================
+                   // bb_clang_p2996_issue_35_regression_test
+                   // =======================================
+
+namespace bb_clang_p2996_issue_35_regression_test {
+template <auto R = ^::> class S {};
+S s;
+}  // namespace bb_clang_p2996_issue_35_regression_test

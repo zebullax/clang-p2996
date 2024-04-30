@@ -1838,6 +1838,8 @@ getPackSubstitutedTemplateArgument(Sema &S, TemplateArgument Arg) {
 Decl *TemplateInstantiator::TransformDecl(SourceLocation Loc, Decl *D) {
   if (!D)
     return nullptr;
+  if (isa<TranslationUnitDecl>(D))
+    return D;
 
   if (TemplateTemplateParmDecl *TTP = dyn_cast<TemplateTemplateParmDecl>(D)) {
     if (TTP->getDepth() < TemplateArgs.getNumLevels()) {
