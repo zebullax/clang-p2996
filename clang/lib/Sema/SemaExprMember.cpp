@@ -11,7 +11,6 @@
 //  This file implements semantic analysis member access expressions.
 //
 //===----------------------------------------------------------------------===//
-#include "clang/Sema/Overload.h"
 #include "clang/AST/ASTLambda.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
@@ -20,9 +19,11 @@
 #include "clang/AST/ExprObjC.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/Overload.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/SemaOpenMP.h"
 
 using namespace clang;
 using namespace sema;
@@ -114,9 +115,12 @@ static IMAKind ClassifyImplicitMemberAccess(Sema &SemaRef,
     }
   }
 
-  if (R.isUnresolvableResult())
+  if (R.isUnresolvableResult()) {
+    if (couldInstantiateToStatic)
+      return IMA_Dependent;
     return isStaticOrExplicitContext ? IMA_Unresolved_StaticOrExplicitContext
                                      : IMA_Unresolved;
+  }
 
   // Collect all the declaring classes of instance members we find.
   bool hasNonInstance = false;
@@ -325,15 +329,19 @@ ExprResult Sema::BuildPossibleImplicitMemberExpr(
   case IMA_Reflection_Operand:
   case IMA_Static:
   case IMA_Abstract:
-  case IMA_Dependent:
   case IMA_Mixed_StaticOrExplicitContext:
   case IMA_Unresolved_StaticOrExplicitContext:
     if (TemplateArgs || TemplateKWLoc.isValid())
       return BuildTemplateIdExpr(SS, TemplateKWLoc, R, /*RequiresADL=*/false,
                                  TemplateArgs);
-    return BuildDeclarationNameExpr(
-        SS, R, /*NeedsADL=*/false, /*AcceptInvalidDecl=*/false,
-        /*NeedUnresolved=*/Classification == IMA_Dependent);
+    return BuildDeclarationNameExpr(SS, R, /*NeedsADL=*/false,
+                                    /*AcceptInvalidDecl=*/false);
+  case IMA_Dependent:
+    R.suppressDiagnostics();
+    return UnresolvedLookupExpr::Create(
+        Context, R.getNamingClass(), SS.getWithLocInContext(Context),
+        TemplateKWLoc, R.getLookupNameInfo(), /*RequiresADL=*/false,
+        TemplateArgs, R.begin(), R.end(), /*KnownDependent=*/true);
 
   case IMA_Error_StaticOrExplicitContext:
   case IMA_Error_Unrelated:
@@ -772,7 +780,7 @@ static bool LookupMemberExprInRecord(Sema &SemaRef, LookupResult &R,
     Sema &SemaRef;
     DeclarationNameInfo NameInfo;
     Sema::LookupNameKind LookupKind;
-    Sema::RedeclarationKind Redecl;
+    RedeclarationKind Redecl;
   };
   QueryState Q = {R.getSema(), R.getLookupNameInfo(), R.getLookupKind(),
                   R.redeclarationKind()};
@@ -2050,9 +2058,9 @@ Sema::BuildFieldReferenceExpr(Expr *BaseExpr, bool IsArrow,
   if (getLangOpts().OpenMP && IsArrow &&
       !CurContext->isDependentContext() &&
       isa<CXXThisExpr>(Base.get()->IgnoreParenImpCasts())) {
-    if (auto *PrivateCopy = isOpenMPCapturedDecl(Field)) {
-      return getOpenMPCapturedExpr(PrivateCopy, VK, OK,
-                                   MemberNameInfo.getLoc());
+    if (auto *PrivateCopy = OpenMP().isOpenMPCapturedDecl(Field)) {
+      return OpenMP().getOpenMPCapturedExpr(PrivateCopy, VK, OK,
+                                            MemberNameInfo.getLoc());
     }
   }
 

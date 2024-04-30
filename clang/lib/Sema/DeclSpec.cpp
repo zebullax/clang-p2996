@@ -307,7 +307,7 @@ DeclaratorChunk DeclaratorChunk::getFunction(bool hasProto,
 
 void Declarator::setDecompositionBindings(
     SourceLocation LSquareLoc,
-    ArrayRef<DecompositionDeclarator::Binding> Bindings,
+    MutableArrayRef<DecompositionDeclarator::Binding> Bindings,
     SourceLocation RSquareLoc) {
   assert(!hasName() && "declarator given multiple names!");
 
@@ -331,7 +331,7 @@ void Declarator::setDecompositionBindings(
           new DecompositionDeclarator::Binding[Bindings.size()];
       BindingGroup.DeleteBindings = true;
     }
-    std::uninitialized_copy(Bindings.begin(), Bindings.end(),
+    std::uninitialized_move(Bindings.begin(), Bindings.end(),
                             BindingGroup.Bindings);
   }
 }
