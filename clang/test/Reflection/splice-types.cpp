@@ -76,6 +76,10 @@ consteval auto decr(typename [:r_int:] p) -> [:r_const_int:] {
   return p - 1;
 }
 static_assert(decr(13) == 12);
+
+// 'typename' should be optional in parameter declarations.
+void fn([:r_int:]);
+class S { S([:r_int:]); };
 }  // in_fn_defs
 
                                    // ======

@@ -5862,11 +5862,14 @@ bool Parser::isDeclarationSpecifier(
     [[fallthrough]];
   case tok::kw_decltype: // decltype(T())::type
   case tok::kw_typename: // typename T::type
+  case tok::l_splice:
     // Annotate typenames and C++ scope specifiers.  If we get one, just
     // recurse to handle whatever we get.
     if (TryAnnotateTypeOrScopeToken(AllowImplicitTypename))
       return true;
     if (TryAnnotateTypeConstraint())
+      return true;
+    if (Tok.is(tok::annot_splice))
       return true;
     if (Tok.is(tok::identifier))
       return false;
