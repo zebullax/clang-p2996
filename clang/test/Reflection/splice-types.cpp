@@ -79,7 +79,11 @@ static_assert(decr(13) == 12);
 
 // 'typename' should be optional in parameter declarations.
 void fn([:r_int:]);
-class S { S([:r_int:]); };
+void fn(typename [:r_int:]);
+class S {
+  S([:r_int:]);
+  void fn([:r_int:]);
+};
 }  // in_fn_defs
 
                                    // ======

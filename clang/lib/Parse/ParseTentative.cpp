@@ -1482,6 +1482,14 @@ Parser::isCXXDeclarationSpecifier(ImplicitTypenameContext AllowImplicitTypename,
     return isCXXDeclarationSpecifier(AllowImplicitTypename, BracedCastResult,
                                      InvalidAsDeclSpec);
 
+  case tok::annot_splice: {
+    RevertingTentativeParsingAction PA(*this);
+
+    bool IsTypename = AllowImplicitTypename == ImplicitTypenameContext::Yes;
+    return ParseCXXSpliceAsType(IsTypename, false).isInvalid() ?
+           TPResult::False : TPResult::True;
+  }
+
     // decl-specifier:
     //   storage-class-specifier
     //   type-specifier
