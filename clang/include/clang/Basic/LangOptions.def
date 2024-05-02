@@ -302,6 +302,7 @@ LANGOPT(OpenACC           , 1, 0, "OpenACC Enabled")
 
 LANGOPT(Reflection         , 1, 0, "Experimental C++26 Reflection Enabled")
 LANGOPT(ParameterReflection, 1, 0, "Augments C++26 Reflection with function parameter reflection")
+LANGOPT(ExpansionStatements, 1, 0, "Experimental C++26 Expansion Statements")
 
 LANGOPT(SizedDeallocation , 1, 0, "sized deallocation")
 LANGOPT(AlignedAllocation , 1, 0, "aligned allocation")

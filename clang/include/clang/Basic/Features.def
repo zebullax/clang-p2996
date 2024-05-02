@@ -302,6 +302,7 @@ FEATURE(cxx_abi_relative_vtable, LangOpts.CPlusPlus && LangOpts.RelativeCXXABIVT
 
 FEATURE(reflection, LangOpts.Reflection)
 FEATURE(parameter_reflection, LangOpts.ParameterReflection)
+FEATURE(expansion_statements, LangOpts.ExpansionStatements)
 
 // CUDA/HIP Features
 FEATURE(cuda_noinline_keyword, LangOpts.CUDA)

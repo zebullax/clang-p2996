@@ -6258,9 +6258,12 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
   //  - as long as we have a ParmVarDecl whose parent is non-dependent and
   //    whose type is not instantiation dependent, do nothing to the decl
   //  - otherwise find its instantiated decl.
-  if (isa<ParmVarDecl>(D) && !ParentDependsOnArgs &&
-      !cast<ParmVarDecl>(D)->getType()->isInstantiationDependentType())
-    return D;
+  if (isa<ParmVarDecl>(D) && !ParentDependsOnArgs) {
+      if (!cast<ParmVarDecl>(D)->getType()->isInstantiationDependentType() ||
+          SemaRef.CodeSynthesisContexts.back().Kind ==
+                CodeSynthesisContext::ExpansionStmtInstantiation)
+        return D;
+  }
   if (isa<ParmVarDecl>(D) || isa<NonTypeTemplateParmDecl>(D) ||
       isa<TemplateTypeParmDecl>(D) || isa<TemplateTemplateParmDecl>(D) ||
       (ParentDependsOnArgs && (ParentDC->isFunctionOrMethod() ||
@@ -6430,6 +6433,12 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
 
     // Fall through to deal with other dependent record types (e.g.,
     // anonymous unions in class templates).
+  }
+
+  if (CurrentInstantiationScope) {
+    if (auto Found = CurrentInstantiationScope->tryFindInstantiationOf(D))
+      if (auto *FD = dyn_cast<NamedDecl>(Found->get<Decl *>()))
+        return FD;
   }
 
   if (!ParentDependsOnArgs)

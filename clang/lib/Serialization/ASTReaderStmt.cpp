@@ -525,6 +525,27 @@ void ASTStmtReader::VisitValueOfLValueExpr(ValueOfLValueExpr *E) {
   llvm_unreachable("unimplemented");
 }
 
+void ASTStmtReader::VisitCXXIterableExpansionStmt(CXXIterableExpansionStmt *S) {
+  llvm_unreachable("unimplemented");
+}
+
+void ASTStmtReader::VisitCXXDestructurableExpansionStmt(
+                                            CXXDestructurableExpansionStmt *S) {
+  llvm_unreachable("unimplemented");
+}
+
+void ASTStmtReader::VisitCXXInitListExpansionStmt(CXXInitListExpansionStmt *S) {
+  llvm_unreachable("unimplemented");
+}
+
+void ASTStmtReader::VisitCXXExpansionInitListExpr(CXXExpansionInitListExpr *E) {
+  llvm_unreachable("unimplemented");
+}
+
+void ASTStmtReader::VisitCXXExpansionSelectExpr(CXXExpansionSelectExpr *E) {
+  llvm_unreachable("unimplemented");
+}
+
 void ASTStmtReader::VisitDependentCoawaitExpr(DependentCoawaitExpr *E) {
   VisitExpr(E);
   E->KeywordLoc = readSourceLocation();

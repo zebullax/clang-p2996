@@ -1360,6 +1360,7 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Expr::DependentScopeDeclRefExprClass:
   case Expr::CXXFoldExprClass:
   case Expr::RecoveryExprClass:
+  case Expr::CXXDependentMemberSpliceExprClass:
     return CT_Dependent;
 
   case Expr::AsTypeExprClass:
@@ -1396,7 +1397,6 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Expr::CXXMetafunctionExprClass:
   case Expr::CXXIndeterminateSpliceExprClass:
   case Expr::CXXExprSpliceExprClass:
-  case Expr::CXXDependentMemberSpliceExprClass:
   case Expr::StackLocationExprClass:
   case Expr::ValueOfLValueExprClass:
   case Expr::CXXScalarValueInitExprClass:
@@ -1442,6 +1442,11 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Stmt::CoroutineBodyStmtClass:
   case Stmt::CXXCatchStmtClass:
   case Stmt::CXXForRangeStmtClass:
+  case Stmt::CXXDestructurableExpansionStmtClass:
+  case Stmt::CXXExpansionInitListExprClass:
+  case Stmt::CXXExpansionSelectExprClass:
+  case Stmt::CXXInitListExpansionStmtClass:
+  case Stmt::CXXIterableExpansionStmtClass:
   case Stmt::DefaultStmtClass:
   case Stmt::DoStmtClass:
   case Stmt::ForStmtClass:

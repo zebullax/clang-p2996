@@ -455,6 +455,8 @@ private:
       return "BuildingDeductionGuides";
     case CodeSynthesisContext::TypeAliasTemplateInstantiation:
       return "TypeAliasTemplateInstantiation";
+    case CodeSynthesisContext::ExpansionStmtInstantiation:
+      return "ExpansionStmtInstantiation";
     }
     return "";
   }

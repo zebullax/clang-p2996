@@ -9969,6 +9969,9 @@ public:
 
       /// We are instantiating a type alias template declaration.
       TypeAliasTemplateInstantiation,
+
+      /// We are instantiating an expansion statement.
+      ExpansionStmtInstantiation,
     } Kind;
 
     /// Was the enclosing context a non-instantiation SFINAE context?
@@ -10171,6 +10174,12 @@ public:
                           concepts::Requirement *Req,
                           sema::TemplateDeductionInfo &DeductionInfo,
                           SourceRange InstantiationRange = SourceRange());
+
+    /// \brief Note that we are substituting the body of an expansion statement.
+    InstantiatingTemplate(Sema &SemaRef, SourceLocation PointOfInstantiation,
+                          CXXExpansionStmt *ExpansionStmt,
+                          ArrayRef<TemplateArgument> TArgs,
+                          SourceRange InstantiationRange);
 
     /// \brief Note that we are checking the satisfaction of the constraint
     /// expression inside of a nested requirement.
@@ -13051,6 +13060,62 @@ private:
     Sema &S_;
     bool previousEllideAccessControl_ {false};
   };
+
+  ///@}
+
+  //
+  //
+  // -------------------------------------------------------------------------
+  //
+  //
+
+  /// \name P1306 Expansion Statement Constructs
+  /// Implementations are in SemaExpand.cpp
+  ///@{
+
+public:
+  StmtResult ActOnCXXExpansionStmt(Scope *S, SourceLocation TemplateKWLoc,
+                                   SourceLocation ForLoc,
+                                   SourceLocation LParenLoc, Stmt *Init,
+                                   Stmt *ExpansionVarStmt,
+                                   SourceLocation ColonLoc, Expr *Range,
+                                   SourceLocation RParenLoc,
+                                   BuildForRangeKind Kind);
+
+  StmtResult ActOnCXXInitListExpansionStmt(SourceLocation TemplateKWLoc,
+                                           SourceLocation ForLoc,
+                                           SourceLocation LParenLoc, Stmt *Init,
+                                           Stmt *ExpansionVarStmt,
+                                           SourceLocation ColonLoc,
+                                           CXXExpansionInitListExpr *Range,
+                                           SourceLocation RParenLoc,
+                                           Expr *TParmRef,
+                                           BuildForRangeKind Kind);
+
+  StmtResult FinishCXXExpansionStmt(Stmt *Heading, Stmt *Body);
+
+  ExprResult ActOnCXXExpansionInitList(SourceLocation LBraceLoc,
+                                       MultiExprArg SubExprs,
+                                       SourceLocation RBraceLoc);
+
+  ExprResult ActOnCXXExpansionSelectExpr(Expr *Range, Expr *Idx);
+
+  StmtResult BuildCXXInitListExpansionStmt(SourceLocation TemplateKWLoc,
+                                           SourceLocation ForLoc,
+                                           SourceLocation LParenLoc, Stmt *Init,
+                                           Stmt *ExpansionVarStmt,
+                                           SourceLocation ColonLoc,
+                                           CXXExpansionInitListExpr *Range,
+                                           SourceLocation RParenLoc,
+                                           unsigned TemplateDepth,
+                                           BuildForRangeKind Kind);
+
+  ExprResult BuildCXXExpansionInitList(SourceLocation LBraceLoc,
+                                       MultiExprArg SubExprs,
+                                       SourceLocation RBraceLoc);
+
+  ExprResult BuildCXXExpansionSelectExpr(CXXExpansionInitListExpr *Range,
+                                         Expr *Idx);
 
   ///@}
 };

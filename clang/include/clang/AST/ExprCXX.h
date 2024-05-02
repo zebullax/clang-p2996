@@ -4494,7 +4494,6 @@ public:
         Replacement(Replacement),
         AssociatedDeclAndRef(AssociatedDecl, RefParam), Index(Index),
         PackIndex(PackIndex ? *PackIndex + 1 : 0) {
-    assert(AssociatedDecl != nullptr);
     SubstNonTypeTemplateParmExprBits.NameLoc = Loc;
     setDependence(computeDependence(this));
   }
@@ -5834,6 +5833,85 @@ public:
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CXXDependentMemberSpliceExprClass;
+  }
+};
+
+// Represents an expansion-init-list to be expanded over by an expansion
+// statement (C++2c, P1306).
+class CXXExpansionInitListExpr : public Expr {
+  Expr **SubExprs;
+  unsigned NumSubExprs;
+
+  SourceLocation LBraceLoc;
+  SourceLocation RBraceLoc;
+
+  bool ContainsPack;
+
+  CXXExpansionInitListExpr(QualType ResultTy, Expr **SubExprs,
+                           unsigned NumSubExprs, SourceLocation LBraceLoc,
+                           SourceLocation RBraceLoc);
+
+public:
+  static CXXExpansionInitListExpr *Create(const ASTContext &C,
+                                          Expr **SubExprs, unsigned NumSubExprs,
+                                          SourceLocation LBraceLoc,
+                                          SourceLocation RBraceLoc);
+
+  ArrayRef<Expr *> getSubExprs() { return {SubExprs, NumSubExprs}; }
+
+  bool containsPack() const { return ContainsPack; }
+
+  SourceLocation getBeginLoc() const { return getLBraceLoc(); }
+  SourceLocation getEndLoc() const { return getRBraceLoc(); }
+
+  SourceLocation getLBraceLoc() const { return LBraceLoc; }
+  SourceLocation getRBraceLoc() const { return RBraceLoc; }
+
+  child_range children() {
+    return child_range(reinterpret_cast<Stmt **>(SubExprs),
+                       reinterpret_cast<Stmt **>(SubExprs + NumSubExprs));
+  }
+
+  const_child_range children() const {
+    return const_child_range(
+            reinterpret_cast<Stmt **>(const_cast<Expr **>(SubExprs)),
+            reinterpret_cast<Stmt **>(const_cast<Expr **>(SubExprs +
+                                                          NumSubExprs)));
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == CXXExpansionInitListExprClass;
+  }
+};
+
+class CXXExpansionSelectExpr : public Expr {
+  Expr *SubExprs[2];
+
+  CXXExpansionSelectExpr(QualType ResultTy, Expr *Base, Expr *Idx);
+
+public:
+  static CXXExpansionSelectExpr *Create(const ASTContext &C, Expr *Base,
+                                        Expr *Idx);
+
+  Expr *getBase() const { return SubExprs[0]; }
+  Expr *getIdx() const { return SubExprs[1]; }
+
+  SourceLocation getBeginLoc() const { return getBase()->getExprLoc(); }
+  SourceLocation getEndLoc() const { return getBase()->getEndLoc(); }
+
+  child_range children() {
+    return child_range(reinterpret_cast<Stmt **>(SubExprs),
+                       reinterpret_cast<Stmt **>(SubExprs + 2));
+  }
+
+  const_child_range children() const {
+    return const_child_range(
+            reinterpret_cast<Stmt **>(const_cast<Expr **>(SubExprs)),
+            reinterpret_cast<Stmt **>(const_cast<Expr **>(SubExprs + 2)));
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == CXXExpansionSelectExprClass;
   }
 };
 

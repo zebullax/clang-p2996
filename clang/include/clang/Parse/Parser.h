@@ -2134,6 +2134,7 @@ private:
   }
   bool MayBeDesignationStart();
   ExprResult ParseBraceInitializer();
+  ExprResult ParseExpansionInitList();
   struct DesignatorCompletionInfo {
     SmallVectorImpl<Expr *> &InitExprs;
     QualType PreferredBaseType;
@@ -2471,6 +2472,7 @@ private:
   /// Information on a C++0x for-range-initializer found while parsing a
   /// declaration which turns out to be a for-range-declaration.
   struct ForRangeInit {
+    bool ExpansionStmt;
     SourceLocation ColonLoc;
     ExprResult RangeExpr;
     SmallVector<MaterializeTemporaryExpr *, 8> LifetimeExtendTemps;

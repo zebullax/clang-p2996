@@ -522,6 +522,17 @@ enum class TemplateSubstitutionKind : char {
     llvm::PointerUnion<Decl *, DeclArgumentPack *> *
     findInstantiationOf(const Decl *D);
 
+    /// Find the instantiation of the declaration D within the current
+    /// instantiation scope, but return 'nullptr' if instantiation is not found.
+    ///
+    /// \param D The declaration whose instantiation we are searching for.
+    ///
+    /// \returns A pointer to the declaration or argument pack of declarations
+    /// to which the declaration \c D is instantiated, if found. Otherwise,
+    /// returns NULL.
+    llvm::PointerUnion<Decl *, DeclArgumentPack *> *
+    tryFindInstantiationOf(const Decl *D);
+
     void InstantiatedLocal(const Decl *D, Decl *Inst);
     void InstantiatedLocalPackArg(const Decl *D, VarDecl *Inst);
     void MakeInstantiatedLocalArgPack(const Decl *D);

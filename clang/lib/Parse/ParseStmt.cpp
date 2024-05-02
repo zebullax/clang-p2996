@@ -311,6 +311,11 @@ Retry:
   case tok::kw_for:                 // C99 6.8.5.3: for-statement
     return ParseForStatement(TrailingElseLoc);
 
+  case tok::kw_template:            // C++2c: Expansion statement
+    if (NextToken().is(tok::kw_for))
+      return ParseForStatement(TrailingElseLoc);
+    return ParseExprStatement(StmtCtx);
+
   case tok::kw_goto:                // C99 6.8.6.1: goto-statement
     Res = ParseGotoStatement();
     SemiError = "goto";
@@ -1988,6 +1993,16 @@ bool Parser::isForRangeIdentifier() {
 /// [C++0x]   expression
 /// [C++0x]   braced-init-list            [TODO]
 StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
+  SourceLocation TemplateKWLoc;
+  if (Tok.is(tok::kw_template)) {
+    TemplateKWLoc = ConsumeToken();
+    if (!getLangOpts().ExpansionStatements) {
+      Diag(Tok, diag::err_expansion_statements_disabled);
+      SkipUntil(tok::semi);
+      return StmtError();
+    }
+  }
+
   assert(Tok.is(tok::kw_for) && "Not a for stmt!");
   SourceLocation ForLoc = ConsumeToken();  // eat the 'for'.
 
@@ -2022,6 +2037,8 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
   unsigned ScopeFlags = 0;
   if (C99orCXXorObjC)
     ScopeFlags = Scope::DeclScope | Scope::ControlScope;
+  if (TemplateKWLoc.isValid())
+    ScopeFlags |= Scope::TemplateParamScope;
 
   ParseScope ForScope(this, ScopeFlags);
 
@@ -2036,6 +2053,8 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
   ExprResult Collection;
   ForRangeInfo ForRangeInfo;
   FullExprArg ThirdPart(Actions);
+
+  ForRangeInfo.ExpansionStmt = TemplateKWLoc.isValid();
 
   if (Tok.is(tok::code_completion)) {
     cutOffParsing();
@@ -2241,8 +2260,9 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
   }
 
   // Enter a break / continue scope, if we didn't already enter one while
-  // parsing the second part.
-  if (!getCurScope()->isContinueScope())
+  // parsing the second part. Note that break and continue are not permitted
+  // within expansion statements.
+  if (!ForRangeInfo.ExpansionStmt && !getCurScope()->isContinueScope())
     getCurScope()->AddFlags(Scope::BreakScope | Scope::ContinueScope);
 
   // Parse the third part of the for statement.
@@ -2286,11 +2306,17 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
   if (ForRangeInfo.ParsedForRangeDecl()) {
     ExprResult CorrectedRange =
         Actions.CorrectDelayedTyposInExpr(ForRangeInfo.RangeExpr.get());
-    ForRangeStmt = Actions.ActOnCXXForRangeStmt(
-        getCurScope(), ForLoc, CoawaitLoc, FirstPart.get(),
-        ForRangeInfo.LoopVar.get(), ForRangeInfo.ColonLoc, CorrectedRange.get(),
-        T.getCloseLocation(), Sema::BFRK_Build,
-        ForRangeInfo.LifetimeExtendTemps);
+    if (ForRangeInfo.ExpansionStmt) {
+      ForRangeStmt = Actions.ActOnCXXExpansionStmt(
+        getCurScope(), TemplateKWLoc, ForLoc, T.getOpenLocation(),
+        FirstPart.get(), ForRangeInfo.LoopVar.get(), ForRangeInfo.ColonLoc,
+        CorrectedRange.get(), T.getCloseLocation(), Sema::BFRK_Build);
+    } else
+      ForRangeStmt = Actions.ActOnCXXForRangeStmt(
+          getCurScope(), ForLoc, CoawaitLoc, FirstPart.get(),
+          ForRangeInfo.LoopVar.get(), ForRangeInfo.ColonLoc,
+          CorrectedRange.get(), T.getCloseLocation(), Sema::BFRK_Build,
+          ForRangeInfo.LifetimeExtendTemps);
   } else if (ForEach) {
     // Similarly, we need to do the semantic analysis for a for-range
     // statement immediately in order to close over temporaries correctly.
@@ -2348,8 +2374,12 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
    return Actions.FinishObjCForCollectionStmt(ForEachStmt.get(),
                                               Body.get());
 
-  if (ForRangeInfo.ParsedForRangeDecl())
-    return Actions.FinishCXXForRangeStmt(ForRangeStmt.get(), Body.get());
+  if (ForRangeInfo.ParsedForRangeDecl()) {
+    if (ForRangeInfo.ExpansionStmt)
+      return Actions.FinishCXXExpansionStmt(ForRangeStmt.get(), Body.get());
+    else
+      return Actions.FinishCXXForRangeStmt(ForRangeStmt.get(), Body.get());
+  }
 
   return Actions.ActOnForStmt(ForLoc, T.getOpenLocation(), FirstPart.get(),
                               SecondPart, ThirdPart, T.getCloseLocation(),

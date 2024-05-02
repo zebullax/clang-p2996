@@ -101,6 +101,8 @@ class CXXMetafunctionExpr;
 class CXXIndeterminateSpliceExpr;
 class CXXExprSpliceExpr;
 class CXXDependentMemberSpliceExpr;
+class CXXExpansionInitListExpr;
+class CXXExpansionSelectExpr;
 class StackLocationExpr;
 class ValueOfLValueExpr;
 class ArraySectionExpr;
@@ -205,6 +207,9 @@ ExprDependence computeDependence(CXXExprSpliceExpr *E);
 ExprDependence computeDependence(CXXDependentMemberSpliceExpr *E);
 ExprDependence computeDependence(StackLocationExpr *E);
 ExprDependence computeDependence(ValueOfLValueExpr *E);
+
+ExprDependence computeDependence(CXXExpansionInitListExpr *E);
+ExprDependence computeDependence(CXXExpansionSelectExpr *E);
 
 ExprDependence computeDependence(ArraySectionExpr *E);
 ExprDependence computeDependence(OMPArrayShapingExpr *E);

@@ -2339,6 +2339,31 @@ void StmtProfiler::VisitValueOfLValueExpr(const ValueOfLValueExpr *E) {
   VisitDecl(E->getValueDecl());
 }
 
+void StmtProfiler::VisitCXXExpansionInitListExpr(
+                                            const CXXExpansionInitListExpr *E) {
+  VisitExpr(E);
+}
+
+void StmtProfiler::VisitCXXExpansionSelectExpr(
+                                              const CXXExpansionSelectExpr *E) {
+  VisitExpr(E);
+}
+
+void StmtProfiler::VisitCXXInitListExpansionStmt(
+                                            const CXXInitListExpansionStmt *S) {
+  VisitStmt(S);
+}
+
+void StmtProfiler::VisitCXXIterableExpansionStmt(
+                                            const CXXIterableExpansionStmt *S) {
+  VisitStmt(S);
+}
+
+void StmtProfiler::VisitCXXDestructurableExpansionStmt(
+                                      const CXXDestructurableExpansionStmt *S) {
+  VisitStmt(S);
+}
+
 void StmtProfiler::VisitTypoExpr(const TypoExpr *E) {
   VisitExpr(E);
 }

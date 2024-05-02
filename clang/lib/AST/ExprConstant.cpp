@@ -5623,6 +5623,12 @@ static EvalStmtResult EvaluateStmt(StmtResult &Result, EvalInfo &Info,
   case Stmt::CXXTryStmtClass:
     // Evaluate try blocks by evaluating all sub statements.
     return EvaluateStmt(Result, Info, cast<CXXTryStmt>(S)->getTryBlock(), Case);
+
+  case Stmt::CXXIterableExpansionStmtClass:
+  case Stmt::CXXDestructurableExpansionStmtClass:
+  case Stmt::CXXInitListExpansionStmtClass:
+    return EvaluateStmt(Result, Info,
+                        cast<CXXExpansionStmt>(S)->getCombinedStmt(), Case);
   }
 }
 
@@ -16592,6 +16598,8 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CXXExprSpliceExprClass:
   case Expr::StackLocationExprClass:
   case Expr::ValueOfLValueExprClass:
+  case Expr::CXXExpansionInitListExprClass:
+  case Expr::CXXExpansionSelectExprClass:
     return NoDiag();
   case Expr::CallExprClass:
   case Expr::CXXOperatorCallExprClass: {

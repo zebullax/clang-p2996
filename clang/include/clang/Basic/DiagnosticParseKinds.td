@@ -1704,6 +1704,8 @@ def err_export_empty : Error<"export declaration cannot be empty">;
 let CategoryName = "Reflection Issue" in {
 
 def err_cannot_reflect_entity : Error<"cannot reflect entity">;
+def err_expansion_statements_disabled : Error<
+  "'template for' statements are not enabled; use '-fexpansion-statements'">;
 }
 
 let CategoryName = "Generics Issue" in {

@@ -2967,6 +2967,14 @@ DEF_TRAVERSE_STMT(CXXDependentMemberSpliceExpr, {
   TRY_TO(TraverseStmt(S->getBase()));
   TRY_TO(TraverseStmt(S->getRHS()));
 })
+DEF_TRAVERSE_STMT(CXXExpansionInitListExpr, {
+  for (Expr *SubExpr : S->getSubExprs())
+    TRY_TO(TraverseStmt(SubExpr));
+})
+DEF_TRAVERSE_STMT(CXXExpansionSelectExpr, {
+  TRY_TO(TraverseStmt(S->getBase()));
+  TRY_TO(TraverseStmt(S->getIdx()));
+})
 DEF_TRAVERSE_STMT(StackLocationExpr, {})
 DEF_TRAVERSE_STMT(ValueOfLValueExpr, {
   TRY_TO(TraverseDecl(S->getValueDecl()));
@@ -3010,6 +3018,38 @@ DEF_TRAVERSE_STMT(DependentCoawaitExpr, {
 DEF_TRAVERSE_STMT(CoyieldExpr, {
   if (!getDerived().shouldVisitImplicitCode()) {
     TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getOperand());
+    ShouldVisitChildren = false;
+  }
+})
+
+// C++ expansion statements (P1306).
+DEF_TRAVERSE_STMT(CXXIterableExpansionStmt, {
+  if (!getDerived().shouldVisitImplicitCode()) {
+    if (S->getInit())
+      TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getInit());
+    TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getExpansionVarStmt());
+    TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getRange());
+    TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getBody());
+    ShouldVisitChildren = false;
+  }
+})
+DEF_TRAVERSE_STMT(CXXDestructurableExpansionStmt, {
+  if (!getDerived().shouldVisitImplicitCode()) {
+    if (S->getInit())
+      TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getInit());
+    TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getExpansionVarStmt());
+    TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getRange());
+    TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getBody());
+    ShouldVisitChildren = false;
+  }
+})
+DEF_TRAVERSE_STMT(CXXInitListExpansionStmt, {
+  if (!getDerived().shouldVisitImplicitCode()) {
+    if (S->getInit())
+      TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getInit());
+    TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getExpansionVarStmt());
+    TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getRange());
+    TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getBody());
     ShouldVisitChildren = false;
   }
 })

@@ -4554,7 +4554,6 @@ NestedNameSpecifierLoc TreeTransform<Derived>::TransformNestedNameSpecifierLoc(
         // Verify that the resulting type is a tag type.
         if (!Reflection.getAsType()->isRecordType() &&
             !Reflection.getAsType()->isEnumeralType()) {
-          Reflection.getAsType().dump();
           SemaRef.Diag(Splice->getExprLoc(), diag::err_nested_name_spec_non_tag)
               << Reflection.getAsType() << SS.getRange();
           return NestedNameSpecifierLoc();
@@ -8886,6 +8885,106 @@ TreeTransform<Derived>::TransformValueOfLValueExpr(ValueOfLValueExpr *E) {
   return E;
 }
 
+// Expansions Statements (C++2c, P1306).
+
+template <typename Derived>
+StmtResult
+TreeTransform<Derived>::TransformCXXIterableExpansionStmt(
+                                                  CXXIterableExpansionStmt *S) {
+  // TODO(P2996): Implement this.
+  llvm_unreachable("unimplemented");
+}
+
+template <typename Derived>
+StmtResult
+TreeTransform<Derived>::TransformCXXDestructurableExpansionStmt(
+                                            CXXDestructurableExpansionStmt *S) {
+  // TODO(P2996): Implement this.
+  llvm_unreachable("unimplemented");
+}
+
+template <typename Derived>
+StmtResult
+TreeTransform<Derived>::TransformCXXInitListExpansionStmt(
+                                                  CXXInitListExpansionStmt *S) {
+  // If the combined statement has already been formed, just transform that.
+  if (auto *CS = S->getCombinedStmt())
+    return getDerived().TransformStmt(CS);
+
+  // Transform optional init-statement.
+  Stmt *Init = S->getInit();
+  if (Init) {
+    StmtResult SR = getDerived().TransformStmt(Init);
+    if (SR.isInvalid())
+      return StmtError();
+    Init = SR.get();
+  }
+
+  // Transform expansion variable declaration (e.g., could have dependent type).
+  StmtResult SR = getDerived().TransformStmt(S->getExpansionVarStmt());
+  if (SR.isInvalid())
+    return StmtError();
+  DeclStmt *ExpansionVarStmt = cast<DeclStmt>(SR.get());
+
+  // Transform the range.
+  SR = getDerived().TransformStmt(S->getRange());
+  if (SR.isInvalid())
+    return StmtError();
+  CXXExpansionInitListExpr *Range = cast<CXXExpansionInitListExpr>(SR.get());
+
+  // Build a new expansion statement.
+  SR = SemaRef.BuildCXXInitListExpansionStmt(S->getTemplateKWLoc(),
+                                             S->getForLoc(), S->getLParenLoc(),
+                                             Init, ExpansionVarStmt,
+                                             S->getColonLoc(), Range,
+                                             S->getRParenLoc(),
+                                             S->getTemplateDepth(),
+                                             Sema::BFRK_Rebuild);
+  if (SR.isInvalid())
+    return StmtError();
+  Stmt *Rebuilt = SR.get();
+
+  // Transform the body.
+  SR = getDerived().TransformStmt(S->getBody());
+  if (SR.isInvalid())
+    return StmtError();
+  Stmt *Body = SR.get();
+
+  // Finish expanding the statement.
+  SR = SemaRef.FinishCXXExpansionStmt(Rebuilt, Body);
+  if (SR.isInvalid())
+    return StmtError();
+
+  return SR.get();
+}
+
+template <typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformCXXExpansionInitListExpr(
+                                                  CXXExpansionInitListExpr *E) {
+  bool ArgChanged;
+  SmallVector<Expr *> SubExprs;
+  if (getDerived().TransformExprs(E->getSubExprs().data(),
+                                  E->getSubExprs().size(), false, SubExprs,
+                                  &ArgChanged))
+    return ExprError();
+
+  return SemaRef.BuildCXXExpansionInitList(E->getLBraceLoc(), SubExprs,
+                                           E->getRBraceLoc());
+}
+
+template <typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformCXXExpansionSelectExpr(
+                                                  CXXExpansionSelectExpr *E) {
+  ExprResult Base = getDerived().TransformExpr(E->getBase());
+  ExprResult Idx = getDerived().TransformExpr(E->getIdx());
+  if (Base.isInvalid() || Idx.isInvalid())
+    return ExprError();
+
+  return SemaRef.ActOnCXXExpansionSelectExpr(Base.get(), Idx.get());
+}
+
 // Objective-C Statements.
 
 template<typename Derived>
@@ -11935,7 +12034,6 @@ TreeTransform<Derived>::TransformDeclRefExpr(DeclRefExpr *E) {
       Found == E->getFoundDecl() &&
       NameInfo.getName() == E->getDecl()->getDeclName() &&
       !E->hasExplicitTemplateArgs()) {
-
     // Mark it referenced in the new context regardless.
     // FIXME: this is a bit instantiation-specific.
     SemaRef.MarkDeclRefReferenced(E);
@@ -15127,8 +15225,9 @@ TreeTransform<Derived>::TransformPackExpansionExpr(PackExpansionExpr *E) {
   if (!getDerived().AlwaysRebuild() && Pattern.get() == E->getPattern())
     return E;
 
-  return getDerived().RebuildPackExpansion(Pattern.get(), E->getEllipsisLoc(),
+  auto Result = getDerived().RebuildPackExpansion(Pattern.get(), E->getEllipsisLoc(),
                                            E->getNumExpansions());
+  return Result;
 }
 
 template<typename Derived>

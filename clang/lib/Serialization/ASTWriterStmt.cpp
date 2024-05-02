@@ -457,6 +457,14 @@ void ASTStmtWriter::VisitCoyieldExpr(CoyieldExpr *E) {
   Code = serialization::EXPR_COYIELD;
 }
 
+void ASTStmtWriter::VisitDependentCoawaitExpr(DependentCoawaitExpr *E) {
+  VisitExpr(E);
+  Record.AddSourceLocation(E->getKeywordLoc());
+  for (Stmt *S : E->children())
+    Record.AddStmt(S);
+  Code = serialization::EXPR_DEPENDENT_COAWAIT;
+}
+
 void ASTStmtWriter::VisitCXXReflectExpr(CXXReflectExpr *E) {
   VisitExpr(E);
   Record.AddSourceLocation(E->getOperatorLoc());
@@ -503,12 +511,35 @@ void ASTStmtWriter::VisitValueOfLValueExpr(ValueOfLValueExpr *E) {
   Code = serialization::EXPR_VALUE_OF_LVALUE;
 }
 
-void ASTStmtWriter::VisitDependentCoawaitExpr(DependentCoawaitExpr *E) {
+void ASTStmtWriter::VisitCXXIterableExpansionStmt(CXXIterableExpansionStmt *S) {
+  VisitStmt(S);
+  // TODO(P2996): Implement this.
+  Code = serialization::STMT_ITERABLE_EXPANSION;
+}
+
+void ASTStmtWriter::VisitCXXDestructurableExpansionStmt(
+                                            CXXDestructurableExpansionStmt *S) {
+  VisitStmt(S);
+  // TODO(P2996): Implement this.
+  Code = serialization::STMT_DESTRUCTURABLE_EXPANSION;
+}
+
+void ASTStmtWriter::VisitCXXInitListExpansionStmt(CXXInitListExpansionStmt *S) {
+  VisitStmt(S);
+  // TODO(P2996): Implement this.
+  Code = serialization::STMT_INIT_LIST_EXPANSION;
+}
+
+void ASTStmtWriter::VisitCXXExpansionInitListExpr(CXXExpansionInitListExpr *E) {
   VisitExpr(E);
-  Record.AddSourceLocation(E->getKeywordLoc());
-  for (Stmt *S : E->children())
-    Record.AddStmt(S);
-  Code = serialization::EXPR_DEPENDENT_COAWAIT;
+  // TODO(P2996): Implement this.
+  Code = serialization::EXPR_EXPANSION_INIT_LIST;
+}
+
+void ASTStmtWriter::VisitCXXExpansionSelectExpr(CXXExpansionSelectExpr *E) {
+  VisitExpr(E);
+  // TODO(P2996): Implement this.
+  Code = serialization::EXPR_EXPANSION_SELECT;
 }
 
 static void

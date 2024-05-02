@@ -2650,6 +2650,66 @@ void StmtPrinter::VisitValueOfLValueExpr(ValueOfLValueExpr *S) {
   OS << "ValueOfLValue(<Decl>)";
 }
 
+void StmtPrinter::VisitCXXIterableExpansionStmt(
+                                               CXXIterableExpansionStmt *Node) {
+  Indent() << "template for (";
+  if (Node->getInit())
+    PrintInitStmt(Node->getInit(), 14);
+  PrintingPolicy SubPolicy(Policy);
+  SubPolicy.SuppressInitializers = true;
+  Node->getExpansionVariable()->print(OS, SubPolicy, IndentLevel);
+  OS << " : ";
+  PrintExpr(Node->getRange());
+  OS << ")";
+  PrintControlledStmt(Node->getBody());
+}
+
+void StmtPrinter::VisitCXXDestructurableExpansionStmt(
+                                         CXXDestructurableExpansionStmt *Node) {
+  Indent() << "template for (";
+  if (Node->getInit())
+    PrintInitStmt(Node->getInit(), 14);
+  PrintingPolicy SubPolicy(Policy);
+  SubPolicy.SuppressInitializers = true;
+  Node->getExpansionVariable()->print(OS, SubPolicy, IndentLevel);
+  OS << " : ";
+  PrintExpr(Node->getRange());
+  OS << ")";
+  PrintControlledStmt(Node->getBody());
+}
+
+void StmtPrinter::VisitCXXInitListExpansionStmt(
+                                               CXXInitListExpansionStmt *Node) {
+  Indent() << "template for (";
+  if (Node->getInit())
+    PrintInitStmt(Node->getInit(), 14);
+  PrintingPolicy SubPolicy(Policy);
+  SubPolicy.SuppressInitializers = true;
+  Node->getExpansionVariable()->print(OS, SubPolicy, IndentLevel);
+  OS << " : ";
+  PrintExpr(Node->getRange());
+  OS << ")";
+  PrintControlledStmt(Node->getBody());
+}
+
+void StmtPrinter::VisitCXXExpansionInitListExpr(
+                                               CXXExpansionInitListExpr *Node) {
+  OS << "{";
+
+  unsigned idx = 0;
+  for (auto *SubExpr : Node->getSubExprs()) {
+    if (idx++ > 0)
+      OS << ", ";
+    Visit(SubExpr);
+  }
+
+  OS << "}";
+}
+
+void StmtPrinter::VisitCXXExpansionSelectExpr(CXXExpansionSelectExpr *Node) {
+  OS << Node->getBase() << "[" << Node->getIdx() << "]";
+}
+
 // Obj-C
 
 void StmtPrinter::VisitObjCStringLiteral(ObjCStringLiteral *Node) {

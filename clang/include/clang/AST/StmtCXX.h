@@ -524,6 +524,212 @@ public:
   }
 };
 
+/// CXXExpansionStmt - Base class for a C++ expansion statement (P1306).
+///
+class CXXExpansionStmt : public Stmt {
+protected:
+  /// \brief The subexpressions of an expansion include the expansion variable,
+  /// the tuple, pack, or init-list being expanded, and the expansion body.
+  enum {
+    INIT,  ///< Init statement.
+    VAR ,  ///< The variable bound to each instance of the expansion.
+    RANGE, ///< The initializing expression providing the domain of expansion.
+    BODY,  ///< The uninstantiated expansion body.
+    END
+  };
+  Stmt *SubStmts[END];
+
+  unsigned TemplateDepth;
+
+  unsigned NumInstantiations;
+  Stmt *CombinedStmt;
+
+  SourceLocation TemplateKWLoc;
+  SourceLocation ForLoc;
+  SourceLocation LParenLoc;
+  SourceLocation ColonLoc;
+  SourceLocation RParenLoc;
+
+  CXXExpansionStmt(StmtClass SC, Stmt *Init, DeclStmt *ExpansionVar,
+                   Expr *Range, unsigned NumInstantiations,
+                   SourceLocation TemplateKWLoc, SourceLocation ForLoc,
+                   SourceLocation LParenLoc, SourceLocation ColonLoc,
+                   SourceLocation RParenLoc, unsigned Depth);
+  CXXExpansionStmt(StmtClass SC, EmptyShell Empty) : Stmt(SC) { }
+
+  Stmt *const *getStmts() const { return SubStmts; }
+  Stmt **getStmts() { return SubStmts; }
+
+public:
+  SourceLocation getBeginLoc() const LLVM_READONLY {
+    return getTemplateKWLoc();
+  }
+
+  SourceLocation getTemplateKWLoc() const LLVM_READONLY { return TemplateKWLoc; }
+  SourceLocation getForLoc() const LLVM_READONLY { return ForLoc; }
+  SourceLocation getLParenLoc() const LLVM_READONLY { return LParenLoc; }
+  SourceLocation getColonLoc() const LLVM_READONLY { return ColonLoc; }
+  SourceLocation getRParenLoc() const LLVM_READONLY { return RParenLoc; }
+
+  SourceLocation getEndLoc() const LLVM_READONLY {
+    return getBody()->getEndLoc();
+  }
+
+  Stmt *getInit() { return SubStmts[INIT]; }
+  const Stmt *getInit() const {
+    return const_cast<CXXExpansionStmt *>(this)->getInit();
+  }
+
+  DeclStmt *getExpansionVarStmt() { return cast<DeclStmt>(SubStmts[VAR]); }
+  const DeclStmt *getExpansionVarStmt() const {
+    return const_cast<CXXExpansionStmt *>(this)->getExpansionVarStmt();
+  }
+
+  Expr *getRange() { return cast<Expr>(SubStmts[RANGE]); }
+  const Expr *getRange() const {
+    return const_cast<CXXExpansionStmt *>(this)->getRange();
+  }
+  void setRange(Expr *Range) { SubStmts[RANGE] = Range; }
+
+  Stmt *getBody() { return SubStmts[BODY]; }
+  const Stmt *getBody() const {
+    return const_cast<CXXExpansionStmt *>(this)->getBody();
+  }
+  void setBody(Stmt *Body) { SubStmts[BODY] = Body; }
+
+  VarDecl *getExpansionVariable();
+  const VarDecl *getExpansionVariable() const {
+    return const_cast<CXXExpansionStmt *>(this)->getExpansionVariable();
+  }
+
+  unsigned getTemplateDepth() const { return TemplateDepth; }
+
+  unsigned getNumInstantiations() const { return NumInstantiations; }
+  bool hasDependentSize() const;
+
+  Stmt * getCombinedStmt() const {
+    return CombinedStmt;
+  }
+  void setCombinedStmt(Stmt *S) { CombinedStmt = S; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() >= firstCXXExpansionStmtConstant &&
+           T->getStmtClass() <= lastCXXExpansionStmtConstant;
+  }
+
+  child_range children() {
+    return child_range(getStmts(), getStmts() + END);
+  }
+
+  const_child_range children() const {
+    return const_child_range(getStmts(), getStmts() + END);
+  }
+
+  friend class ASTStmtReader;
+};
+
+/// CXXIterableExpansionStmt - Expansion over a iterable expression.
+///
+class CXXIterableExpansionStmt final : public CXXExpansionStmt {
+private:
+  CXXIterableExpansionStmt(Stmt *Init, DeclStmt *ExpansionVar, Expr *Range,
+                           unsigned NumInstantiations,
+                           SourceLocation TemplateKWLoc, SourceLocation ForLoc,
+                           SourceLocation LParenLoc, SourceLocation ColonLoc,
+                           SourceLocation RParenLoc, unsigned Depth)
+      : CXXExpansionStmt(CXXIterableExpansionStmtClass, Init, ExpansionVar,
+                         Range, NumInstantiations, TemplateKWLoc, ForLoc,
+                         LParenLoc, ColonLoc, RParenLoc, Depth) { }
+
+  CXXIterableExpansionStmt(EmptyShell Empty)
+      : CXXExpansionStmt(CXXIterableExpansionStmtClass, Empty) { }
+
+public:
+  static CXXIterableExpansionStmt *Create(const ASTContext &C, Stmt *Init,
+                                          DeclStmt *ExpansionVar, Expr *Range,
+                                          unsigned NumInstantiations,
+                                          SourceLocation TemplateKWLoc,
+                                          SourceLocation ForLoc,
+                                          SourceLocation LParenLoc,
+                                          SourceLocation ColonLoc,
+                                          SourceLocation RParenLoc,
+                                          unsigned Depth);
+
+  static CXXIterableExpansionStmt *Create(const ASTContext &C,
+                                          EmptyShell Empty);
+
+  bool hasDependentSize() const;
+};
+
+/// CXXDestructurableExpansionStmt - Expansion over a destructurable expression.
+///
+class CXXDestructurableExpansionStmt final : public CXXExpansionStmt {
+private:
+  CXXDestructurableExpansionStmt(Stmt *Init, DeclStmt *ExpansionVar,
+                                 Expr *Range, unsigned NumInstantiations,
+                                 SourceLocation TemplateKWLoc,
+                                 SourceLocation ForLoc,
+                                 SourceLocation LParenLoc,
+                                 SourceLocation ColonLoc,
+                                 SourceLocation RParenLoc, unsigned Depth)
+      : CXXExpansionStmt(CXXDestructurableExpansionStmtClass, Init,
+                         ExpansionVar, Range, NumInstantiations, TemplateKWLoc,
+                         ForLoc, LParenLoc, ColonLoc, RParenLoc, Depth) { }
+
+  CXXDestructurableExpansionStmt(EmptyShell Empty)
+      : CXXExpansionStmt(CXXDestructurableExpansionStmtClass, Empty) { }
+
+public:
+  static CXXDestructurableExpansionStmt *Create(const ASTContext &C, Stmt *Init,
+                                                DeclStmt *ExpansionVar,
+                                                Expr *Range,
+                                                unsigned NumInstantiations,
+                                                SourceLocation TemplateKWLoc,
+                                                SourceLocation ForLoc,
+                                                SourceLocation LParenLoc,
+                                                SourceLocation ColonLoc,
+                                                SourceLocation RParenLoc,
+                                                unsigned Depth);
+
+  static CXXDestructurableExpansionStmt *Create(const ASTContext &C,
+                                                EmptyShell Empty);
+
+  bool hasDependentSize() const;
+};
+
+/// CXXInitListExpansionStmt - Expansion over an expansion-init-list.
+///
+class CXXInitListExpansionStmt final : public CXXExpansionStmt {
+private:
+  CXXInitListExpansionStmt(Stmt *Init, DeclStmt *ExpansionVar, Expr *Range,
+                           unsigned NumInstantiations,
+                           SourceLocation TemplateKWLoc, SourceLocation ForLoc,
+                           SourceLocation LParenLoc, SourceLocation ColonLoc,
+                           SourceLocation RParenLoc, unsigned Depth)
+      : CXXExpansionStmt(CXXInitListExpansionStmtClass, Init, ExpansionVar,
+                         Range, NumInstantiations, TemplateKWLoc, ForLoc,
+                         LParenLoc, ColonLoc, RParenLoc, Depth) { }
+
+  CXXInitListExpansionStmt(EmptyShell Empty)
+      : CXXExpansionStmt(CXXInitListExpansionStmtClass, Empty) { }
+
+public:
+  static CXXInitListExpansionStmt *Create(const ASTContext &C, Stmt *Init,
+                                          DeclStmt *ExpansionVar, Expr *Range,
+                                          unsigned NumInstantiations,
+                                          SourceLocation TemplateKWLoc,
+                                          SourceLocation ForLoc,
+                                          SourceLocation LParenLoc,
+                                          SourceLocation ColonLoc,
+                                          SourceLocation RParenLoc,
+                                          unsigned Depth);
+
+  static CXXInitListExpansionStmt *Create(const ASTContext &C,
+                                          EmptyShell Empty);
+
+  bool hasDependentSize() const;
+};
+
 }  // end namespace clang
 
 #endif

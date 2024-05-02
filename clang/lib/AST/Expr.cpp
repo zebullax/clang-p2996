@@ -3636,6 +3636,8 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case CXXDependentMemberSpliceExprClass:
   case StackLocationExprClass:
   case ValueOfLValueExprClass:
+  case CXXExpansionInitListExprClass:
+  case CXXExpansionSelectExprClass:
   case SYCLUniqueStableNameExprClass:
     // These never have a side-effect.
     return false;

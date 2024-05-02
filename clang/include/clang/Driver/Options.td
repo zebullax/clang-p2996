@@ -3400,6 +3400,11 @@ defm parameter_reflection : BoolFOption<"parameter-reflection",
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
           "Enable proposed parameter reflection as described by P3096">,
   NegFlag<SetFalse>>;
+defm expansion_statements : BoolFOption<"expansion-statements",
+  LangOpts<"ExpansionStatements">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option],
+          "Enable proposed expansion statements as described by P1306">,
+  NegFlag<SetFalse>>;
 
 defm sized_deallocation : BoolFOption<"sized-deallocation",
   LangOpts<"SizedDeallocation">, DefaultFalse,

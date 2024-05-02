@@ -2416,7 +2416,8 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
       if (getLangOpts().OpenMP)
         Actions.OpenMP().startOpenMPCXXRangeFor();
       if (Tok.is(tok::l_brace))
-        FRI->RangeExpr = ParseBraceInitializer();
+        FRI->RangeExpr = FRI->ExpansionStmt ? ParseExpansionInitList() :
+                                              ParseBraceInitializer();
       else
         FRI->RangeExpr = ParseExpression();
 

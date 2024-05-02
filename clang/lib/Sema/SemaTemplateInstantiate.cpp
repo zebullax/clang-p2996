@@ -581,6 +581,7 @@ bool Sema::CodeSynthesisContext::isInstantiationRecord() const {
   case PriorTemplateArgumentSubstitution:
   case ConstraintsCheck:
   case NestedRequirementConstraintsCheck:
+  case ExpansionStmtInstantiation:
     return true;
 
   case RequirementInstantiation:
@@ -772,6 +773,15 @@ Sema::InstantiatingTemplate::InstantiatingTemplate(
           PointOfInstantiation, InstantiationRange, /*Entity=*/nullptr,
           /*Template=*/nullptr, /*TemplateArgs=*/std::nullopt, &DeductionInfo) {
 }
+
+Sema::InstantiatingTemplate::InstantiatingTemplate(
+    Sema &SemaRef, SourceLocation PointOfInstantiation,
+    CXXExpansionStmt *ExpansionStmt, ArrayRef<TemplateArgument> TArgs,
+    SourceRange InstantiationRange)
+    : InstantiatingTemplate(
+          SemaRef, CodeSynthesisContext::ExpansionStmtInstantiation,
+          PointOfInstantiation, InstantiationRange, /*Entity=*/nullptr,
+          /*Template=*/nullptr, /*TemplateArgs=*/TArgs) {}
 
 Sema::InstantiatingTemplate::InstantiatingTemplate(
     Sema &SemaRef, SourceLocation PointOfInstantiation,
@@ -1274,6 +1284,9 @@ void Sema::PrintInstantiationStack() {
           << cast<TypeAliasTemplateDecl>(Active->Entity)
           << Active->InstantiationRange;
       break;
+    case CodeSynthesisContext::ExpansionStmtInstantiation:
+      Diags.Report(Active->PointOfInstantiation,
+                   diag::note_expansion_stmt_instantiation_here);
     }
   }
 }
@@ -1302,6 +1315,7 @@ std::optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
     case CodeSynthesisContext::ParameterMappingSubstitution:
     case CodeSynthesisContext::ConstraintNormalization:
     case CodeSynthesisContext::NestedRequirementConstraintsCheck:
+    case CodeSynthesisContext::ExpansionStmtInstantiation:
       // This is a template instantiation, so there is no SFINAE.
       return std::nullopt;
     case CodeSynthesisContext::LambdaExpressionSubstitution:
@@ -4547,7 +4561,7 @@ static const Decl *getCanonicalParmVarDecl(const Decl *D) {
 
 
 llvm::PointerUnion<Decl *, LocalInstantiationScope::DeclArgumentPack *> *
-LocalInstantiationScope::findInstantiationOf(const Decl *D) {
+LocalInstantiationScope::tryFindInstantiationOf(const Decl *D) {
   D = getCanonicalParmVarDecl(D);
   for (LocalInstantiationScope *Current = this; Current;
        Current = Current->Outer) {
@@ -4571,6 +4585,15 @@ LocalInstantiationScope::findInstantiationOf(const Decl *D) {
     if (!Current->CombineWithOuterScope)
       break;
   }
+  return nullptr;
+}
+
+
+llvm::PointerUnion<Decl *, LocalInstantiationScope::DeclArgumentPack *> *
+LocalInstantiationScope::findInstantiationOf(const Decl *D) {
+  // Search for a local instantiation.
+  if (auto *Result = tryFindInstantiationOf(D))
+    return Result;
 
   // If we're performing a partial substitution during template argument
   // deduction, we may not have values for template parameters yet.

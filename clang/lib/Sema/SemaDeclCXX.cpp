@@ -2253,6 +2253,16 @@ CheckConstexprFunctionStmt(Sema &SemaRef, const FunctionDecl *Dcl, Stmt *S,
       return false;
     return true;
 
+  case Stmt::CXXIterableExpansionStmtClass:
+  case Stmt::CXXDestructurableExpansionStmtClass:
+  case Stmt::CXXInitListExpansionStmtClass: {
+    Stmt *CS = cast<CXXExpansionStmt>(S)->getCombinedStmt();
+    if (!CS) return true;
+    return CheckConstexprFunctionStmt(
+            SemaRef, Dcl, cast<CXXExpansionStmt>(S)->getCombinedStmt(),
+            ReturnStmts, Cxx1yLoc, Cxx2aLoc, Cxx2bLoc, Kind);
+  }
+
   default:
     if (!isa<Expr>(S))
       break;
@@ -17670,7 +17680,8 @@ Decl *Sema::BuildStaticAssertDeclaration(SourceLocation StaticAssertLoc,
     // [dcl.pre]/p10  If [...] the expression is evaluated in the context of a
     // template definition, the declaration has no effect.
     bool InTemplateDefinition =
-        getLangOpts().CPlusPlus && CurContext->isDependentContext();
+        getLangOpts().CPlusPlus && (CurContext->isDependentContext() ||
+                                    CurScope->getTemplateParamParent());
 
     if (!Failed && !Cond && !InTemplateDefinition) {
       SmallString<256> MsgBuffer;

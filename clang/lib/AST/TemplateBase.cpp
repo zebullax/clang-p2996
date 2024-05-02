@@ -155,24 +155,6 @@ static void printReflection(const TemplateArgument &TemplArg, raw_ostream &Out,
   Out << "(reflection)";
 }
 
-/// Print a template indeterminate splice argument value.
-///
-/// \param TemplArg the TemplateArgument instance to print.
-///
-/// \param Out the raw_ostream instance to use for printing.
-///
-/// \param Policy the printing policy for EnumConstantDecl printing.
-///
-/// \param IncludeType If set, ensure that the type of the expression printed
-/// matches the type of the template argument.
-static void printIndeterminateSplice(const TemplateArgument &TemplArg,
-                                     raw_ostream &Out,
-                                     const PrintingPolicy &Policy,
-                                     bool IncludeType) {
-  // TODO(P2996): Implement this.
-  Out << "[:reflection-splice:]";
-}
-
 static unsigned getArrayDepth(QualType type) {
   unsigned count = 0;
   while (const auto *arrayType = type->getAsArrayTypeUnsafe()) {

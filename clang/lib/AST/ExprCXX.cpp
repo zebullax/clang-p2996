@@ -2095,6 +2095,41 @@ CXXDependentMemberSpliceExpr *CXXDependentMemberSpliceExpr::Create(
                                               IsArrow, RHS);
 }
 
+CXXExpansionInitListExpr::CXXExpansionInitListExpr(
+        QualType ResultTy, Expr ** SubExprs, unsigned NumSubExprs,
+        SourceLocation LBraceLoc, SourceLocation RBraceLoc)
+    : Expr(CXXExpansionInitListExprClass, ResultTy, VK_PRValue, OK_Ordinary),
+      SubExprs(SubExprs), NumSubExprs(NumSubExprs), LBraceLoc(LBraceLoc),
+      RBraceLoc(RBraceLoc), ContainsPack(false) {
+  for (size_t k = 0; k < NumSubExprs; ++k)
+    if (isa<PackExpansionExpr>(SubExprs[k])) {
+      ContainsPack = true;
+      break;
+    }
+
+  setDependence(computeDependence(this));
+}
+
+CXXExpansionInitListExpr *CXXExpansionInitListExpr::Create(
+        const ASTContext &C, Expr ** SubExprs, unsigned NumSubExprs,
+        SourceLocation LBraceLoc, SourceLocation RBraceLoc) {
+  return new (C) CXXExpansionInitListExpr(C.VoidTy, SubExprs, NumSubExprs,
+                                          LBraceLoc, RBraceLoc);
+}
+
+CXXExpansionSelectExpr::CXXExpansionSelectExpr(QualType ResultTy, Expr *Base,
+                                               Expr *Idx)
+    : Expr(CXXExpansionSelectExprClass, ResultTy, VK_PRValue, OK_Ordinary),
+      SubExprs{Base, Idx} {
+  setDependence(computeDependence(this));
+}
+
+CXXExpansionSelectExpr *CXXExpansionSelectExpr::Create(const ASTContext &C,
+                                                       Expr *Base,
+                                                       Expr *Idx) {
+  return new (C) CXXExpansionSelectExpr(C.DependentTy, Base, Idx);
+}
+
 CUDAKernelCallExpr::CUDAKernelCallExpr(Expr *Fn, CallExpr *Config,
                                        ArrayRef<Expr *> Args, QualType Ty,
                                        ExprValueKind VK, SourceLocation RP,

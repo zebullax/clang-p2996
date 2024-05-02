@@ -201,6 +201,13 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
   case Stmt::CXXForRangeStmtClass:
     EmitCXXForRangeStmt(cast<CXXForRangeStmt>(*S), Attrs);
     break;
+  case Stmt::CXXIterableExpansionStmtClass:
+    llvm_unreachable("not yet implemented for iterable ranges");
+  case Stmt::CXXDestructurableExpansionStmtClass:
+    llvm_unreachable("not yet implemented for destructurable ranges");
+  case Stmt::CXXInitListExpansionStmtClass:
+    EmitStmt(cast<CXXInitListExpansionStmt>(S)->getCombinedStmt(), Attrs);
+    break;
   case Stmt::SEHTryStmtClass:
     EmitSEHTryStmt(cast<SEHTryStmt>(*S));
     break;

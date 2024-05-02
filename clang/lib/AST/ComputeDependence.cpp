@@ -585,7 +585,6 @@ ExprDependence clang::computeDependence(DeclRefExpr *E, const ASTContext &Ctx) {
       Deps |= toExprDependence(Arg->getArgument().getDependence());
   }
 
-  auto *Decl = E->getDecl();
   auto Type = E->getType();
 
   Deps |= toExprDependenceForImpliedType(Type->getDependence()) &
@@ -1008,6 +1007,19 @@ ExprDependence clang::computeDependence(ValueOfLValueExpr *E) {
   return ExprDependence::None;
 }
 
+ExprDependence clang::computeDependence(CXXExpansionInitListExpr *E) {
+  auto D = ExprDependence::None;
+  for (auto *SubExpr : E->getSubExprs())
+    D |= SubExpr->getDependence();
+  return D;
+}
+
+ExprDependence clang::computeDependence(CXXExpansionSelectExpr *E) {
+  auto D = E->getBase()->getDependence() | E->getIdx()->getDependence();
+  if (D & ExprDependence::Value)
+    D |= ExprDependence::Type;
+  return D;
+}
 
 ExprDependence clang::computeDependence(ObjCArrayLiteral *E) {
   auto D = ExprDependence::None;
