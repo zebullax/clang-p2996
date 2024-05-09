@@ -1121,7 +1121,8 @@ public:
   CanQualType Float16Ty; // C11 extension ISO/IEC TS 18661-3
   CanQualType VoidPtrTy, NullPtrTy;
   CanQualType MetaInfoTy;
-  CanQualType DependentTy, OverloadTy, BoundMemberTy, UnknownAnyTy;
+  CanQualType DependentTy, OverloadTy, BoundMemberTy, UnresolvedTemplateTy,
+      UnknownAnyTy;
   CanQualType BuiltinFnTy;
   CanQualType PseudoObjectTy, ARCUnbridgedCastTy;
   CanQualType ObjCBuiltinIdTy, ObjCBuiltinClassTy, ObjCBuiltinSelTy;

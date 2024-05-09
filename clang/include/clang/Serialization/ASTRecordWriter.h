@@ -17,6 +17,7 @@
 #define LLVM_CLANG_SERIALIZATION_ASTRECORDWRITER_H
 
 #include "clang/AST/AbstractBasicWriter.h"
+#include "clang/AST/OpenACCClause.h"
 #include "clang/AST/OpenMPClause.h"
 #include "clang/Serialization/ASTWriter.h"
 #include "clang/Serialization/SourceLocationEncoding.h"
@@ -308,6 +309,8 @@ public:
 
   /// Writes data related to the OpenMP directives.
   void writeOMPChildren(OMPChildren *Data);
+
+  void writeOpenACCVarList(const OpenACCClauseWithVarList *C);
 
   /// Writes out a single OpenACC Clause.
   void writeOpenACCClause(const OpenACCClause *C);

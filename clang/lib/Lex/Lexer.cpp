@@ -4047,7 +4047,7 @@ LexStart:
         Kind = tok::l_splice;
         CurPtr += SizeTmp;
       } else {
-        if (!isLexingRawMode() && !LangOpts.OpenMP)
+        if (!isLexingRawMode() && !LangOpts.OpenMP && !LangOpts.OpenACC)
           Diag(CurPtr, diag::warn_reflection_disabled) << "[:";
         Kind = tok::l_square;
       }
@@ -4381,7 +4381,7 @@ LexStart:
         Kind = tok::r_splice;
         CurPtr = ConsumeChar(CurPtr, SizeTmp, Result);
       } else {
-        if (!isLexingRawMode() && !LangOpts.OpenMP)
+        if (!isLexingRawMode() && !LangOpts.OpenMP && !LangOpts.OpenACC)
           Diag(BufferPtr, diag::warn_reflection_disabled) << ":]";
         Kind = tok::colon;
       }
