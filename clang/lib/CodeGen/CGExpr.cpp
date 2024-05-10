@@ -1509,10 +1509,12 @@ LValue CodeGenFunction::EmitLValue(const Expr *E,
 
 static QualType getConstantExprReferredType(const FullExpr *E,
                                             const ASTContext &Ctx) {
-  const Expr *SE = E->getSubExpr()->IgnoreImplicit();
+  const Expr *SE = E->getSubExpr() ? E->getSubExpr()->IgnoreImplicit() : E;
   if (isa<OpaqueValueExpr>(SE))
     return SE->getType();
-  return cast<CallExpr>(SE)->getCallReturnType(Ctx)->getPointeeType();
+  else if (auto *CE = dyn_cast<CallExpr>(SE))
+    return CE->getCallReturnType(Ctx)->getPointeeType();
+  return E->getType();
 }
 
 LValue CodeGenFunction::EmitLValueHelper(const Expr *E,

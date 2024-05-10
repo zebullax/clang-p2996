@@ -263,7 +263,8 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
         return Cl::CL_PRValue;
       return Cl::CL_LValue;
     }
-    return Cl::CL_PRValue;
+    return ESE->getOperand()->getValueKind() == VK_LValue ? Cl::CL_LValue :
+                                                            Cl::CL_PRValue;
   }
 
   // Subscripting matrix types behaves like member accesses.

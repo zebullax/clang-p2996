@@ -57,6 +57,38 @@ consteval int fn() {
 static_assert(fn() == 33);
 }  // namespace with_variables
 
+                            // =====================
+                            // with_lvalues_and_ptrs
+                            // =====================
+
+namespace with_lvalues_and_ptrs {
+struct S { int first, second; };
+
+S s { .first = 10, .second = 12 };
+void nonConstFn() {
+  constexpr auto r1 = ^s.first;
+  constexpr auto r2 = ^&s.second;
+
+  [:r1:] = 11;
+  *[:r2:] = 22;
+}
+}  // namespace with_lvalues_and_ptrs
+
+                            // =====================
+                            // with_reference_values
+                            // =====================
+
+namespace with_reference_values {
+const int k = 42;
+
+consteval const int &fn() { return k; }
+
+void nonConstFn() {
+  constexpr auto r = ^fn();
+  static_assert([:r:] == 42);
+}
+}  // namespace with_reference_values
+
                                // ==============
                                // with_functions
                                // ==============
@@ -72,9 +104,9 @@ template <info R> consteval int fn() { return [:R:](); }
 static_assert(fn<r_vanilla_fn>() == 42);
 }  // namespace with_functions
 
-// ============================
-// with_shadowed_function_names
-// ============================
+                        // ============================
+                        // with_shadowed_function_names
+                        // ============================
 
 namespace with_shadowed_function_names {
 struct B { consteval char fn() const { return 'B'; } };

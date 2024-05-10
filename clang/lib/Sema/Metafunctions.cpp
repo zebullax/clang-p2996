@@ -709,7 +709,7 @@ static APValue getNthTemplateArgument(Sema &S,
       Expr *TExpr = templArgument.getAsExpr();
 
       APValue ArgResult;
-      bool success = Evaluator(ArgResult, TExpr, true);
+      bool success = Evaluator(ArgResult, TExpr, !TExpr->isLValue());
       assert(success);
 
       if (ArgResult.isReflection())
@@ -741,8 +741,23 @@ static APValue getNthTemplateArgument(Sema &S,
       llvm_unreachable("TemplateArgument::Null not supported");
     case TemplateArgument::NullPtr:
       llvm_unreachable("TemplateArgument::NullPtr not supported");
-    case TemplateArgument::StructuralValue:
-      llvm_unreachable("StructuralValue not implemented");
+    case TemplateArgument::StructuralValue: {
+      QualType QT = templArgument.getStructuralValueType();
+      ExprValueKind VK = VK_PRValue;
+      if (auto *RT = dyn_cast<ReferenceType>(QT)) {
+        QT = RT->getPointeeType();
+        VK = VK_LValue;
+      }
+
+      ConstantExpr *CE =
+          ConstantExpr::CreateEmpty(S.Context,
+                                    ConstantResultStorageKind::APValue);
+      CE->setType(QT);
+      CE->setValueKind(VK);
+      CE->SetResult(templArgument.getAsStructuralValue(), S.Context);
+
+      return APValue(ReflectionValue::RK_const_value, CE);
+    }
     case TemplateArgument::Integral: {
       ConstantExpr *CE =
           ConstantExpr::CreateEmpty(S.Context,
@@ -1901,7 +1916,7 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
         ResultTy.getCanonicalType().getTypePtr())
       return true;
 
-    return !Evaluator(Result, Synthesized, true);
+    return !Evaluator(Result, Synthesized, !Synthesized->isLValue());
   }
   case ReflectionValue::RK_declaration: {
     ValueDecl *Decl = dyn_cast<ValueDecl>(R.getReflectedDecl());

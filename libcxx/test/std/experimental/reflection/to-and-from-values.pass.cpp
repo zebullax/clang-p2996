@@ -115,6 +115,13 @@ namespace value_of_ref_semantics {
     return val + value_of<int>(^arg);
   }
   static_assert(myfn(5) == 9);
+
+  consteval const int &returnsRef() { return constGlobal; }
+
+  void nonConstFn() {
+    constexpr auto r = ^returnsRef();
+    static_assert(value_of<const int &>(r) == 2);
+  }
 }
 
 int main() {

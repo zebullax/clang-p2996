@@ -70,15 +70,19 @@ Expr *CreateRefToDecl(Sema &S, ValueDecl *D,
                                          ExprLoc, &TAListInfo);
     return ER.get();
   } else {
+    QualType QT(D->getType());
     if (isa<EnumConstantDecl>(D))
       ValueKind = VK_PRValue;
     else if (auto *MD = dyn_cast<CXXMethodDecl>(D); MD && !MD->isStatic())
       ValueKind = VK_PRValue;
+    else if (auto *RT = dyn_cast<ReferenceType>(QT)) {
+      QT = RT->getPointeeType();
+      ValueKind = VK_LValue;
+    }
 
     return DeclRefExpr::Create(
         S.Context, NNSLocBuilder.getWithLocInContext(S.Context),
-        SourceLocation(), D, false, ExprLoc, D->getType(), ValueKind, D,
-        nullptr);
+        SourceLocation(), D, false, ExprLoc, QT, ValueKind, D, nullptr);
   }
 }
 }  // anonymous namespace
@@ -389,7 +393,7 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc, Expr *E) {
     Expr::EvalResult ER;
     ER.Diag = &Diags;
 
-    if (!E->EvaluateAsRValue(ER, Context, true)) {
+    if (!E->EvaluateAsConstantExpr(ER, Context)) {
       Diag(E->getExprLoc(), diag::err_reflect_non_constexpr);
       for (PartialDiagnosticAt PD : Diags)
         Diag(PD.first, PD.second);
@@ -710,9 +714,9 @@ ExprResult Sema::BuildReflectionSpliceExpr(
         ExprEvalContexts.back().ImmediateInvocationCandidates.emplace_back(
               cast<ConstantExpr>(Operand), 0);
       }
-      Operand = CXXExprSpliceExpr::Create(Context, VK_PRValue, TemplateKWLoc,
-                                          LSplice, Operand, RSplice, TArgs,
-                                          AllowMemberReference);
+      Operand = CXXExprSpliceExpr::Create(Context, Operand->getValueKind(),
+                                          TemplateKWLoc, LSplice, Operand,
+                                          RSplice, TArgs, AllowMemberReference);
       break;
     }
     case ReflectionValue::RK_template: {
