@@ -124,6 +124,17 @@ namespace value_of_ref_semantics {
   }
 }
 
+                         // ===========================
+                         // reflect_value_ref_semantics
+                         // ===========================
+
+namespace reflect_value_ref_semantics {
+  int nonConstGlobal = 1;
+  const int constGlobal = 2;
+
+  static_assert([:std::meta::reflect_value<const int &>(constGlobal):] == 2);
+}  // namespace reflect_value_ref_semantics
+
 int main() {
   // RUN: grep "call-lambda-value: 1" %t.stdout
   value_of<void(*)(int)>(^[](int id) {
@@ -157,8 +168,16 @@ int main() {
   // RUN: grep "call-generic-lambda-var: true (bool)" %t.stdout
   value_of<void(*)(bool)>(^g)(true);
 
-  // RUN: grep "updated-global: 42" %t.stdout
+  // RUN: grep "updated-value-of-global: 42" %t.stdout
   int &ref = value_of<int &>(^value_of_ref_semantics::nonConstGlobal);
   ref = 42;
-  std::println("updated-global: {}", value_of_ref_semantics::nonConstGlobal);
+  std::println("updated-value-of-global: {}",
+               value_of_ref_semantics::nonConstGlobal);
+
+  // RUN: grep "updated-reflect-value-global: 13" %t.stdout
+  constexpr auto r = std::meta::reflect_value<int &>(
+        reflect_value_ref_semantics::nonConstGlobal);
+  [:r:] = 13;
+  std::println("updated-reflect-value-global: {}",
+               reflect_value_ref_semantics::nonConstGlobal);
 }

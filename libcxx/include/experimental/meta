@@ -783,7 +783,7 @@ consteval auto is_special_member(info r) -> bool {
 // Returns a reflection of the constant value held by the provided argument.
 template <typename Ty>
 consteval auto reflect_value(Ty r) -> info {
-  return __metafunction(detail::__metafn_reflect_value, r);
+  return __metafunction(detail::__metafn_reflect_value, ^Ty, r);
 }
 
 // Returns a reflection of the constant value obtained from calling

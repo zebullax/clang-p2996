@@ -371,7 +371,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_constructor },
   { Metafunction::MFRK_bool, 1, 1, is_destructor },
   { Metafunction::MFRK_bool, 1, 1, is_special_member },
-  { Metafunction::MFRK_metaInfo, 1, 1, reflect_value },
+  { Metafunction::MFRK_metaInfo, 2, 2, reflect_value },
   { Metafunction::MFRK_metaInfo, 3, 3, reflect_invoke },
   { Metafunction::MFRK_metaInfo, 9, 9, data_member_spec },
   { Metafunction::MFRK_metaInfo, 3, 3, define_class },
@@ -2904,15 +2904,23 @@ bool is_special_member(APValue &Result, Sema &S, EvalFn Evaluator,
 bool reflect_value(APValue &Result, Sema &S, EvalFn Evaluator,
                    QualType ResultTy, SourceRange Range,
                    ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+
+  APValue ArgTy;
+  if (!Evaluator(ArgTy, Args[0], true))
+    return true;
+  assert(ArgTy.getReflection().getKind() == ReflectionValue::RK_type);
+  bool IsLValue = isa<ReferenceType>(ArgTy.getReflectedType());
+
   APValue Arg;
-  if (!Evaluator(Arg, Args[0], true))
+  if (!Evaluator(Arg, Args[1], !IsLValue))
     return true;
 
   ConstantExpr *E =
         ConstantExpr::CreateEmpty(S.Context,
                                   ConstantResultStorageKind::APValue);
-  E->setType(Args[0]->getType());
-  E->setValueKind(VK_PRValue);
+  E->setType(Args[1]->getType());
+  E->setValueKind(IsLValue ? VK_LValue : VK_PRValue);
   E->SetResult(Arg, S.Context);
 
   APValue Value(ReflectionValue::RK_const_value, E);
