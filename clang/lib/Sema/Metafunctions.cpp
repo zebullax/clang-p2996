@@ -1416,7 +1416,10 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
   case ReflectionValue::RK_const_value: {
     ConstantExpr *E = R.getReflectedConstValueExpr();
-    return SetAndSucceed(Result, makeReflection(E->getType()));
+    QualType QT = E->getType();
+    if (E->isLValue())
+      QT = S.Context.getLValueReferenceType(QT);
+    return SetAndSucceed(Result, makeReflection(QT));
   }
   case ReflectionValue::RK_declaration: {
     ValueDecl *VD = cast<ValueDecl>(R.getReflectedDecl());

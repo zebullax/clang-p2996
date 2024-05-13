@@ -132,7 +132,9 @@ namespace reflect_value_ref_semantics {
   int nonConstGlobal = 1;
   const int constGlobal = 2;
 
-  static_assert([:std::meta::reflect_value<const int &>(constGlobal):] == 2);
+  constexpr auto r = std::meta::reflect_value<const int &>(constGlobal);
+  static_assert(type_of(r) == ^const int &);
+  static_assert([:r:] == 2);
 }  // namespace reflect_value_ref_semantics
 
 int main() {
@@ -177,6 +179,7 @@ int main() {
   // RUN: grep "updated-reflect-value-global: 13" %t.stdout
   constexpr auto r = std::meta::reflect_value<int &>(
         reflect_value_ref_semantics::nonConstGlobal);
+  static_assert(type_of(r) == ^int &);
   [:r:] = 13;
   std::println("updated-reflect-value-global: {}",
                reflect_value_ref_semantics::nonConstGlobal);
