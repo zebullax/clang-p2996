@@ -52,15 +52,18 @@ struct Cls : NotAMember {
   template <typename T> void TMemFn();
 
   struct Inner { int c; };
+
+  using Alias = int;
 };
 
-static_assert(members_of(^Cls).size() == 12);
+static_assert(members_of(^Cls).size() == 13);
 static_assert(nonstatic_data_members_of(^Cls) ==
               std::vector{^Cls::mem1, ^Cls::mem2});
 static_assert(static_data_members_of(^Cls) == std::vector{^Cls::smem});
 static_assert(members_of(^Cls, std::meta::is_constructor).size() == 2);
 static_assert(members_of(^Cls, std::meta::is_destructor).size() == 1);
-static_assert(members_of(^Cls, std::meta::is_type) == std::vector{^Cls::Inner});
+static_assert(members_of(^Cls, std::meta::is_type) == std::vector{^Cls::Inner,
+                                                                  ^Cls::Alias});
 static_assert(members_of(^Cls, std::meta::is_template) ==
               std::vector{^Cls::TMemFn});
 static_assert(members_of(^Cls, std::meta::is_function,
@@ -70,6 +73,7 @@ static_assert(members_of(^Cls, std::meta::is_function,
                          [](auto R) { return !is_static_member(R) &&
                                              !is_special_member(R); }) ==
               std::vector{^Cls::memfn1, ^Cls::memfn2});
+static_assert(members_of(^Cls, std::meta::is_alias)[0] == ^Cls::Alias);
 
 template <typename T>
 struct TCls {
@@ -96,7 +100,7 @@ void usage_example() {
     return members_of(^Cls, std::meta::is_type).size();
   };
 
-  static_assert(1 == getSz());
+  static_assert(2 == getSz());
   static_assert(^Cls::Inner == members_of(^Cls, std::meta::is_type)[0]);
 
   constexpr auto getInnerObj = []() consteval {

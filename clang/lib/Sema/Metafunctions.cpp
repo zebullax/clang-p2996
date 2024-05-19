@@ -1256,11 +1256,6 @@ bool map_decl_to_entity(APValue &Result, Sema &S, EvalFn Evaluator,
 
   if (auto *TyDecl = dyn_cast<TypeDecl>(D)) {
     QualType QT = S.Context.getTypeDeclType(TyDecl);
-    if (auto *TDND = dyn_cast<TypedefNameDecl>(TyDecl)) {
-      auto TSI = TDND->getTypeSourceInfo();
-      assert(TSI);
-      QT = TSI->getType();
-    }
     return SetAndSucceed(Result, makeReflection(QT));
   } else if (auto *TDecl = dyn_cast<TemplateDecl>(D)) {
     TemplateName TName(TDecl);
