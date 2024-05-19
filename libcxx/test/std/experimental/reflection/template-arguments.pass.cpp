@@ -184,4 +184,18 @@ static_assert(template_arguments_of(^WithReflection<^int>).size() == 1);
 static_assert(template_arguments_of(^WithReflection<^int>)[0] == ^int);
 }  // namespace non_auto_non_types
 
+                   // =======================================
+                   // bb_clang_p2996_issue_41_regression_test
+                   // =======================================
+
+namespace bb_clang_p2996_issue_41_regression_test {
+template<class T> struct TCls {};
+
+TCls<int> obj1;
+TCls<decltype(obj1)> obj2;
+
+static_assert(has_template_arguments(template_arguments_of(^decltype(obj2))[0]) ==
+              has_template_arguments(^TCls<int>));
+}  // namespace bb_clang_p2996_issue_41_regression_test
+
 int main() { }

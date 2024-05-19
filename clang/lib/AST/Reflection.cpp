@@ -41,20 +41,25 @@ QualType ReflectionValue::getAsType() const {
   assert(getKind() == RK_type && "not a type");
 
   QualType QT = QualType::getFromOpaquePtr(Entity);
-  if (const auto *LIT = dyn_cast<LocInfoType>(QT))
-    QT = LIT->getType();
-  if (const auto *ET = dyn_cast<ElaboratedType>(QT)) {
-    QualType New = ET->getNamedType();
-    New.setLocalFastQualifiers(QT.getLocalFastQualifiers());
-    QT = New;
-  }
-  if (const auto *STTPT = dyn_cast<SubstTemplateTypeParmType>(QT))
-    QT = STTPT->getReplacementType();
-  if (const auto *RST = dyn_cast<ReflectionSpliceType>(QT))
-    QT = RST->getUnderlyingType();
-  if (const auto *DTT = dyn_cast<DecltypeType>(QT))
-    QT = DTT->desugar();
 
+  void *AsPtr;
+  do {
+    AsPtr = QT.getAsOpaquePtr();
+
+    if (const auto *LIT = dyn_cast<LocInfoType>(QT))
+      QT = LIT->getType();
+    if (const auto *ET = dyn_cast<ElaboratedType>(QT)) {
+      QualType New = ET->getNamedType();
+      New.setLocalFastQualifiers(QT.getLocalFastQualifiers());
+      QT = New;
+    }
+    if (const auto *STTPT = dyn_cast<SubstTemplateTypeParmType>(QT))
+      QT = STTPT->getReplacementType();
+    if (const auto *RST = dyn_cast<ReflectionSpliceType>(QT))
+      QT = RST->getUnderlyingType();
+    if (const auto *DTT = dyn_cast<DecltypeType>(QT))
+      QT = DTT->desugar();
+  } while (QT.getAsOpaquePtr() != AsPtr);
   return QT;
 }
 
