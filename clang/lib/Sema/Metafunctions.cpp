@@ -2464,15 +2464,8 @@ bool is_explicit(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
+  case ReflectionValue::RK_template:
     return SetAndSucceed(Result, makeBool(S.Context, false));
-  case ReflectionValue::RK_template: {
-    TemplateDecl *TDecl = R.getReflectedTemplate().getAsTemplateDecl();
-    if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TDecl))
-      R = APValue(ReflectionValue::RK_declaration, FTD->getTemplatedDecl());
-    else
-      return SetAndSucceed(Result, makeBool(S.Context, false));
-    [[fallthrough]];
-  }
   case ReflectionValue::RK_declaration: {
     ValueDecl *D = R.getReflectedDecl();
 
@@ -2903,7 +2896,7 @@ bool is_value(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   bool IsValue = false;
   if (R.getReflection().getKind() == ReflectionValue::RK_const_value)
     IsValue = R.getReflectedConstValueExpr()->isPRValue();
-  
+
   return SetAndSucceed(Result, makeBool(S.Context, IsValue));
 }
 
@@ -2921,7 +2914,7 @@ bool is_object(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     IsObject = R.getReflectedConstValueExpr()->isLValue();
   else if (R.getReflection().getKind() == ReflectionValue::RK_declaration)
     IsObject = isa<VarDecl>(R.getReflectedDecl());
-  
+
   return SetAndSucceed(Result, makeBool(S.Context, IsObject));
 }
 

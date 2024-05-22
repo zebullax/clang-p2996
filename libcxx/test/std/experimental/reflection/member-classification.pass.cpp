@@ -339,11 +339,13 @@ static_assert(!is_explicit(^S::TMemFn));
 static_assert(!is_explicit(members_of(^S, std::meta::is_constructor)[0]));
 static_assert(!is_explicit(members_of(^S, std::meta::is_constructor)[1]));
 static_assert(is_explicit(members_of(^S, std::meta::is_constructor)[2]));
-static_assert(is_explicit(members_of(^S, std::meta::is_constructor)[3]));
 static_assert(!is_explicit(^S::operator int));
 static_assert(!is_explicit(members_of(^S, std::meta::is_template)[3]));
 static_assert(is_explicit(^S::operator bool));
-static_assert(is_explicit(members_of(^S, std::meta::is_template)[4]));
+
+// P2996R3 removes support for checking 'explicit' on templates.
+static_assert(!is_explicit(members_of(^S, std::meta::is_constructor)[3]));
+static_assert(!is_explicit(members_of(^S, std::meta::is_template)[4]));
 
 int x;
 void fn();
