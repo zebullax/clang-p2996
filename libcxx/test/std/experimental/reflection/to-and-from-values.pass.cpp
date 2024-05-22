@@ -107,9 +107,19 @@ namespace value_of_ref_semantics {
   static_assert(&value_of<int &>(^nonConstGlobal) == &nonConstGlobal);
   static_assert(value_of<int &>(^constGlobal) == 2);
 
+  const int &constGlobalRef = constGlobal;
+  static_assert(&value_of<const int &>(^constGlobalRef) == &constGlobal);
+
+  // TODO(P2996): Need to decide whether 'value_of' should be legal on locals
+  // within an immediate function context. It isn't legal as spec'd by P2996R3,
+  // but we may want to make it work. Not going to sink more time into making
+  // the commented line below work, until we have a decision.
   consteval int myfn(int arg) {
     int val = 3;
     int &ref = value_of<int &>(^val);
+
+    //int &ref2 = value_of<int &>(^ref);
+    //static_assert(&ref2 == &val);
 
     ref = 4;
     return val + value_of<int>(^arg);

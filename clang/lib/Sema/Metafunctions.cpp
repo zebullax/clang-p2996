@@ -607,6 +607,8 @@ static QualType dealiasType(ASTContext &C, QualType QT) {
     else if (auto *TST = dyn_cast<TemplateSpecializationType>(QT);
              TST && TST->isTypeAlias())
       QT = TST->getAliasedType();
+    else if (auto *AT = dyn_cast<AutoType>(QT))
+      QT = AT->desugar();
     else
       break;
   }
@@ -1885,6 +1887,7 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   assert(Args[1]->getType()->isReflectionType());
 
   bool ReturnsLValue = false;
+  QualType RawResultTy = ResultTy;
   if (auto *LVRT = dyn_cast<LValueReferenceType>(ResultTy)) {
     ReturnsLValue = true;
     ResultTy = LVRT->getPointeeType();
@@ -1928,16 +1931,46 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
 
     Expr *Synthesized;
     if (isa<VarDecl>(Decl) && !isLambda) {
-      if (ResultTy.getCanonicalType().getTypePtr() !=
-          Decl->getType().getCanonicalType().getTypePtr())
-        return true;
+      if (isa<LValueReferenceType>(Decl->getType().getCanonicalType())) {
+        // We have a reflection of an object with reference type.
+        // Synthesize a 'DeclRefExpr' designating the object, such that constant
+        // evaluation resolves the underlying referenced entity.
+        ReturnsLValue = true;
+        if (RawResultTy.getCanonicalType().getTypePtr() !=
+            Decl->getType().getCanonicalType().getTypePtr())
+          return true;
 
-      Synthesized = ValueOfLValueExpr::Create(S.Context, Range, ResultTy,
-                                              Decl);
+        NestedNameSpecifierLocBuilder NNSLocBuilder;
+        if (auto *ParentClsDecl = dyn_cast_or_null<CXXRecordDecl>(
+                Decl->getDeclContext())) {
+          TypeSourceInfo *TSI = S.Context.CreateTypeSourceInfo(
+                  QualType(ParentClsDecl->getTypeForDecl(), 0), 0);
+          NNSLocBuilder.Extend(S.Context, Range.getBegin(), TSI->getTypeLoc(),
+                               Range.getBegin());
+        }
+        Synthesized = DeclRefExpr::Create(S.Context,
+                                          NNSLocBuilder.getTemporary(),
+                                          SourceLocation(), Decl, false,
+                                          Range.getBegin(), ResultTy,
+                                          ReturnsLValue ? VK_LValue :
+                                                          VK_PRValue,
+                                          Decl, nullptr);
+      } else {
+        // We have a reflection of a (possibly local) non-reference variable.
+        // Synthesize an lvalue by reaching up the call stack.
+        if (ResultTy.getCanonicalType().getTypePtr() !=
+            Decl->getType().getCanonicalType().getTypePtr())
+          return true;
+
+        Synthesized = ValueOfLValueExpr::Create(S.Context, Range, ResultTy,
+                                                Decl);
+      }
     } else if (ReturnsLValue) {
       // Only variables may be returned as LValues.
       return true;
     } else {
+      // We have a reflection of a non-variable entity (either a field,
+      // function, enumerator, or lambda).
       NestedNameSpecifierLocBuilder NNSLocBuilder;
       if (auto *ParentClsDecl = dyn_cast_or_null<CXXRecordDecl>(
               Decl->getDeclContext())) {
@@ -1980,7 +2013,8 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
         ResultTy.getCanonicalType().getTypePtr())
       return true;
 
-    return !Evaluator(Result, Synthesized, !ReturnsLValue);
+    auto result = !Evaluator(Result, Synthesized, !ReturnsLValue);
+    return result;
   }
   case ReflectionValue::RK_type:
   case ReflectionValue::RK_template:
