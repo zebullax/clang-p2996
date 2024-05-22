@@ -122,7 +122,7 @@ template <> struct S<2> {};
 
 consteval int nextIncompleteIdx() {
   for (int Idx = 0;; ++Idx)
-    if (is_incomplete_type(substitute(^S, {std::meta::reflect_value(Idx)})))
+    if (is_incomplete_type(substitute(^S, {std::meta::reflect_result(Idx)})))
       return Idx;
 }
 static_assert(is_type(define_class(^S<nextIncompleteIdx()>, {

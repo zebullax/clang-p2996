@@ -50,11 +50,10 @@ consteval auto get_struct_to_tuple_helper() {
 
   std::vector args = {^To, ^From};
   for (auto mem : nonstatic_data_members_of(^From)) {
-    args.push_back(reflect_value(mem));
+    args.push_back(reflect_result(mem));
   }
 
-  return value_of<To(*)(From const&)>(
-    substitute(^struct_to_tuple_helper, args));
+  return extract<To(*)(From const&)>(substitute(^struct_to_tuple_helper, args));
 }
 
 template <typename From>

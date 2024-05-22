@@ -375,7 +375,7 @@ static_assert(!is_bit_field(^S::k));
 static_assert(!is_bit_field(^S));
 static_assert(!is_bit_field(^int));
 static_assert(!is_bit_field(^4));
-static_assert(!is_bit_field(^std::meta::value_of));
+static_assert(!is_bit_field(^std::meta::extract));
 }  // namespace bitfield_members
 
 int main() { }

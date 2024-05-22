@@ -4843,7 +4843,7 @@ recurse:
   case Expr::CXXExprSpliceExprClass:
   case Expr::CXXDependentMemberSpliceExprClass:
   case Expr::StackLocationExprClass:
-  case Expr::ValueOfLValueExprClass:
+  case Expr::ExtractLValueExprClass:
   case Expr::PackIndexingExprClass:
   case Expr::CXXExpansionInitListExprClass:
   case Expr::CXXExpansionSelectExprClass:

@@ -41,13 +41,13 @@ template <int K> struct TCls {
                        // ==============================
 
 namespace reflections_of_argument_values {
-static_assert([:std::meta::reflect_value(42):] == 42);
-static_assert([:std::meta::reflect_value(EnumCls::A):] == EnumCls::A);
-static_assert([:std::meta::reflect_value(ConstVar):] == ConstVar);
-static_assert([:std::meta::reflect_value(ConstexprVar):] == ConstexprVar);
-static_assert([:std::meta::reflect_value(fn):] == &fn);
-static_assert([:std::meta::reflect_value(&Cls::k):] == &Cls::k);
-static_assert([:std::meta::reflect_value(&Cls::fn):] == &Cls::fn);
+static_assert([:std::meta::reflect_result(42):] == 42);
+static_assert([:std::meta::reflect_result(EnumCls::A):] == EnumCls::A);
+static_assert([:std::meta::reflect_result(ConstVar):] == ConstVar);
+static_assert([:std::meta::reflect_result(ConstexprVar):] == ConstexprVar);
+static_assert([:std::meta::reflect_result(fn):] == &fn);
+static_assert([:std::meta::reflect_result(&Cls::k):] == &Cls::k);
+static_assert([:std::meta::reflect_result(&Cls::fn):] == &Cls::fn);
 }  // namespace reflections_of_argument_values
 
                        // ==============================
@@ -57,7 +57,7 @@ static_assert([:std::meta::reflect_value(&Cls::fn):] == &Cls::fn);
 namespace values_of_reflection_arguments {
 template <auto Expected>
 consteval bool CheckValueIs(std::meta::info R) {
-  return value_of<decltype(Expected)>(R) == Expected;
+  return extract<decltype(Expected)>(R) == Expected;
 }
 static_assert(CheckValueIs<42>(^42));
 static_assert(CheckValueIs<EnumCls::A>(^EnumCls::A));
@@ -73,7 +73,8 @@ static_assert(CheckValueIs<42>([]() {
 }()));
 
 [[maybe_unused]] TCls<3> ignored;
-static_assert(CheckValueIs<3>(static_data_members_of(substitute(^TCls, {^3}))[0]));
+static_assert(CheckValueIs<3>(static_data_members_of(substitute(^TCls,
+                                                                {^3}))[0]));
 }  // namespace values_of_reflection_arguments
 
                                   // =========
@@ -83,7 +84,7 @@ static_assert(CheckValueIs<3>(static_data_members_of(substitute(^TCls, {^3}))[0]
 namespace roundtrip {
 template <typename T>
 consteval bool Roundtrip(T value) {
-  return value_of<T>(std::meta::reflect_value(value)) == value;
+  return extract<T>(std::meta::reflect_result(value)) == value;
 }
 static_assert(Roundtrip(42));
 static_assert(Roundtrip(EnumCls::A));
@@ -96,33 +97,33 @@ static_assert(Roundtrip(&Cls::fn));
 static_assert(Roundtrip([] { }));
 }  // namespace roundtrip
 
-                           // ======================
-                           // value_of_ref_semantics
-                           // ======================
+                            // =====================
+                            // extract_ref_semantics
+                            // =====================
 
-namespace value_of_ref_semantics {
+namespace extract_ref_semantics {
   int nonConstGlobal = 1;
   const int constGlobal = 2;
 
-  static_assert(&value_of<int &>(^nonConstGlobal) == &nonConstGlobal);
-  static_assert(value_of<int &>(^constGlobal) == 2);
+  static_assert(&extract<int &>(^nonConstGlobal) == &nonConstGlobal);
+  static_assert(extract<int &>(^constGlobal) == 2);
 
   const int &constGlobalRef = constGlobal;
-  static_assert(&value_of<const int &>(^constGlobalRef) == &constGlobal);
+  static_assert(&extract<const int &>(^constGlobalRef) == &constGlobal);
 
-  // TODO(P2996): Need to decide whether 'value_of' should be legal on locals
+  // TODO(P2996): Need to decide whether 'extract' should be legal on locals
   // within an immediate function context. It isn't legal as spec'd by P2996R3,
   // but we may want to make it work. Not going to sink more time into making
   // the commented line below work, until we have a decision.
   consteval int myfn(int arg) {
     int val = 3;
-    int &ref = value_of<int &>(^val);
+    int &ref = extract<int &>(^val);
 
-    //int &ref2 = value_of<int &>(^ref);
+    //int &ref2 = extract<int &>(^ref);
     //static_assert(&ref2 == &val);
 
     ref = 4;
-    return val + value_of<int>(^arg);
+    return val + extract<int>(^arg);
   }
   static_assert(myfn(5) == 9);
 
@@ -130,31 +131,31 @@ namespace value_of_ref_semantics {
 
   void nonConstFn() {
     constexpr auto r = ^returnsRef();
-    static_assert(value_of<const int &>(r) == 2);
+    static_assert(extract<const int &>(r) == 2);
   }
-}
+}  // namespace extract_ref_semantics
 
-                         // ===========================
-                         // reflect_value_ref_semantics
-                         // ===========================
+                        // ============================
+                        // reflect_result_ref_semantics
+                        // ============================
 
-namespace reflect_value_ref_semantics {
+namespace reflect_result_ref_semantics {
   int nonConstGlobal = 1;
   const int constGlobal = 2;
 
-  constexpr auto r = std::meta::reflect_value<const int &>(constGlobal);
+  constexpr auto r = std::meta::reflect_result<const int &>(constGlobal);
   static_assert(type_of(r) == ^const int &);
   static_assert([:r:] == 2);
-}  // namespace reflect_value_ref_semantics
+}  // namespace reflect_result_ref_semantics
 
 int main() {
   // RUN: grep "call-lambda-value: 1" %t.stdout
-  value_of<void(*)(int)>(^[](int id) {
+  extract<void(*)(int)>(^[](int id) {
     std::println("call-lambda-value: {}", id);
   })(1);
 
   // RUN: grep "call-generic-lambda-value: 2 (int)" %t.stdout
-  value_of<void(*)(int)>(^[](auto id) {
+  extract<void(*)(int)>(^[](auto id) {
     std::println("call-generic-lambda-value: {} ({})", id,
                  name_of(type_of(^id)));
   })(2);
@@ -169,28 +170,28 @@ int main() {
   };
 
   // RUN: grep "call-lambda-var: 1" %t.stdout
-  value_of<void(*)(int)>(^l)(1);
+  extract<void(*)(int)>(^l)(1);
 
   // RUN: grep "call-lambda-var: 2" %t.stdout
-  value_of<decltype(l)>(^l)(2);
+  extract<decltype(l)>(^l)(2);
 
   // RUN: grep "call-generic-lambda-var: 3 (int)" %t.stdout
-  value_of<decltype(g)>(^g)(3);
+  extract<decltype(g)>(^g)(3);
 
   // RUN: grep "call-generic-lambda-var: true (bool)" %t.stdout
-  value_of<void(*)(bool)>(^g)(true);
+  extract<void(*)(bool)>(^g)(true);
 
-  // RUN: grep "updated-value-of-global: 42" %t.stdout
-  int &ref = value_of<int &>(^value_of_ref_semantics::nonConstGlobal);
+  // RUN: grep "updated-extract-global: 42" %t.stdout
+  int &ref = extract<int &>(^extract_ref_semantics::nonConstGlobal);
   ref = 42;
-  std::println("updated-value-of-global: {}",
-               value_of_ref_semantics::nonConstGlobal);
+  std::println("updated-extract-global: {}",
+               extract_ref_semantics::nonConstGlobal);
 
-  // RUN: grep "updated-reflect-value-global: 13" %t.stdout
-  constexpr auto r = std::meta::reflect_value<int &>(
-        reflect_value_ref_semantics::nonConstGlobal);
+  // RUN: grep "updated-reflect-result-global: 13" %t.stdout
+  constexpr auto r = std::meta::reflect_result<int &>(
+        reflect_result_ref_semantics::nonConstGlobal);
   static_assert(type_of(r) == ^int &);
   [:r:] = 13;
-  std::println("updated-reflect-value-global: {}",
-               reflect_value_ref_semantics::nonConstGlobal);
+  std::println("updated-reflect-result-global: {}",
+               reflect_result_ref_semantics::nonConstGlobal);
 }

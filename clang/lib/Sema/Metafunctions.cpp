@@ -102,9 +102,9 @@ static bool substitute(APValue &Result, Sema &S, EvalFn Evaluator,
                        QualType ResultTy, SourceRange Range,
                        ArrayRef<Expr *> Args);
 
-static bool value_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                     QualType ResultTy, SourceRange Range,
-                     ArrayRef<Expr *> Args);
+static bool extract(APValue &Result, Sema &S, EvalFn Evaluator,
+                    QualType ResultTy, SourceRange Range,
+                    ArrayRef<Expr *> Args);
 
 static bool is_public(APValue &Result, Sema &S, EvalFn Evaluator,
                       QualType ResultTy, SourceRange Range,
@@ -252,9 +252,9 @@ static bool is_special_member(APValue &Result, Sema &S, EvalFn Evaluator,
                               QualType ResultTy, SourceRange Range,
                               ArrayRef<Expr *> Args);
 
-static bool reflect_value(APValue &Result, Sema &S, EvalFn Evaluator,
-                          QualType ResultTy, SourceRange Range,
-                          ArrayRef<Expr *> Args);
+static bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args);
 
 static bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
                            QualType ResultTy, SourceRange Range,
@@ -334,7 +334,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_metaInfo, 1, 1, template_of },
   { Metafunction::MFRK_bool, 3, 3, can_substitute },
   { Metafunction::MFRK_metaInfo, 3, 3, substitute },
-  { Metafunction::MFRK_spliceFromArg, 2, 2, value_of },
+  { Metafunction::MFRK_spliceFromArg, 2, 2, extract },
   { Metafunction::MFRK_bool, 1, 1, is_public },
   { Metafunction::MFRK_bool, 1, 1, is_protected },
   { Metafunction::MFRK_bool, 1, 1, is_private },
@@ -371,7 +371,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_constructor },
   { Metafunction::MFRK_bool, 1, 1, is_destructor },
   { Metafunction::MFRK_bool, 1, 1, is_special_member },
-  { Metafunction::MFRK_metaInfo, 2, 2, reflect_value },
+  { Metafunction::MFRK_metaInfo, 2, 2, reflect_result },
   { Metafunction::MFRK_metaInfo, 3, 3, reflect_invoke },
   { Metafunction::MFRK_metaInfo, 9, 9, data_member_spec },
   { Metafunction::MFRK_metaInfo, 3, 3, define_class },
@@ -1881,8 +1881,8 @@ bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
 }
 
 
-bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
-              SourceRange Range, ArrayRef<Expr *> Args) {
+bool extract(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
+             SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
   assert(Args[1]->getType()->isReflectionType());
 
@@ -1962,7 +1962,7 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
             Decl->getType().getCanonicalType().getTypePtr())
           return true;
 
-        Synthesized = ValueOfLValueExpr::Create(S.Context, Range, ResultTy,
+        Synthesized = ExtractLValueExpr::Create(S.Context, Range, ResultTy,
                                                 Decl);
       }
     } else if (ReturnsLValue) {
@@ -2933,9 +2933,9 @@ bool is_special_member(APValue &Result, Sema &S, EvalFn Evaluator,
   llvm_unreachable("invalid reflection type");
 }
 
-bool reflect_value(APValue &Result, Sema &S, EvalFn Evaluator,
-                   QualType ResultTy, SourceRange Range,
-                   ArrayRef<Expr *> Args) {
+bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
+                    QualType ResultTy, SourceRange Range,
+                    ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
 
   APValue ArgTy;

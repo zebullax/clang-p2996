@@ -33,7 +33,7 @@ namespace std::meta {
     }
 
     consteval auto type_tuple_size(info type) -> size_t {
-        return value_of<size_t>(substitute(^std::tuple_size_v, {type}));
+        return extract<size_t>(substitute(^std::tuple_size_v, {type}));
     }
 }
 
@@ -60,7 +60,7 @@ consteval auto subst_by_value(std::meta::info tmpl, std::vector<T> args)
 {
     std::vector<std::meta::info> a2;
     for (T x : args) {
-        a2.push_back(std::meta::reflect_value(x));
+        a2.push_back(std::meta::reflect_result(x));
     }
 
     return substitute(tmpl, a2);

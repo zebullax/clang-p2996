@@ -521,7 +521,7 @@ void ASTStmtReader::VisitStackLocationExpr(StackLocationExpr *E) {
   llvm_unreachable("unimplemented");
 }
 
-void ASTStmtReader::VisitValueOfLValueExpr(ValueOfLValueExpr *E) {
+void ASTStmtReader::VisitExtractLValueExpr(ExtractLValueExpr *E) {
   llvm_unreachable("unimplemented");
 }
 

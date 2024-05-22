@@ -1003,7 +1003,7 @@ ExprDependence clang::computeDependence(StackLocationExpr *E) {
   return ExprDependence::None;
 }
 
-ExprDependence clang::computeDependence(ValueOfLValueExpr *E) {
+ExprDependence clang::computeDependence(ExtractLValueExpr *E) {
   return ExprDependence::None;
 }
 

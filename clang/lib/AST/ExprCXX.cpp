@@ -2064,17 +2064,17 @@ StackLocationExpr *StackLocationExpr::Create(ASTContext &C, SourceRange Range,
   return new (C) StackLocationExpr(C.MetaInfoTy, Range, FrameOffset);
 }
 
-ValueOfLValueExpr::ValueOfLValueExpr(QualType ResultTy, SourceRange Range,
+ExtractLValueExpr::ExtractLValueExpr(QualType ResultTy, SourceRange Range,
                                      ValueDecl *Decl)
-    : Expr(ValueOfLValueExprClass, ResultTy, VK_LValue, OK_Ordinary),
+    : Expr(ExtractLValueExprClass, ResultTy, VK_LValue, OK_Ordinary),
       Range(Range), Decl(Decl) {
   setDependence(computeDependence(this));
 }
 
-ValueOfLValueExpr *ValueOfLValueExpr::Create(ASTContext &C, SourceRange Range,
+ExtractLValueExpr *ExtractLValueExpr::Create(ASTContext &C, SourceRange Range,
                                              QualType ResultTy,
                                              ValueDecl *Decl) {
-  return new (C) ValueOfLValueExpr(ResultTy, Range, Decl);
+  return new (C) ExtractLValueExpr(ResultTy, Range, Decl);
 }
 
 CXXDependentMemberSpliceExpr::CXXDependentMemberSpliceExpr(

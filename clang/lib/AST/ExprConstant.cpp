@@ -8612,7 +8612,7 @@ public:
     }
   }
 
-  bool VisitValueOfLValueExpr(const ValueOfLValueExpr *E);
+  bool VisitExtractLValueExpr(const ExtractLValueExpr *E);
 };
 } // end anonymous namespace
 
@@ -9026,7 +9026,7 @@ bool LValueExprEvaluator::VisitBinAssign(const BinaryOperator *E) {
                           NewVal);
 }
 
-bool LValueExprEvaluator::VisitValueOfLValueExpr(const ValueOfLValueExpr *E) {
+bool LValueExprEvaluator::VisitExtractLValueExpr(const ExtractLValueExpr *E) {
   CallStackFrame *Frame = Info.CurrentCall;
   do {
     if (Frame->getCurrentTemporary(E->getValueDecl())) {
@@ -16597,7 +16597,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CXXIndeterminateSpliceExprClass:
   case Expr::CXXExprSpliceExprClass:
   case Expr::StackLocationExprClass:
-  case Expr::ValueOfLValueExprClass:
+  case Expr::ExtractLValueExprClass:
   case Expr::CXXExpansionInitListExprClass:
   case Expr::CXXExpansionSelectExprClass:
     return NoDiag();

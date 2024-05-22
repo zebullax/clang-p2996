@@ -54,9 +54,9 @@ consteval auto enumerators_of(info enum_type) -> vector<info>;
 consteval auto can_substitute(info templ, span<info const>) -> bool;
 consteval auto substitute(info templ, span<info const>) -> info;
 
-// value_of
+// extract<T>
 template <typename Ty>
-  consteval auto value_of(info) -> T;
+  consteval auto extract(info) -> T;
 
 // test_type
 consteval auto test_type(info templ, info type) -> bool;
@@ -100,9 +100,9 @@ consteval auto is_constructor(info) -> bool;
 consteval auto is_destructor(info) -> bool;
 consteval auto is_special_member(info) -> bool;
 
-// reflect_value
+// reflect_result
 template <typename Ty>
-  consteval auto reflect_value(T value) -> info;
+  consteval auto reflect_result(T value) -> info;
 
 // reflect_invoke
 consteval auto reflect_invoke(info target, span<info const> args) -> info;
@@ -167,7 +167,7 @@ enum : unsigned {
   __metafn_template_of,
   __metafn_can_substitute,
   __metafn_substitute,
-  __metafn_value_of,
+  __metafn_extract,
   __metafn_is_public,
   __metafn_is_protected,
   __metafn_is_private,
@@ -204,7 +204,7 @@ enum : unsigned {
   __metafn_is_constructor,
   __metafn_is_destructor,
   __metafn_is_special_member,
-  __metafn_reflect_value,
+  __metafn_reflect_result,
   __metafn_reflect_invoke,
   __metafn_data_member_spec,
   __metafn_define_class,
@@ -218,6 +218,10 @@ enum : unsigned {
   __metafn_get_ith_parameter_of,
   __metafn_has_consistent_name,
   __metafn_has_default_argument,
+
+  // Deprecated names
+  __metafn_value_of,
+  __metafn_reflect_value,
 };
 
 }  // namespace detail
@@ -612,14 +616,15 @@ consteval auto substitute(info templ, span<info const> args) -> info {
                         args.data(), args.size());
 }
 
-// Returns the value of 'r' if 'r' is a reflection of a value having type 'T'.
+// Returns the value or object from 'r' if 'r' is a reflection of a value
+// or object having type 'T'.
 template <typename Ty> requires (!std::is_rvalue_reference_v<Ty>)
-consteval auto value_of(info r) -> Ty {
-  return __metafunction(detail::__metafn_value_of, ^Ty, r);
+consteval auto extract(info r) -> Ty {
+  return __metafunction(detail::__metafn_extract, ^Ty, r);
 }
 
 consteval auto test_types(info templ, span<info const> args) -> bool {
-  return value_of<bool>(substitute(templ, args));
+  return extract<bool>(substitute(templ, args));
 }
 
 consteval auto test_type(info templ, info type) -> bool {
@@ -782,8 +787,8 @@ consteval auto is_special_member(info r) -> bool {
 
 // Returns a reflection of the constant value held by the provided argument.
 template <typename Ty>
-consteval auto reflect_value(Ty r) -> info {
-  return __metafunction(detail::__metafn_reflect_value, ^Ty, r);
+consteval auto reflect_result(Ty r) -> info {
+  return __metafunction(detail::__metafn_reflect_result, ^Ty, r);
 }
 
 // Returns a reflection of the constant value obtained from calling
@@ -871,6 +876,20 @@ consteval auto has_default_argument(info r) -> bool {
 }
 
 #endif  // __has_feature(parameter_reflection)
+
+// Deprecated names
+
+template <typename Ty>
+[[deprecated("renamed to 'std::meta::extract<T>' in P2996R3")]]
+consteval auto value_of(info r) -> Ty {
+  return extract<Ty>(r);
+}
+
+template <typename Ty>
+[[deprecated("renamed to 'std::meta::reflect_result<T>' in P2996R3")]]
+consteval auto reflect_value(Ty r) -> info {
+  return reflect_result<Ty>(r);
+}
 
 _LIBCPP_END_NAMESPACE_META_V2
 

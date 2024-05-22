@@ -2646,8 +2646,8 @@ void StmtPrinter::VisitStackLocationExpr(StackLocationExpr *S) {
   OS << "StackLoc(" << S->getFrameOffset() << ")";
 }
 
-void StmtPrinter::VisitValueOfLValueExpr(ValueOfLValueExpr *S) {
-  OS << "ValueOfLValue(<Decl>)";
+void StmtPrinter::VisitExtractLValueExpr(ExtractLValueExpr *S) {
+  OS << "ExtractLValue(<Decl>)";
 }
 
 void StmtPrinter::VisitCXXIterableExpansionStmt(

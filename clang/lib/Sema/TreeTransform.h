@@ -8881,7 +8881,7 @@ TreeTransform<Derived>::TransformStackLocationExpr(StackLocationExpr *E) {
 
 template <typename Derived>
 ExprResult
-TreeTransform<Derived>::TransformValueOfLValueExpr(ValueOfLValueExpr *E) {
+TreeTransform<Derived>::TransformExtractLValueExpr(ExtractLValueExpr *E) {
   return E;
 }
 

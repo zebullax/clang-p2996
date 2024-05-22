@@ -2976,7 +2976,7 @@ DEF_TRAVERSE_STMT(CXXExpansionSelectExpr, {
   TRY_TO(TraverseStmt(S->getIdx()));
 })
 DEF_TRAVERSE_STMT(StackLocationExpr, {})
-DEF_TRAVERSE_STMT(ValueOfLValueExpr, {
+DEF_TRAVERSE_STMT(ExtractLValueExpr, {
   TRY_TO(TraverseDecl(S->getValueDecl()));
 })
 DEF_TRAVERSE_STMT(CXXParenListInitExpr, {})

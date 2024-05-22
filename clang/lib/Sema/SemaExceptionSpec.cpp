@@ -1398,7 +1398,7 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Expr::CXXIndeterminateSpliceExprClass:
   case Expr::CXXExprSpliceExprClass:
   case Expr::StackLocationExprClass:
-  case Expr::ValueOfLValueExprClass:
+  case Expr::ExtractLValueExprClass:
   case Expr::CXXScalarValueInitExprClass:
   case Expr::CXXThisExprClass:
   case Expr::CXXUuidofExprClass:

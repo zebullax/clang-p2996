@@ -505,10 +505,10 @@ void ASTStmtWriter::VisitStackLocationExpr(StackLocationExpr *E) {
   Code = serialization::EXPR_STACK_LOCATION;
 }
 
-void ASTStmtWriter::VisitValueOfLValueExpr(ValueOfLValueExpr *E) {
+void ASTStmtWriter::VisitExtractLValueExpr(ExtractLValueExpr *E) {
   VisitExpr(E);
   // TODO(P2996): Implement this.
-  Code = serialization::EXPR_VALUE_OF_LVALUE;
+  Code = serialization::EXPR_EXTRACT_LVALUE;
 }
 
 void ASTStmtWriter::VisitCXXIterableExpansionStmt(CXXIterableExpansionStmt *S) {

@@ -29,25 +29,25 @@ namespace basic_functions {
 // No parameters.
 consteval int fn0() { return 42; }
 static_assert([:reflect_invoke(^fn0, {}):] == 42);
-static_assert(value_of<int>(reflect_invoke(^fn0, {})) == 42);
+static_assert(extract<int>(reflect_invoke(^fn0, {})) == 42);
 
 // Single parameter.
 consteval int fn1(int i1) { return i1 + 42; }
 static_assert([:reflect_invoke(^fn1, {^fn0()}):] == 84);
-static_assert(value_of<int>(reflect_invoke(^fn1, {reflect_invoke(^fn0, {})})) ==
+static_assert(extract<int>(reflect_invoke(^fn1, {reflect_invoke(^fn0, {})})) ==
               84);
 
 // Multiple parameters.
 consteval int f2(int i1, int i2) { return 42 + i1 + i2; }
 static_assert([:reflect_invoke(^f2, {^1, ^2}):] == 45);
-static_assert(value_of<int>(reflect_invoke(^f2, {^1, ^2})) == 45);
+static_assert(extract<int>(reflect_invoke(^f2, {^1, ^2})) == 45);
 
 // 'std::meta::info'-type parameter.
 using Alias = int;
 consteval bool isType(std::meta::info R) { return is_type(R); }
 static_assert([:reflect_invoke(^isType, {^^int}):]);
 static_assert(![:reflect_invoke(^isType, {^^isType}):]);
-static_assert(value_of<bool>(reflect_invoke(^isType, {^^Alias})));
+static_assert(extract<bool>(reflect_invoke(^isType, {^^Alias})));
 
 // Static member function.
 struct Cls {
@@ -115,7 +115,7 @@ template <typename T, template <typename, size_t> class C, size_t Sz>
 consteval bool FirstElemZero(C<T, Sz> Container) { return Container[0] == 0; }
 static_assert(
         [:reflect_invoke(substitute(^FirstElemZero, {^int, ^std::array, ^4}),
-                         {std::meta::reflect_value(std::array{0,2,3,4})}):]);
+                         {std::meta::reflect_result(std::array{0,2,3,4})}):]);
 
 }  // namespace function_templates
 

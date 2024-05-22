@@ -2335,7 +2335,7 @@ void StmtProfiler::VisitStackLocationExpr(const StackLocationExpr *E) {
   VisitExpr(E);
 }
 
-void StmtProfiler::VisitValueOfLValueExpr(const ValueOfLValueExpr *E) {
+void StmtProfiler::VisitExtractLValueExpr(const ExtractLValueExpr *E) {
   VisitDecl(E->getValueDecl());
 }
 

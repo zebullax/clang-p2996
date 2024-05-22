@@ -48,7 +48,7 @@ void foo(int param) {
 
     // Check that it works with reflections of templates.
     constexpr std::string_view meta_loc =
-          source_location_of(^std::meta::value_of).file_name();
+          source_location_of(^std::meta::extract).file_name();
     static_assert(meta_loc.ends_with("/meta"));
 
     // Check that it works with built-ins.

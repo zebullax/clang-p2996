@@ -5593,14 +5593,14 @@ public:
 // Implementation detail of the 'value_of' metafunction.
 // Used to "reach up the stack" of a constant evaluation to obtain the "most
 // recent LValue" associated with a particular variable.
-class ValueOfLValueExpr : public Expr {
+class ExtractLValueExpr : public Expr {
   SourceRange Range;
   ValueDecl *Decl;
 
-  ValueOfLValueExpr(QualType ResultTy, SourceRange Range, ValueDecl *VD);
+  ExtractLValueExpr(QualType ResultTy, SourceRange Range, ValueDecl *VD);
 
 public:
-  static ValueOfLValueExpr *Create(ASTContext &C, SourceRange Range,
+  static ExtractLValueExpr *Create(ASTContext &C, SourceRange Range,
                                    QualType ResultTy, ValueDecl *VD);
 
   ValueDecl *getValueDecl() const {
