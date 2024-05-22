@@ -148,6 +148,23 @@ namespace reflect_result_ref_semantics {
   static_assert([:r:] == 2);
 }  // namespace reflect_result_ref_semantics
 
+                             // ===================
+                             // values_from_objects
+                             // ===================
+
+namespace values_from_objects {
+
+const int constGlobal = 11;
+constexpr auto rref = std::meta::reflect_result<const int &>(constGlobal);
+
+static_assert(value_of(^constGlobal) != ^constGlobal);
+static_assert([:value_of(^constGlobal):] == 11);
+static_assert([:value_of(rref):] == 11);
+static_assert(value_of(^constGlobal) == value_of(rref));
+static_assert(value_of(^constGlobal) == std::meta::reflect_result(11));
+
+}  // namespace values_from_objects
+
 int main() {
   // RUN: grep "call-lambda-value: 1" %t.stdout
   extract<void(*)(int)>(^[](int id) {

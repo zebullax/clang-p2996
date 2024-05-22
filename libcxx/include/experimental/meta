@@ -36,6 +36,9 @@ consteval auto type_of(info) -> info;
 consteval auto parent_of(info) -> info;
 consteval auto dealias(info) -> info;
 
+// value queries
+consteval auto value_of(info) -> info;
+
 // template queries
 consteval auto template_of(info r) -> info;
 consteval auto template_arguments_of(info r) -> vector<info>;
@@ -164,6 +167,7 @@ enum : unsigned {
   __metafn_type_of,
   __metafn_parent_of,
   __metafn_dealias,
+  __metafn_value_of,
   __metafn_template_of,
   __metafn_can_substitute,
   __metafn_substitute,
@@ -200,6 +204,8 @@ enum : unsigned {
   __metafn_is_class_template,
   __metafn_is_alias_template,
   __metafn_is_concept,
+  __metafn_is_value,
+  __metafn_is_object,
   __metafn_has_template_arguments,
   __metafn_is_constructor,
   __metafn_is_destructor,
@@ -218,10 +224,6 @@ enum : unsigned {
   __metafn_get_ith_parameter_of,
   __metafn_has_consistent_name,
   __metafn_has_default_argument,
-
-  // Deprecated names
-  __metafn_value_of,
-  __metafn_reflect_value,
 };
 
 }  // namespace detail
@@ -472,6 +474,11 @@ consteval auto parent_of(info r) -> info {
 // Returns a reflection of the canonical type for the reflected type.
 consteval auto dealias(info r) -> info {
   return __metafunction(detail::__metafn_dealias, r);
+}
+
+// Returns a reflection of the value evaluated from the reflected entity.
+consteval auto value_of(info r) -> info {
+  return __metafunction(detail::__metafn_value_of, r);
 }
 
 // Returns a reflection of the template from which the reflected entity was
@@ -763,6 +770,16 @@ consteval auto is_alias_template(info r) -> bool {
 // Returns true if the reflected entity is a concept.
 consteval auto is_concept(info r) -> bool {
   return __metafunction(detail::__metafn_is_concept, r);
+}
+
+// Returns true if the reflected entity is a value.
+consteval auto is_value(info r) -> bool {
+  return __metafunction(detail::__metafn_is_value, r);
+}
+
+// Returns true if the reflected entity is an object.
+consteval auto is_object(info r) -> bool {
+  return __metafunction(detail::__metafn_is_object, r);
 }
 
 // Returns if the type has template arguments

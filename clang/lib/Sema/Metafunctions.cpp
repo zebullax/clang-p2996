@@ -90,6 +90,10 @@ static bool dealias(APValue &Result, Sema &S, EvalFn Evaluator,
                     QualType ResultTy, SourceRange Range,
                     ArrayRef<Expr *> Args);
 
+static bool value_of(APValue &Result, Sema &S, EvalFn Evaluator,
+                     QualType ResultTy, SourceRange Range,
+                     ArrayRef<Expr *> Args);
+
 static bool template_of(APValue &Result, Sema &S, EvalFn Evaluator,
                         QualType ResultTy, SourceRange Range,
                         ArrayRef<Expr *> Args);
@@ -236,6 +240,14 @@ static bool is_concept(APValue &Result, Sema &S, EvalFn Evaluator,
                        QualType ResultTy, SourceRange Range,
                        ArrayRef<Expr *> Args);
 
+static bool is_value(APValue &Result, Sema &S, EvalFn Evaluator,
+                     QualType ResultTy, SourceRange Range,
+                     ArrayRef<Expr *> Args);
+
+static bool is_object(APValue &Result, Sema &S, EvalFn Evaluator,
+                      QualType ResultTy, SourceRange Range,
+                      ArrayRef<Expr *> Args);
+
 static bool has_template_arguments(APValue &Result, Sema &S, EvalFn Evaluator,
                                    QualType ResultTy, SourceRange Range,
                                    ArrayRef<Expr *> Args);
@@ -331,6 +343,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_metaInfo, 1, 1, type_of },
   { Metafunction::MFRK_metaInfo, 1, 1, parent_of },
   { Metafunction::MFRK_metaInfo, 1, 1, dealias },
+  { Metafunction::MFRK_metaInfo, 1, 1, value_of },
   { Metafunction::MFRK_metaInfo, 1, 1, template_of },
   { Metafunction::MFRK_bool, 3, 3, can_substitute },
   { Metafunction::MFRK_metaInfo, 3, 3, substitute },
@@ -367,6 +380,8 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_class_template },
   { Metafunction::MFRK_bool, 1, 1, is_alias_template },
   { Metafunction::MFRK_bool, 1, 1, is_concept },
+  { Metafunction::MFRK_bool, 1, 1, is_value },
+  { Metafunction::MFRK_bool, 1, 1, is_object },
   { Metafunction::MFRK_bool, 1, 1, has_template_arguments },
   { Metafunction::MFRK_bool, 1, 1, is_constructor },
   { Metafunction::MFRK_bool, 1, 1, is_destructor },
@@ -1495,6 +1510,79 @@ bool dealias(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   }
   }
   llvm_unreachable("unknown reflection kind");
+}
+
+bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
+              SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.MetaInfoTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  switch (R.getReflection().getKind()) {
+  case ReflectionValue::RK_const_value: {
+    ConstantExpr *E = R.getReflectedConstValueExpr();
+    if (!E->isLValue())
+      return SetAndSucceed(Result, R);
+
+    ImplicitCastExpr *RVExpr = ImplicitCastExpr::Create(S.Context,
+                                                        S.Context.MetaInfoTy,
+                                                        CK_LValueToRValue,
+                                                        E, nullptr, VK_PRValue,
+                                                        FPOptionsOverride());
+
+    Expr::EvalResult ER;
+    if (!RVExpr->EvaluateAsRValue(ER, S.Context, true))
+      return true;
+
+    ConstantExpr *CE =
+        ConstantExpr::CreateEmpty(S.Context,
+                                  ConstantResultStorageKind::APValue);
+    CE->setType(E->getType());
+    CE->setValueKind(VK_PRValue);
+    CE->SetResult(ER.Val, S.Context);
+
+    APValue Value(ReflectionValue::RK_const_value, CE);
+    return SetAndSucceed(Result, Value);
+  }
+  case ReflectionValue::RK_declaration: {
+    ValueDecl *Decl = R.getReflectedDecl();
+
+    Expr *DRE =
+        DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
+                            SourceLocation(), Decl, false, Range.getBegin(),
+                            Decl->getType(), VK_LValue, Decl, nullptr);
+
+    ImplicitCastExpr *RVExpr = ImplicitCastExpr::Create(S.Context,
+                                                        DRE->getType(),
+                                                        CK_LValueToRValue, DRE,
+                                                        nullptr, VK_PRValue,
+                                                        FPOptionsOverride());
+
+    Expr::EvalResult ER;
+    if (!RVExpr->EvaluateAsConstantExpr(ER, S.Context))
+      return true;
+
+    ConstantExpr *CE =
+        ConstantExpr::CreateEmpty(S.Context,
+                                  ConstantResultStorageKind::APValue);
+    CE->setType(Decl->getType());
+    CE->setValueKind(VK_PRValue);
+    CE->SetResult(ER.Val, S.Context);
+
+    APValue Value(ReflectionValue::RK_const_value, CE);
+    return SetAndSucceed(Result, Value);
+  }
+  case ReflectionValue::RK_type:
+  case ReflectionValue::RK_template:
+  case ReflectionValue::RK_namespace:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+    return true;
+  }
+  llvm_unreachable("unimplemented");
 }
 
 bool template_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
@@ -2801,6 +2889,40 @@ bool is_concept(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     IsConcept = isa<ConceptDecl>(R.getReflectedTemplate().getAsTemplateDecl());
 
   return SetAndSucceed(Result, makeBool(S.Context, IsConcept));
+}
+
+bool is_value(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
+              SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool IsValue = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_const_value)
+    IsValue = R.getReflectedConstValueExpr()->isPRValue();
+  
+  return SetAndSucceed(Result, makeBool(S.Context, IsValue));
+}
+
+bool is_object(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
+               SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool IsObject = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_const_value)
+    IsObject = R.getReflectedConstValueExpr()->isLValue();
+  else if (R.getReflection().getKind() == ReflectionValue::RK_declaration)
+    IsObject = isa<VarDecl>(R.getReflectedDecl());
+  
+  return SetAndSucceed(Result, makeBool(S.Context, IsObject));
 }
 
 bool has_template_arguments(APValue &Result, Sema &S, EvalFn Evaluator,
