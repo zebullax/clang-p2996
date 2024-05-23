@@ -612,6 +612,9 @@ static bool findBaseSpecLoc(APValue &Result, ASTContext &C, EvalFn Evaluator,
 }
 
 static QualType desugarType(QualType QT, bool UnwrapAliases) {
+  bool IsConst = QT.isConstQualified();
+  bool IsVolatile = QT.isVolatileQualified();
+
   while (true) {
     if (const ElaboratedType *ET = dyn_cast<ElaboratedType>(QT))
       QT = ET->getNamedType();
@@ -627,6 +630,11 @@ static QualType desugarType(QualType QT, bool UnwrapAliases) {
     else
       break;
   }
+  if (IsConst)
+    QT = QT.withConst();
+  if (IsVolatile)
+    QT = QT.withVolatile();
+
   return QT;
 }
 
@@ -1527,8 +1535,7 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     if (!E->isLValue())
       return SetAndSucceed(Result, R);
 
-    Expr *Synthesized = ImplicitCastExpr::Create(S.Context,
-                                                 S.Context.MetaInfoTy,
+    Expr *Synthesized = ImplicitCastExpr::Create(S.Context, E->getType(),
                                                  CK_LValueToRValue, E, nullptr,
                                                  VK_PRValue,
                                                  FPOptionsOverride());
@@ -1540,7 +1547,7 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     ConstantExpr *CE =
         ConstantExpr::CreateEmpty(S.Context,
                                   ConstantResultStorageKind::APValue);
-    CE->setType(E->getType());
+    CE->setType(desugarType(Synthesized->getType(), true));
     CE->setValueKind(VK_PRValue);
     CE->SetResult(ER.Val, S.Context);
 
@@ -1550,31 +1557,41 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   case ReflectionValue::RK_declaration: {
     ValueDecl *Decl = R.getReflectedDecl();
 
-    ExprValueKind VK = isa<EnumConstantDecl>(Decl) ? VK_PRValue : VK_LValue;
-    Expr *Synthesized = DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
-                                            SourceLocation(), Decl, false,
-                                            Range.getBegin(), Decl->getType(),
-                                            VK, Decl, nullptr);
+    APValue Value;
+    if (auto *VD = dyn_cast<VarDecl>(Decl)) {
+      if (!VD->isUsableInConstantExpressions(S.Context))
+        return true;
 
-    if (Synthesized->isLValue())
-      Synthesized = ImplicitCastExpr::Create(S.Context, Synthesized->getType(),
-                                             CK_LValueToRValue, Synthesized,
-                                             nullptr, VK_PRValue,
-                                             FPOptionsOverride());
+      if (APValue *VarValue = VD->evaluateValue())
+        Value = *VarValue;
+      else
+        return true;
+    } else if (isa<EnumConstantDecl>(Decl)) {
+      Expr *Synthesized = DeclRefExpr::Create(S.Context,
+                                              NestedNameSpecifierLoc(),
+                                              SourceLocation(), Decl, false,
+                                              Range.getBegin(), Decl->getType(),
+                                              VK_PRValue, Decl, nullptr);
 
-    Expr::EvalResult ER;
-    if (!Synthesized->EvaluateAsConstantExpr(ER, S.Context))
-      return true;
+      Expr::EvalResult ER;
+      if (!Synthesized->EvaluateAsConstantExpr(ER, S.Context))
+        return true;
+      Value = ER.Val;
+    }
+
+    QualType QT = desugarType(Decl->getType(), true);
+    if (!isa<RecordType>(QT))
+      QT = QualType(QT.getTypePtr(), 0);
 
     ConstantExpr *CE =
         ConstantExpr::CreateEmpty(S.Context,
                                   ConstantResultStorageKind::APValue);
-    CE->setType(Decl->getType());
+    CE->setType(QT);
     CE->setValueKind(VK_PRValue);
-    CE->SetResult(ER.Val, S.Context);
+    CE->SetResult(Value, S.Context);
 
-    APValue Value(ReflectionValue::RK_const_value, CE);
-    return SetAndSucceed(Result, Value);
+    APValue Final(ReflectionValue::RK_const_value, CE);
+    return SetAndSucceed(Result, Final);
   }
   case ReflectionValue::RK_type:
   case ReflectionValue::RK_template:

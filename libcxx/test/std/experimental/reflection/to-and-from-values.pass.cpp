@@ -147,6 +147,9 @@ const int cv = 3;
 S s;
 const S cs;
 
+using Alias = int;
+static_assert(type_of(std::meta::reflect_result<Alias>(3)) == ^int);
+
 static_assert(type_of(std::meta::reflect_result(3)) == ^int);
 static_assert(type_of(std::meta::reflect_result<const int>(3)) == ^int);
 
@@ -166,6 +169,24 @@ static_assert(type_of(std::meta::reflect_result<S>(cs)) == ^S);
 static_assert(type_of(std::meta::reflect_result<const S>(cs)) == ^const S);
 static_assert(type_of(std::meta::reflect_result<const S&>(cs)) == ^const S&);
 }  // namespace reflect_result_types
+
+                               // ==============
+                               // value_of_types
+                               // ==============
+
+namespace value_of_types {
+struct S{};
+
+using Alias1 = int;
+constexpr Alias1 a1 = 3;
+static_assert(type_of(^a1) == ^const Alias1);
+static_assert(type_of(value_of(^a1)) == ^int);
+
+using Alias2 = S;
+constexpr Alias2 a2 {};
+static_assert(type_of(^a2) == ^const Alias2);
+static_assert(type_of(value_of(^a2)) == ^const S);
+}  // namespace value_of_types
 
                         // ============================
                         // reflect_result_ref_semantics
