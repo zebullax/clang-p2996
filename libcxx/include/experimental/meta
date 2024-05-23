@@ -805,7 +805,12 @@ consteval auto is_special_member(info r) -> bool {
 // Returns a reflection of the constant value held by the provided argument.
 template <typename Ty>
 consteval auto reflect_result(Ty r) -> info {
-  return __metafunction(detail::__metafn_reflect_result, ^Ty, r);
+  constexpr auto DTy = dealias(^Ty);
+  constexpr auto RTy = is_class_v<[:DTy:]> || is_reference_v<[:DTy:]> ?
+                       DTy : ^std::remove_cv_t<[:DTy:]>;
+
+  return __metafunction(detail::__metafn_reflect_result, dealias(RTy),
+                        static_cast<typename [:DTy:]>(r));
 }
 
 // Returns a reflection of the constant value obtained from calling

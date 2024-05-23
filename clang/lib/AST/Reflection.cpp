@@ -139,7 +139,11 @@ bool ReflectionValue::operator==(ReflectionValue const& Rhs) const {
     APValue RV = Rhs.getAsConstValueExpr()->getAPValueResult();
 
     llvm::FoldingSetNodeID LID, RID;
+    getAsConstValueExpr()->getType()
+        .getCanonicalType().getUnqualifiedType().Profile(LID);
     LV.Profile(LID);
+    Rhs.getAsConstValueExpr()->getType()
+        .getCanonicalType().getUnqualifiedType().Profile(RID);
     RV.Profile(RID);
 
     return LID == RID;

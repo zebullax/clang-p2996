@@ -135,6 +135,38 @@ namespace extract_ref_semantics {
   }
 }  // namespace extract_ref_semantics
 
+                            // ====================
+                            // reflect_result_types
+                            // ====================
+
+namespace reflect_result_types {
+struct S {};
+
+int v = 3;
+const int cv = 3;
+S s;
+const S cs;
+
+static_assert(type_of(std::meta::reflect_result(3)) == ^int);
+static_assert(type_of(std::meta::reflect_result<const int>(3)) == ^int);
+
+static_assert(type_of(std::meta::reflect_result<int&>(v)) == ^int&);
+static_assert(type_of(std::meta::reflect_result<const int&>(v)) == ^const int&);
+
+static_assert(type_of(std::meta::reflect_result(cv)) == ^int);
+static_assert(type_of(std::meta::reflect_result<int>(cv)) == ^int);
+static_assert(type_of(std::meta::reflect_result<const int>(cv)) == ^int);
+static_assert(type_of(std::meta::reflect_result<const int&>(cv)) == ^const int&);
+
+static_assert(type_of(std::meta::reflect_result<S&>(s)) == ^S&);
+static_assert(type_of(std::meta::reflect_result<const S&>(s)) == ^const S&);
+
+static_assert(type_of(std::meta::reflect_result(cs)) == ^S);
+static_assert(type_of(std::meta::reflect_result<S>(cs)) == ^S);
+static_assert(type_of(std::meta::reflect_result<const S>(cs)) == ^const S);
+static_assert(type_of(std::meta::reflect_result<const S&>(cs)) == ^const S&);
+}  // namespace reflect_result_types
+
                         // ============================
                         // reflect_result_ref_semantics
                         // ============================
@@ -162,6 +194,24 @@ static_assert([:value_of(^constGlobal):] == 11);
 static_assert([:value_of(rref):] == 11);
 static_assert(value_of(^constGlobal) == value_of(rref));
 static_assert(value_of(^constGlobal) == std::meta::reflect_result(11));
+
+enum Enum { A };
+static constexpr Enum e = A;
+
+enum EnumCls { CA };
+static constexpr EnumCls ce = CA;
+
+static_assert(value_of(^A) != value_of(^CA));
+
+static_assert(value_of(^A) != std::meta::reflect_result(0));
+static_assert(value_of(^A) == std::meta::reflect_result(Enum(0)));
+static_assert(value_of(^A) != std::meta::reflect_result(EnumCls(0)));
+static_assert(value_of(^e) != std::meta::reflect_result(0));
+static_assert(value_of(^e) == std::meta::reflect_result(Enum(0)));
+static_assert(value_of(^e) != std::meta::reflect_result(EnumCls(0)));
+static_assert(value_of(^ce) != std::meta::reflect_result(0));
+static_assert(value_of(^ce) != std::meta::reflect_result(Enum(0)));
+static_assert(value_of(^ce) == std::meta::reflect_result(EnumCls(0)));
 
 }  // namespace values_from_objects
 

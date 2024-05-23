@@ -611,16 +611,16 @@ static bool findBaseSpecLoc(APValue &Result, ASTContext &C, EvalFn Evaluator,
   return !Evaluator(Result, SLE, true);
 }
 
-static QualType dealiasType(ASTContext &C, QualType QT) {
+static QualType desugarType(QualType QT, bool UnwrapAliases) {
   while (true) {
     if (const ElaboratedType *ET = dyn_cast<ElaboratedType>(QT))
       QT = ET->getNamedType();
-    else if (auto *TDT = dyn_cast<TypedefType>(QT))
+    else if (auto *TDT = dyn_cast<TypedefType>(QT); TDT && UnwrapAliases)
       QT = TDT->desugar();
-    else if (auto *UT = dyn_cast<UsingType>(QT))
+    else if (auto *UT = dyn_cast<UsingType>(QT); TDT && UnwrapAliases)
       QT = UT->desugar();
     else if (auto *TST = dyn_cast<TemplateSpecializationType>(QT);
-             TST && TST->isTypeAlias())
+             TST && UnwrapAliases && TST->isTypeAlias())
       QT = TST->getAliasedType();
     else if (auto *AT = dyn_cast<AutoType>(QT))
       QT = AT->desugar();
@@ -1189,7 +1189,7 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
   {
     QualType QT = R.getReflectedType();
     if (isTypeAlias(QT))
-      QT = dealiasType(S.Context, QT);
+      QT = desugarType(QT, /*UnwrapAliases=*/true);
 
     if (isa<EnumType>(QT))  // should use 'enumerators_of' instead.
       return true;
@@ -1428,7 +1428,7 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
   case ReflectionValue::RK_const_value: {
     ConstantExpr *E = R.getReflectedConstValueExpr();
-    QualType QT = E->getType();
+    QualType QT = desugarType(E->getType(), /*UnwrapAliases=*/false);
     if (E->isLValue())
       QT = S.Context.getLValueReferenceType(QT);
     return SetAndSucceed(Result, makeReflection(QT));
@@ -1499,7 +1499,7 @@ bool dealias(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
   case ReflectionValue::RK_type: {
     QualType QT = R.getReflectedType();
-    QT = dealiasType(S.Context, QT);
+    QT = desugarType(QT, /*UnwrapAliases=*/true);
     return SetAndSucceed(Result, makeReflection(QT));
   }
   case ReflectionValue::RK_namespace: {
@@ -1527,14 +1527,14 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     if (!E->isLValue())
       return SetAndSucceed(Result, R);
 
-    ImplicitCastExpr *RVExpr = ImplicitCastExpr::Create(S.Context,
-                                                        S.Context.MetaInfoTy,
-                                                        CK_LValueToRValue,
-                                                        E, nullptr, VK_PRValue,
-                                                        FPOptionsOverride());
+    Expr *Synthesized = ImplicitCastExpr::Create(S.Context,
+                                                 S.Context.MetaInfoTy,
+                                                 CK_LValueToRValue, E, nullptr,
+                                                 VK_PRValue,
+                                                 FPOptionsOverride());
 
     Expr::EvalResult ER;
-    if (!RVExpr->EvaluateAsRValue(ER, S.Context, true))
+    if (!Synthesized->EvaluateAsRValue(ER, S.Context, true))
       return true;
 
     ConstantExpr *CE =
@@ -1550,19 +1550,20 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   case ReflectionValue::RK_declaration: {
     ValueDecl *Decl = R.getReflectedDecl();
 
-    Expr *DRE =
-        DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
-                            SourceLocation(), Decl, false, Range.getBegin(),
-                            Decl->getType(), VK_LValue, Decl, nullptr);
+    ExprValueKind VK = isa<EnumConstantDecl>(Decl) ? VK_PRValue : VK_LValue;
+    Expr *Synthesized = DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
+                                            SourceLocation(), Decl, false,
+                                            Range.getBegin(), Decl->getType(),
+                                            VK, Decl, nullptr);
 
-    ImplicitCastExpr *RVExpr = ImplicitCastExpr::Create(S.Context,
-                                                        DRE->getType(),
-                                                        CK_LValueToRValue, DRE,
-                                                        nullptr, VK_PRValue,
-                                                        FPOptionsOverride());
+    if (Synthesized->isLValue())
+      Synthesized = ImplicitCastExpr::Create(S.Context, Synthesized->getType(),
+                                             CK_LValueToRValue, Synthesized,
+                                             nullptr, VK_PRValue,
+                                             FPOptionsOverride());
 
     Expr::EvalResult ER;
-    if (!RVExpr->EvaluateAsConstantExpr(ER, S.Context))
+    if (!Synthesized->EvaluateAsConstantExpr(ER, S.Context))
       return true;
 
     ConstantExpr *CE =
