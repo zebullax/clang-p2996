@@ -186,6 +186,9 @@ using Alias2 = S;
 constexpr Alias2 a2 {};
 static_assert(type_of(^a2) == ^const Alias2);
 static_assert(type_of(value_of(^a2)) == ^const S);
+
+constexpr const int &ref = a1;
+static_assert(type_of(value_of(^ref)) == ^int);
 }  // namespace value_of_types
 
                         // ============================

@@ -611,11 +611,13 @@ static bool findBaseSpecLoc(APValue &Result, ASTContext &C, EvalFn Evaluator,
   return !Evaluator(Result, SLE, true);
 }
 
-static QualType desugarType(QualType QT, bool UnwrapAliases) {
+static QualType desugarType(QualType QT, bool UnwrapAliases, bool DropCV,
+                            bool DropRefs) {
   bool IsConst = QT.isConstQualified();
   bool IsVolatile = QT.isVolatileQualified();
 
   while (true) {
+    QT = QualType(QT.getTypePtr(), 0);
     if (const ElaboratedType *ET = dyn_cast<ElaboratedType>(QT))
       QT = ET->getNamedType();
     else if (auto *TDT = dyn_cast<TypedefType>(QT); TDT && UnwrapAliases)
@@ -627,14 +629,18 @@ static QualType desugarType(QualType QT, bool UnwrapAliases) {
       QT = TST->getAliasedType();
     else if (auto *AT = dyn_cast<AutoType>(QT))
       QT = AT->desugar();
+    else if (auto *RT = dyn_cast<ReferenceType>(QT); RT && DropRefs)
+      QT = RT->getPointeeType();
     else
       break;
   }
-  if (IsConst)
-    QT = QT.withConst();
-  if (IsVolatile)
-    QT = QT.withVolatile();
 
+  if (!DropCV) {
+    if (IsConst)
+      QT = QT.withConst();
+    if (IsVolatile)
+      QT = QT.withVolatile();
+  }
   return QT;
 }
 
@@ -1197,7 +1203,8 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
   {
     QualType QT = R.getReflectedType();
     if (isTypeAlias(QT))
-      QT = desugarType(QT, /*UnwrapAliases=*/true);
+      QT = desugarType(QT, /*UnwrapAliases=*/true, /*DropCV=*/false,
+                       /*DropRefs=*/false);
 
     if (isa<EnumType>(QT))  // should use 'enumerators_of' instead.
       return true;
@@ -1436,7 +1443,8 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
   case ReflectionValue::RK_const_value: {
     ConstantExpr *E = R.getReflectedConstValueExpr();
-    QualType QT = desugarType(E->getType(), /*UnwrapAliases=*/false);
+    QualType QT = desugarType(E->getType(), /*UnwrapAliases=*/false,
+                              /*DropCV=*/false, /*DropRefs=*/false);
     if (E->isLValue())
       QT = S.Context.getLValueReferenceType(QT);
     return SetAndSucceed(Result, makeReflection(QT));
@@ -1507,7 +1515,8 @@ bool dealias(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
   case ReflectionValue::RK_type: {
     QualType QT = R.getReflectedType();
-    QT = desugarType(QT, /*UnwrapAliases=*/true);
+    QT = desugarType(QT, /*UnwrapAliases=*/true, /*DropCV=*/false,
+                     /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
   }
   case ReflectionValue::RK_namespace: {
@@ -1547,7 +1556,9 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     ConstantExpr *CE =
         ConstantExpr::CreateEmpty(S.Context,
                                   ConstantResultStorageKind::APValue);
-    CE->setType(desugarType(Synthesized->getType(), true));
+    CE->setType(desugarType(Synthesized->getType(), /*UnwrapAliases=*/true,
+                            /*DropCV=*/!Synthesized->getType()->isRecordType(),
+                            /*DropRefs=*/true));
     CE->setValueKind(VK_PRValue);
     CE->SetResult(ER.Val, S.Context);
 
@@ -1579,10 +1590,9 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
       Value = ER.Val;
     }
 
-    QualType QT = desugarType(Decl->getType(), true);
-    if (!isa<RecordType>(QT))
-      QT = QualType(QT.getTypePtr(), 0);
-
+    QualType QT = desugarType(Decl->getType(), /*UnwrapAliases=*/true,
+                              /*DropCV=*/!Decl->getType()->isRecordType(),
+                              /*DropRefs=*/true);
     ConstantExpr *CE =
         ConstantExpr::CreateEmpty(S.Context,
                                   ConstantResultStorageKind::APValue);
