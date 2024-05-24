@@ -139,6 +139,7 @@ consteval auto has_default_argument(info) -> bool;
 #include <source_location>
 #include <span>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 #if __has_feature(reflection)

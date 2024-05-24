@@ -33,6 +33,7 @@
 #include "clang/AST/LambdaCapture.h"
 #include "clang/AST/LocInfoType.h"
 #include "clang/AST/NestedNameSpecifier.h"
+#include "clang/AST/OpenACCClause.h"
 #include "clang/AST/OpenMPClause.h"
 #include "clang/AST/Reflection.h"
 #include "clang/AST/Stmt.h"
@@ -514,6 +515,7 @@ private:
   bool
   TraverseOpenACCAssociatedStmtConstruct(OpenACCAssociatedStmtConstruct *S);
   bool VisitOpenACCClauseList(ArrayRef<const OpenACCClause *>);
+  bool VisitOpenACCClause(const OpenACCClause *);
 };
 
 template <typename Derived>
@@ -740,13 +742,27 @@ bool RecursiveASTVisitor<Derived>::TraverseDecl(Decl *D) {
 
   // As a syntax visitor, by default we want to ignore declarations for
   // implicit declarations (ones not typed explicitly by the user).
-  if (!getDerived().shouldVisitImplicitCode() && D->isImplicit()) {
-    // For an implicit template type parameter, its type constraints are not
-    // implicit and are not represented anywhere else. We still need to visit
-    // them.
-    if (auto *TTPD = dyn_cast<TemplateTypeParmDecl>(D))
-      return TraverseTemplateTypeParamDeclConstraints(TTPD);
-    return true;
+  if (!getDerived().shouldVisitImplicitCode()) {
+    if (D->isImplicit()) {
+      // For an implicit template type parameter, its type constraints are not
+      // implicit and are not represented anywhere else. We still need to visit
+      // them.
+      if (auto *TTPD = dyn_cast<TemplateTypeParmDecl>(D))
+        return TraverseTemplateTypeParamDeclConstraints(TTPD);
+      return true;
+    }
+
+    // Deduction guides for alias templates are always synthesized, so they
+    // should not be traversed unless shouldVisitImplicitCode() returns true.
+    //
+    // It's important to note that checking the implicit bit is not efficient
+    // for the alias case. For deduction guides synthesized from explicit
+    // user-defined deduction guides, we must maintain the explicit bit to
+    // ensure correct overload resolution.
+    if (auto *FTD = dyn_cast<FunctionTemplateDecl>(D))
+      if (llvm::isa_and_present<TypeAliasTemplateDecl>(
+              FTD->getDeclName().getCXXDeductionGuideTemplate()))
+        return true;
   }
 
   switch (D->getKind()) {
@@ -1979,7 +1995,7 @@ DEF_TRAVERSE_DECL(TemplateTypeParmDecl, {
     TRY_TO(TraverseType(QualType(D->getTypeForDecl(), 0)));
   TRY_TO(TraverseTemplateTypeParamDeclConstraints(D));
   if (D->hasDefaultArgument() && !D->defaultArgumentWasInherited())
-    TRY_TO(TraverseTypeLoc(D->getDefaultArgumentInfo()->getTypeLoc()));
+    TRY_TO(TraverseTemplateArgumentLoc(D->getDefaultArgument()));
 })
 
 DEF_TRAVERSE_DECL(TypedefDecl, {
@@ -2063,6 +2079,15 @@ DEF_TRAVERSE_DECL(RecordDecl, { TRY_TO(TraverseRecordHelper(D)); })
 
 DEF_TRAVERSE_DECL(CXXRecordDecl, { TRY_TO(TraverseCXXRecordHelper(D)); })
 
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::TraverseTemplateArgumentLocsHelper(
+    const TemplateArgumentLoc *TAL, unsigned Count) {
+  for (unsigned I = 0; I < Count; ++I) {
+    TRY_TO(TraverseTemplateArgumentLoc(TAL[I]));
+  }
+  return true;
+}
+
 #define DEF_TRAVERSE_TMPL_SPEC_DECL(TMPLDECLKIND, DECLKIND)                    \
   DEF_TRAVERSE_DECL(TMPLDECLKIND##TemplateSpecializationDecl, {                \
     /* For implicit instantiations ("set<int> x;"), we don't want to           \
@@ -2072,9 +2097,12 @@ DEF_TRAVERSE_DECL(CXXRecordDecl, { TRY_TO(TraverseCXXRecordHelper(D)); })
        TemplateSpecializationType).  For explicit instantiations               \
        ("template set<int>;"), we do need a callback, since this               \
        is the only callback that's made for this instantiation.                \
-       We use getTypeAsWritten() to distinguish. */                            \
-    if (TypeSourceInfo *TSI = D->getTypeAsWritten())                           \
-      TRY_TO(TraverseTypeLoc(TSI->getTypeLoc()));                              \
+       We use getTemplateArgsAsWritten() to distinguish. */                    \
+    if (const auto *ArgsWritten = D->getTemplateArgsAsWritten()) {             \
+      /* The args that remains unspecialized. */                               \
+      TRY_TO(TraverseTemplateArgumentLocsHelper(                               \
+          ArgsWritten->getTemplateArgs(), ArgsWritten->NumTemplateArgs));      \
+    }                                                                          \
                                                                                \
     if (getDerived().shouldVisitTemplateInstantiations() ||                    \
         D->getTemplateSpecializationKind() == TSK_ExplicitSpecialization) {    \
@@ -2093,15 +2121,6 @@ DEF_TRAVERSE_DECL(CXXRecordDecl, { TRY_TO(TraverseCXXRecordHelper(D)); })
 
 DEF_TRAVERSE_TMPL_SPEC_DECL(Class, CXXRecord)
 DEF_TRAVERSE_TMPL_SPEC_DECL(Var, Var)
-
-template <typename Derived>
-bool RecursiveASTVisitor<Derived>::TraverseTemplateArgumentLocsHelper(
-    const TemplateArgumentLoc *TAL, unsigned Count) {
-  for (unsigned I = 0; I < Count; ++I) {
-    TRY_TO(TraverseTemplateArgumentLoc(TAL[I]));
-  }
-  return true;
-}
 
 #define DEF_TRAVERSE_TMPL_PART_SPEC_DECL(TMPLDECLKIND, DECLKIND)               \
   DEF_TRAVERSE_DECL(TMPLDECLKIND##TemplatePartialSpecializationDecl, {         \
@@ -2336,7 +2355,7 @@ DEF_TRAVERSE_DECL(NonTypeTemplateParmDecl, {
   // A non-type template parameter, e.g. "S" in template<int S> class Foo ...
   TRY_TO(TraverseDeclaratorHelper(D));
   if (D->hasDefaultArgument() && !D->defaultArgumentWasInherited())
-    TRY_TO(TraverseStmt(D->getDefaultArgument()));
+    TRY_TO(TraverseTemplateArgumentLoc(D->getDefaultArgument()));
 })
 
 DEF_TRAVERSE_DECL(ParmVarDecl, {
@@ -4067,8 +4086,25 @@ bool RecursiveASTVisitor<Derived>::TraverseOpenACCAssociatedStmtConstruct(
 }
 
 template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOpenACCClause(const OpenACCClause *C) {
+  for (const Stmt *Child : C->children())
+    TRY_TO(TraverseStmt(const_cast<Stmt *>(Child)));
+  return true;
+}
+
+template <typename Derived>
 bool RecursiveASTVisitor<Derived>::VisitOpenACCClauseList(
-    ArrayRef<const OpenACCClause *>) {
+    ArrayRef<const OpenACCClause *> Clauses) {
+
+  for (const auto *C : Clauses)
+    TRY_TO(VisitOpenACCClause(C));
+//    if (const auto *WithCond = dyn_cast<OopenACCClauseWithCondition>(C);
+//        WithCond && WIthCond->hasConditionExpr()) {
+//      TRY_TO(TraverseStmt(WithCond->getConditionExpr());
+//    } else if (const auto *
+//  }
+//  OpenACCClauseWithCondition::getConditionExpr/hasConditionExpr
+//OpenACCClauseWithExprs::children (might be null?)
   // TODO OpenACC: When we have Clauses with expressions, we should visit them
   // here.
   return true;

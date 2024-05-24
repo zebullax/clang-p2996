@@ -56,13 +56,14 @@ add_clang_library(clangSema
   SemaLambda.cpp
   SemaLookup.cpp
   SemaModule.cpp
+  SemaObjC.cpp
   SemaObjCProperty.cpp
   SemaOpenACC.cpp
   SemaOpenMP.cpp
   SemaOverload.cpp
   SemaPseudoObject.cpp
   SemaReflect.cpp
-  SemaRISCVVectorLookup.cpp
+  SemaRISCV.cpp
   SemaStmt.cpp
   SemaStmtAsm.cpp
   SemaStmtAttr.cpp
@@ -73,6 +74,7 @@ add_clang_library(clangSema
   SemaTemplateInstantiateDecl.cpp
   SemaTemplateVariadic.cpp
   SemaType.cpp
+  SemaX86.cpp
   TypeLocBuilder.cpp
 
   DEPENDS

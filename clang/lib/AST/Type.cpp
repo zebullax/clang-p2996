@@ -638,6 +638,16 @@ bool Type::isStructureType() const {
   return false;
 }
 
+bool Type::isStructureTypeWithFlexibleArrayMember() const {
+  const auto *RT = getAs<RecordType>();
+  if (!RT)
+    return false;
+  const auto *Decl = RT->getDecl();
+  if (!Decl->isStruct())
+    return false;
+  return Decl->hasFlexibleArrayMember();
+}
+
 bool Type::isMetaType() const {
   const Type *CanonType = getCanonicalTypeInternal().getTypePtr();
   if (CanonType != this)
@@ -2390,6 +2400,14 @@ bool Type::isIncompleteType(NamedDecl **Def) const {
     if (Def)
       *Def = Rec;
     return !Rec->isCompleteDefinition();
+  }
+  case InjectedClassName: {
+    CXXRecordDecl *Rec = cast<InjectedClassNameType>(CanonicalType)->getDecl();
+    if (!Rec->isBeingDefined())
+      return false;
+    if (Def)
+      *Def = Rec;
+    return true;
   }
   case ConstantArray:
   case VariableArray:

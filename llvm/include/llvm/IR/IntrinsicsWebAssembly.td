@@ -332,6 +332,15 @@ def int_wasm_loadf16_f32:
             [llvm_ptr_ty],
             [IntrReadMem, IntrArgMemOnly],
              "", [SDNPMemOperand]>;
+def int_wasm_storef16_f32:
+  Intrinsic<[],
+            [llvm_float_ty, llvm_ptr_ty],
+            [IntrWriteMem, IntrArgMemOnly],
+             "", [SDNPMemOperand]>;
+def int_wasm_splat_f16x8:
+  DefaultAttrsIntrinsic<[llvm_v8f16_ty],
+                        [llvm_float_ty],
+                        [IntrNoMem, IntrSpeculatable]>;
 
 
 //===----------------------------------------------------------------------===//

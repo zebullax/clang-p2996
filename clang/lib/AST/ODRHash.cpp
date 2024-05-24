@@ -466,7 +466,7 @@ public:
         D->hasDefaultArgument() && !D->defaultArgumentWasInherited();
     Hash.AddBoolean(hasDefaultArgument);
     if (hasDefaultArgument) {
-      AddTemplateArgument(D->getDefaultArgument());
+      AddTemplateArgument(D->getDefaultArgument().getArgument());
     }
     Hash.AddBoolean(D->isParameterPack());
 
@@ -484,7 +484,7 @@ public:
         D->hasDefaultArgument() && !D->defaultArgumentWasInherited();
     Hash.AddBoolean(hasDefaultArgument);
     if (hasDefaultArgument) {
-      AddStmt(D->getDefaultArgument());
+      AddTemplateArgument(D->getDefaultArgument().getArgument());
     }
     Hash.AddBoolean(D->isParameterPack());
 

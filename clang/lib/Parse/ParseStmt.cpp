@@ -22,6 +22,8 @@
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Scope.h"
+#include "clang/Sema/SemaCodeCompletion.h"
+#include "clang/Sema/SemaObjC.h"
 #include "clang/Sema/SemaOpenMP.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "llvm/ADT/STLExtras.h"
@@ -190,7 +192,8 @@ Retry:
 
   case tok::code_completion:
     cutOffParsing();
-    Actions.CodeCompleteOrdinaryName(getCurScope(), Sema::PCC_Statement);
+    Actions.CodeCompletion().CodeCompleteOrdinaryName(
+        getCurScope(), SemaCodeCompletion::PCC_Statement);
     return StmtError();
 
   case tok::identifier:
@@ -847,7 +850,7 @@ StmtResult Parser::ParseCaseStatement(ParsedStmtContext StmtCtx,
 
     if (Tok.is(tok::code_completion)) {
       cutOffParsing();
-      Actions.CodeCompleteCase(getCurScope());
+      Actions.CodeCompletion().CodeCompleteCase(getCurScope());
       return StmtError();
     }
 
@@ -1653,7 +1656,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
     InnerScope.Exit();
   } else if (Tok.is(tok::code_completion)) {
     cutOffParsing();
-    Actions.CodeCompleteAfterIf(getCurScope(), IsBracedThen);
+    Actions.CodeCompletion().CodeCompleteAfterIf(getCurScope(), IsBracedThen);
     return StmtError();
   } else if (InnerStatementTrailingElseLoc.isValid()) {
     Diag(InnerStatementTrailingElseLoc, diag::warn_dangling_else);
@@ -2058,9 +2061,9 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
 
   if (Tok.is(tok::code_completion)) {
     cutOffParsing();
-    Actions.CodeCompleteOrdinaryName(getCurScope(),
-                                     C99orCXXorObjC? Sema::PCC_ForInit
-                                                   : Sema::PCC_Expression);
+    Actions.CodeCompletion().CodeCompleteOrdinaryName(
+        getCurScope(), C99orCXXorObjC ? SemaCodeCompletion::PCC_ForInit
+                                      : SemaCodeCompletion::PCC_Expression);
     return StmtError();
   }
 
@@ -2135,7 +2138,8 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
 
         if (Tok.is(tok::code_completion)) {
           cutOffParsing();
-          Actions.CodeCompleteObjCForCollection(getCurScope(), DG);
+          Actions.CodeCompletion().CodeCompleteObjCForCollection(getCurScope(),
+                                                                 DG);
           return StmtError();
         }
         Collection = ParseExpression();
@@ -2172,7 +2176,8 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
 
       if (Tok.is(tok::code_completion)) {
         cutOffParsing();
-        Actions.CodeCompleteObjCForCollection(getCurScope(), nullptr);
+        Actions.CodeCompletion().CodeCompleteObjCForCollection(getCurScope(),
+                                                               nullptr);
         return StmtError();
       }
       Collection = ParseExpression();
@@ -2320,10 +2325,8 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
   } else if (ForEach) {
     // Similarly, we need to do the semantic analysis for a for-range
     // statement immediately in order to close over temporaries correctly.
-    ForEachStmt = Actions.ActOnObjCForCollectionStmt(ForLoc,
-                                                     FirstPart.get(),
-                                                     Collection.get(),
-                                                     T.getCloseLocation());
+    ForEachStmt = Actions.ObjC().ActOnObjCForCollectionStmt(
+        ForLoc, FirstPart.get(), Collection.get(), T.getCloseLocation());
   } else {
     // In OpenMP loop region loop control variable must be captured and be
     // private. Perform analysis of first part (if any).
@@ -2371,8 +2374,8 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
     return StmtError();
 
   if (ForEach)
-   return Actions.FinishObjCForCollectionStmt(ForEachStmt.get(),
-                                              Body.get());
+    return Actions.ObjC().FinishObjCForCollectionStmt(ForEachStmt.get(),
+                                                      Body.get());
 
   if (ForRangeInfo.ParsedForRangeDecl()) {
     if (ForRangeInfo.ExpansionStmt)
@@ -2462,8 +2465,8 @@ StmtResult Parser::ParseReturnStatement() {
     // FIXME: Code completion for co_return.
     if (Tok.is(tok::code_completion) && !IsCoreturn) {
       cutOffParsing();
-      Actions.CodeCompleteExpression(getCurScope(),
-                                     PreferredType.get(Tok.getLocation()));
+      Actions.CodeCompletion().CodeCompleteExpression(
+          getCurScope(), PreferredType.get(Tok.getLocation()));
       return StmtError();
     }
 

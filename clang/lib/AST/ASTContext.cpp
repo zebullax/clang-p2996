@@ -3064,21 +3064,27 @@ QualType ASTContext::removeAddrSpaceQualType(QualType T) const {
   if (!T.hasAddressSpace())
     return T;
 
-  // If we are composing extended qualifiers together, merge together
-  // into one ExtQuals node.
   QualifierCollector Quals;
   const Type *TypeNode;
+  // For arrays, strip the qualifier off the element type, then reconstruct the
+  // array type
+  if (T.getTypePtr()->isArrayType()) {
+    T = getUnqualifiedArrayType(T, Quals);
+    TypeNode = T.getTypePtr();
+  } else {
+    // If we are composing extended qualifiers together, merge together
+    // into one ExtQuals node.
+    while (T.hasAddressSpace()) {
+      TypeNode = Quals.strip(T);
 
-  while (T.hasAddressSpace()) {
-    TypeNode = Quals.strip(T);
+      // If the type no longer has an address space after stripping qualifiers,
+      // jump out.
+      if (!QualType(TypeNode, 0).hasAddressSpace())
+        break;
 
-    // If the type no longer has an address space after stripping qualifiers,
-    // jump out.
-    if (!QualType(TypeNode, 0).hasAddressSpace())
-      break;
-
-    // There might be sugar in the way. Strip it and try again.
-    T = T.getSingleStepDesugaredType(*this);
+      // There might be sugar in the way. Strip it and try again.
+      T = T.getSingleStepDesugaredType(*this);
+    }
   }
 
   Quals.removeAddressSpace();
@@ -6009,7 +6015,8 @@ QualType ASTContext::getUnconstrainedType(QualType T) const {
   if (auto *AT = CanonT->getAs<AutoType>()) {
     if (!AT->isConstrained())
       return T;
-    return getQualifiedType(getAutoType(QualType(), AT->getKeyword(), false,
+    return getQualifiedType(getAutoType(QualType(), AT->getKeyword(),
+                                        AT->isDependentType(),
                                         AT->containsUnexpandedParameterPack()),
                             T.getQualifiers());
   }
@@ -6191,7 +6198,7 @@ CanQualType ASTContext::getCanonicalParamType(QualType T) const {
 }
 
 QualType ASTContext::getUnqualifiedArrayType(QualType type,
-                                             Qualifiers &quals) {
+                                             Qualifiers &quals) const {
   SplitQualType splitType = type.getSplitUnqualifiedType();
 
   // FIXME: getSplitUnqualifiedType() actually walks all the way to
@@ -6586,7 +6593,8 @@ bool ASTContext::isSameDefaultTemplateArgument(const NamedDecl *X,
     if (!TTPX->hasDefaultArgument() || !TTPY->hasDefaultArgument())
       return false;
 
-    return hasSameType(TTPX->getDefaultArgument(), TTPY->getDefaultArgument());
+    return hasSameType(TTPX->getDefaultArgument().getArgument().getAsType(),
+                       TTPY->getDefaultArgument().getArgument().getAsType());
   }
 
   if (auto *NTTPX = dyn_cast<NonTypeTemplateParmDecl>(X)) {
@@ -6594,8 +6602,10 @@ bool ASTContext::isSameDefaultTemplateArgument(const NamedDecl *X,
     if (!NTTPX->hasDefaultArgument() || !NTTPY->hasDefaultArgument())
       return false;
 
-    Expr *DefaultArgumentX = NTTPX->getDefaultArgument()->IgnoreImpCasts();
-    Expr *DefaultArgumentY = NTTPY->getDefaultArgument()->IgnoreImpCasts();
+    Expr *DefaultArgumentX =
+        NTTPX->getDefaultArgument().getArgument().getAsExpr()->IgnoreImpCasts();
+    Expr *DefaultArgumentY =
+        NTTPY->getDefaultArgument().getArgument().getAsExpr()->IgnoreImpCasts();
     llvm::FoldingSetNodeID XID, YID;
     DefaultArgumentX->Profile(XID, *this, /*Canonical=*/true);
     DefaultArgumentY->Profile(YID, *this, /*Canonical=*/true);

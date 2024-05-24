@@ -3435,7 +3435,7 @@ bool define_class(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
                   SourceLocation(), SourceLocation(), std::nullopt,
                   SourceLocation(), nullptr));
     DR = S.ActOnClassTemplateSpecialization(
-          &ClsScope, TypeSpec, Sema::TUK_Definition, Args[0]->getBeginLoc(),
+          &ClsScope, TypeSpec, TagUseKind::Definition, Args[0]->getBeginLoc(),
           SourceLocation(), SS, *TAnnot, ParsedAttributesView::none(), MTP,
           nullptr);
     MTP.clear();
@@ -3461,7 +3461,7 @@ bool define_class(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     }
 
     // Create the new tag in the current scope.
-    DR = S.ActOnTag(S.getCurScope(), TypeSpec, Sema::TUK_Definition,
+    DR = S.ActOnTag(S.getCurScope(), TypeSpec, TagUseKind::Definition,
                     Args[0]->getBeginLoc(), SS, Tag->getIdentifier(),
                     Tag->getBeginLoc(), ParsedAttributesView::none(),
                     AS_none, SourceLocation(), MTP, OwnedDecl, IsDependent,

@@ -33,6 +33,8 @@
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/SemaCUDA.h"
+#include "clang/Sema/SemaCodeCompletion.h"
+#include "clang/Sema/SemaObjC.h"
 #include "clang/Sema/SemaOpenACC.h"
 #include "clang/Sema/SemaOpenMP.h"
 #include "clang/Sema/SemaSYCL.h"
@@ -169,8 +171,8 @@ Parser::ParseExpressionWithLeadingExtension(SourceLocation ExtLoc) {
 ExprResult Parser::ParseAssignmentExpression(TypeCastState isTypeCast) {
   if (Tok.is(tok::code_completion)) {
     cutOffParsing();
-    Actions.CodeCompleteExpression(getCurScope(),
-                                   PreferredType.get(Tok.getLocation()));
+    Actions.CodeCompletion().CodeCompleteExpression(
+        getCurScope(), PreferredType.get(Tok.getLocation()));
     return ExprError();
   }
 
@@ -188,8 +190,8 @@ ExprResult Parser::ParseAssignmentExpression(TypeCastState isTypeCast) {
 ExprResult Parser::ParseConditionalExpression() {
   if (Tok.is(tok::code_completion)) {
     cutOffParsing();
-    Actions.CodeCompleteExpression(getCurScope(),
-                                   PreferredType.get(Tok.getLocation()));
+    Actions.CodeCompletion().CodeCompleteExpression(
+        getCurScope(), PreferredType.get(Tok.getLocation()));
     return ExprError();
   }
 
@@ -1170,7 +1172,6 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
           REVERTIBLE_TYPE_TRAIT(__is_void);
           REVERTIBLE_TYPE_TRAIT(__is_volatile);
           REVERTIBLE_TYPE_TRAIT(__reference_binds_to_temporary);
-          REVERTIBLE_TYPE_TRAIT(__reference_constructs_from_temporary);
 #define TRANSFORM_TYPE_TRAIT_DEF(_, Trait)                                     \
   REVERTIBLE_TYPE_TRAIT(RTT_JOIN(__, Trait));
 #include "clang/Basic/TransformTypeTraits.def"
@@ -1219,7 +1220,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
 
       if (Tok.is(tok::code_completion) && &II != Ident_super) {
         cutOffParsing();
-        Actions.CodeCompleteObjCClassPropertyRefExpr(
+        Actions.CodeCompletion().CodeCompleteObjCClassPropertyRefExpr(
             getCurScope(), II, ILoc, ExprStatementTokLoc == ILoc);
         return ExprError();
       }
@@ -1232,8 +1233,8 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
       IdentifierInfo &PropertyName = *Tok.getIdentifierInfo();
       SourceLocation PropertyLoc = ConsumeToken();
 
-      Res = Actions.ActOnClassPropertyRefExpr(II, PropertyName,
-                                              ILoc, PropertyLoc);
+      Res = Actions.ObjC().ActOnClassPropertyRefExpr(II, PropertyName, ILoc,
+                                                     PropertyLoc);
       break;
     }
 
@@ -1844,8 +1845,8 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     break;
   case tok::code_completion: {
     cutOffParsing();
-    Actions.CodeCompleteExpression(getCurScope(),
-                                   PreferredType.get(Tok.getLocation()));
+    Actions.CodeCompletion().CodeCompleteExpression(
+        getCurScope(), PreferredType.get(Tok.getLocation()));
     return ExprError();
   }
 #define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case tok::kw___##Trait:
@@ -1989,7 +1990,7 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
         return LHS;
 
       cutOffParsing();
-      Actions.CodeCompletePostfixExpression(
+      Actions.CodeCompletion().CodeCompletePostfixExpression(
           getCurScope(), LHS, PreferredType.get(Tok.getLocation()));
       return ExprError();
 
@@ -2187,8 +2188,9 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
 
       ExprVector ArgExprs;
       auto RunSignatureHelp = [&]() -> QualType {
-        QualType PreferredType = Actions.ProduceCallSignatureHelp(
-            LHS.get(), ArgExprs, PT.getOpenLocation());
+        QualType PreferredType =
+            Actions.CodeCompletion().ProduceCallSignatureHelp(
+                LHS.get(), ArgExprs, PT.getOpenLocation());
         CalledSignatureHelp = true;
         return PreferredType;
       };
@@ -2317,7 +2319,7 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
 
         // Code completion for a member access expression.
         cutOffParsing();
-        Actions.CodeCompleteMemberReferenceExpr(
+        Actions.CodeCompletion().CodeCompleteMemberReferenceExpr(
             getCurScope(), Base, CorrectedBase, OpLoc, OpKind == tok::arrow,
             Base && ExprStatementTokLoc == Base->getBeginLoc(),
             PreferredType.get(Tok.getLocation()));
@@ -3051,7 +3053,7 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
 
   if (Tok.is(tok::code_completion)) {
     cutOffParsing();
-    Actions.CodeCompleteExpression(
+    Actions.CodeCompletion().CodeCompleteExpression(
         getCurScope(), PreferredType.get(Tok.getLocation()),
         /*IsParenthesized=*/ExprType >= CompoundLiteral);
     return ExprError();
@@ -3144,9 +3146,9 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
     if (Ty.isInvalid() || SubExpr.isInvalid())
       return ExprError();
 
-    return Actions.ActOnObjCBridgedCast(getCurScope(), OpenLoc, Kind,
-                                        BridgeKeywordLoc, Ty.get(),
-                                        RParenLoc, SubExpr.get());
+    return Actions.ObjC().ActOnObjCBridgedCast(getCurScope(), OpenLoc, Kind,
+                                               BridgeKeywordLoc, Ty.get(),
+                                               RParenLoc, SubExpr.get());
   } else if (ExprType >= CompoundLiteral &&
              isTypeIdInParens(isAmbiguousTypeId)) {
 
@@ -3728,7 +3730,8 @@ bool Parser::ParseSimpleExpressionList(SmallVectorImpl<Expr *> &Exprs) {
 void Parser::ParseBlockId(SourceLocation CaretLoc) {
   if (Tok.is(tok::code_completion)) {
     cutOffParsing();
-    Actions.CodeCompleteOrdinaryName(getCurScope(), Sema::PCC_Type);
+    Actions.CodeCompletion().CodeCompleteOrdinaryName(
+        getCurScope(), SemaCodeCompletion::PCC_Type);
     return;
   }
 
@@ -3862,7 +3865,7 @@ ExprResult Parser::ParseBlockLiteralExpression() {
 ///         '__objc_no'
 ExprResult Parser::ParseObjCBoolLiteral() {
   tok::TokenKind Kind = Tok.getKind();
-  return Actions.ActOnObjCBoolLiteral(ConsumeToken(), Kind);
+  return Actions.ObjC().ActOnObjCBoolLiteral(ConsumeToken(), Kind);
 }
 
 /// Validate availability spec list, emitting diagnostics if necessary. Returns
@@ -3917,7 +3920,7 @@ std::optional<AvailabilitySpec> Parser::ParseAvailabilitySpec() {
     // Parse the platform name.
     if (Tok.is(tok::code_completion)) {
       cutOffParsing();
-      Actions.CodeCompleteAvailabilityPlatformName();
+      Actions.CodeCompletion().CodeCompleteAvailabilityPlatformName();
       return std::nullopt;
     }
     if (Tok.isNot(tok::identifier)) {
@@ -3983,6 +3986,6 @@ ExprResult Parser::ParseAvailabilityCheckExpr(SourceLocation BeginLoc) {
   if (Parens.consumeClose())
     return ExprError();
 
-  return Actions.ActOnObjCAvailabilityCheckExpr(AvailSpecs, BeginLoc,
-                                                Parens.getCloseLocation());
+  return Actions.ObjC().ActOnObjCAvailabilityCheckExpr(
+      AvailSpecs, BeginLoc, Parens.getCloseLocation());
 }
