@@ -8907,10 +8907,6 @@ template <typename Derived>
 StmtResult
 TreeTransform<Derived>::TransformCXXInitListExpansionStmt(
                                                   CXXInitListExpansionStmt *S) {
-  // If the combined statement has already been formed, just transform that.
-  if (auto *CS = S->getCombinedStmt())
-    return getDerived().TransformStmt(CS);
-
   // Transform optional init-statement.
   Stmt *Init = S->getInit();
   if (Init) {

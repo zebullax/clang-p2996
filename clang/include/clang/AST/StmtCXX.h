@@ -542,7 +542,7 @@ protected:
   unsigned TemplateDepth;
 
   unsigned NumInstantiations;
-  Stmt *CombinedStmt;
+  Stmt **Expansions;
 
   SourceLocation TemplateKWLoc;
   SourceLocation ForLoc;
@@ -607,10 +607,10 @@ public:
   unsigned getNumInstantiations() const { return NumInstantiations; }
   bool hasDependentSize() const;
 
-  Stmt * getCombinedStmt() const {
-    return CombinedStmt;
+  Stmt *getInstantiation(size_t Idx) const {
+    return Expansions ? Expansions[Idx] : nullptr;
   }
-  void setCombinedStmt(Stmt *S) { CombinedStmt = S; }
+  void setInstantiations(Stmt **Stmts) { Expansions = Stmts; }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() >= firstCXXExpansionStmtConstant &&

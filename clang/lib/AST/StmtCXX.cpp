@@ -135,7 +135,7 @@ CXXExpansionStmt::CXXExpansionStmt(
     SourceLocation RParenLoc, unsigned TemplateDepth)
     : Stmt(SC), SubStmts {Init, ExpansionVar, Range, nullptr},
       TemplateDepth(TemplateDepth), NumInstantiations(NumInstantiations),
-      CombinedStmt(nullptr), TemplateKWLoc(TemplateKWLoc), ForLoc(ForLoc),
+      Expansions(nullptr), TemplateKWLoc(TemplateKWLoc), ForLoc(ForLoc),
       LParenLoc(LParenLoc), ColonLoc(ColonLoc), RParenLoc(RParenLoc) { }
 
 VarDecl *CXXExpansionStmt::getExpansionVariable() {

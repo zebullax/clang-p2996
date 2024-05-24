@@ -153,3 +153,28 @@ void run_tests() {
 }
 
 }  // nested_expansion_statements
+
+                             // ==================
+                             // break_and_continue
+                             // ==================
+
+namespace break_and_continue {
+
+constexpr int fn() {
+  int result = 0;
+  template for (auto r : {1, 2, 3, 4, 5}) {
+    if (r % 2 == 0) continue;
+    template for (auto s : {5, 4, 3, 2, 1}) {
+      if (s < r) break;
+      result += (r * s);
+    }
+  }
+  return result;
+}
+static_assert(fn() == 76);
+
+void run_tests() {
+  (void) fn();
+}
+
+}  // namespace break_and_continue

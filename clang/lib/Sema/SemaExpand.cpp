@@ -190,13 +190,8 @@ StmtResult Sema::FinishCXXExpansionStmt(Stmt *Heading, Stmt *Body) {
     return Expansion;
 
   // Return an empty statement if the range is empty.
-  if (Expansion->getNumInstantiations() == 0) {
-     Expansion->setCombinedStmt(CompoundStmt::Create(Context, {},
-                                                     FPOptionsOverride(),
-                                                     SourceLocation(),
-                                                     SourceLocation()));
+  if (Expansion->getNumInstantiations() == 0)
      return Expansion;
-  }
 
   // Create a compound statement binding loop and body.
   Stmt *VarAndBody[] = {Expansion->getExpansionVarStmt(), Body};
@@ -206,9 +201,8 @@ StmtResult Sema::FinishCXXExpansionStmt(Stmt *Heading, Stmt *Body) {
                                             Expansion->getEndLoc());
 
   // Expand the body for each instantiation.
-  llvm::SmallVector<Stmt *, 8> SubStmts;
-  if (Stmt *Init = Expansion->getInit())
-    SubStmts.push_back(Init);
+  Stmt **Instantiations =
+        new (Context) Stmt *[Expansion->getNumInstantiations()];
   for (size_t I = 0; I < Expansion->getNumInstantiations(); ++I) {
     IntegerLiteral *Idx = IntegerLiteral::Create(Context,
                                                  llvm::APSInt::getUnsigned(I),
@@ -225,11 +219,9 @@ StmtResult Sema::FinishCXXExpansionStmt(Stmt *Heading, Stmt *Body) {
     StmtResult Instantiation = SubstStmt(CombinedBody, MTArgList);
     if (Instantiation.isInvalid())
       return StmtError();
-    SubStmts.push_back(Instantiation.get());
+    Instantiations[I] = Instantiation.get();
   }
-  Expansion->setCombinedStmt(CompoundStmt::Create(Context, SubStmts,
-                                                  FPOptionsOverride(),
-                                                  Expansion->getBeginLoc(),
-                                                  Expansion->getEndLoc()));
+
+  Expansion->setInstantiations(Instantiations);
   return Expansion;
 }

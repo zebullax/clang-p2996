@@ -2256,11 +2256,22 @@ CheckConstexprFunctionStmt(Sema &SemaRef, const FunctionDecl *Dcl, Stmt *S,
   case Stmt::CXXIterableExpansionStmtClass:
   case Stmt::CXXDestructurableExpansionStmtClass:
   case Stmt::CXXInitListExpansionStmtClass: {
-    Stmt *CS = cast<CXXExpansionStmt>(S)->getCombinedStmt();
+    CXXExpansionStmt *CS = cast<CXXExpansionStmt>(S);
     if (!CS) return true;
-    return CheckConstexprFunctionStmt(
-            SemaRef, Dcl, cast<CXXExpansionStmt>(S)->getCombinedStmt(),
-            ReturnStmts, Cxx1yLoc, Cxx2aLoc, Cxx2bLoc, Kind);
+
+    if (Stmt *Init = CS->getInit())
+      if (!CheckConstexprFunctionStmt(SemaRef, Dcl, Init, ReturnStmts, Cxx1yLoc,
+                                      Cxx2aLoc, Cxx2bLoc, Kind))
+        return false;
+
+    for (size_t Idx = 0; Idx < CS->getNumInstantiations(); ++Idx) {
+      Stmt *Expansion = CS->getInstantiation(Idx);
+      if (!Expansion) break;  // statements not instantiated yet.
+      if (!CheckConstexprFunctionStmt(SemaRef, Dcl, Expansion, ReturnStmts,
+                                      Cxx1yLoc, Cxx2aLoc, Cxx2bLoc, Kind))
+        return false;
+    }
+    return true;
   }
 
   default:

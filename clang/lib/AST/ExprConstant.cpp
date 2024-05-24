@@ -5626,9 +5626,42 @@ static EvalStmtResult EvaluateStmt(StmtResult &Result, EvalInfo &Info,
 
   case Stmt::CXXIterableExpansionStmtClass:
   case Stmt::CXXDestructurableExpansionStmtClass:
-  case Stmt::CXXInitListExpansionStmtClass:
-    return EvaluateStmt(Result, Info,
-                        cast<CXXExpansionStmt>(S)->getCombinedStmt(), Case);
+  case Stmt::CXXInitListExpansionStmtClass: {
+    const CXXExpansionStmt *ES = cast<CXXExpansionStmt>(S);
+    BlockScopeRAII Scope(Info);
+
+    EvalStmtResult ESR;
+    if (ES->getInit()) {
+      ESR = EvaluateStmt(Result, Info, ES->getInit());
+      if (ESR != ESR_Succeeded) {
+        if (ESR != ESR_Failed && !Scope.destroy())
+          return ESR_Failed;
+        return ESR;
+      }
+    }
+
+    bool Continue = true;
+    for (size_t Idx = 0; Continue && Idx < ES->getNumInstantiations(); ++Idx) {
+      Stmt *Expansion = ES->getInstantiation(Idx);
+      assert(Expansion && "missing expansion");
+
+      ESR = EvaluateLoopBody(Result, Info, Expansion);
+      switch (ESR) {
+      case ESR_Break:
+        Continue = false;
+        break;
+      case ESR_Failed:
+      case ESR_Returned:
+      case ESR_CaseNotFound:
+        return ESR;
+      case ESR_Succeeded:
+      case ESR_Continue:
+        break;
+      }
+    }
+
+    return Scope.destroy() ? ESR_Succeeded : ESR_Failed;
+  }
   }
 }
 

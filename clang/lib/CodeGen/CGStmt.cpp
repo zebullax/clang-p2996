@@ -33,6 +33,7 @@
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include <optional>
 
@@ -206,7 +207,7 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
   case Stmt::CXXDestructurableExpansionStmtClass:
     llvm_unreachable("not yet implemented for destructurable ranges");
   case Stmt::CXXInitListExpansionStmtClass:
-    EmitStmt(cast<CXXInitListExpansionStmt>(S)->getCombinedStmt(), Attrs);
+    EmitCXXExpansionStmt(cast<CXXExpansionStmt>(*S), Attrs);
     break;
   case Stmt::SEHTryStmtClass:
     EmitSEHTryStmt(cast<SEHTryStmt>(*S));
@@ -1376,6 +1377,39 @@ CodeGenFunction::EmitCXXForRangeStmt(const CXXForRangeStmt &S,
   // block.
   if (llvm::EnableSingleByteCoverage)
     incrementProfileCounter(&S);
+}
+
+void CodeGenFunction::EmitCXXExpansionStmt(const CXXExpansionStmt &S,
+                                           ArrayRef<const Attr *> Attrs) {
+  //EmitStmt(S.getCombinedStmt(), Attrs);
+  JumpDest ExpandExit = getJumpDestInCurrentScope("expand.end");
+
+  LexicalScope InitScope(*this, S.getSourceRange());
+  if (auto *Init = S.getInit())
+    EmitStmt(S.getInit(), Attrs);
+
+  SmallVector<JumpDest> Dests;
+  for (size_t Idx = 0; Idx < S.getNumInstantiations(); ++Idx) {
+    std::string LabelName = llvm::formatv("expand.nxt.{0}", Idx);
+    Dests.emplace_back(getJumpDestInCurrentScope(LabelName));
+  }
+
+  for (size_t Idx = 0; Idx < S.getNumInstantiations(); ++Idx) {
+    const Stmt *Expansion = S.getInstantiation(Idx);
+    assert(Expansion && "missing expansion");
+    {
+      JumpDest &Continue = Idx + 1 < S.getNumInstantiations() ?
+                           Dests[Idx + 1] : ExpandExit;
+      BreakContinueStack.push_back(BreakContinue(ExpandExit, Continue));
+      {
+        EmitBlock(Dests[Idx].getBlock(), true);
+        LexicalScope ExpansionScope(*this, Expansion->getSourceRange());
+        EmitStmt(Expansion, Attrs);
+      }
+      BreakContinueStack.pop_back();
+    }
+  }
+  EmitBlock(ExpandExit.getBlock(), true);
 }
 
 void CodeGenFunction::EmitReturnOfRValue(RValue RV, QualType Ty) {

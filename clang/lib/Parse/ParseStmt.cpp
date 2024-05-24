@@ -2262,7 +2262,7 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
   // Enter a break / continue scope, if we didn't already enter one while
   // parsing the second part. Note that break and continue are not permitted
   // within expansion statements.
-  if (!ForRangeInfo.ExpansionStmt && !getCurScope()->isContinueScope())
+  if (!getCurScope()->isContinueScope())
     getCurScope()->AddFlags(Scope::BreakScope | Scope::ContinueScope);
 
   // Parse the third part of the for statement.
