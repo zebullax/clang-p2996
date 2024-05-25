@@ -14436,6 +14436,15 @@ ExprResult TreeTransform<Derived>::TransformDependentScopeDeclRefExpr(
   if (!NameInfo.getName())
     return ExprError();
 
+  bool ScopeHadLeadingSplice = false;
+  if (auto *NNS = E->getQualifier()) {
+    if (auto *Prefix = NNS->getPrefix())
+      NNS = Prefix;
+
+    ScopeHadLeadingSplice = (NNS->getAsSpliceExpr() != nullptr);
+  }
+
+  ExprResult Result;
   if (!E->hasExplicitTemplateArgs()) {
     if (!getDerived().AlwaysRebuild() && QualifierLoc == E->getQualifierLoc() &&
         // Note: it is sufficient to compare the Name component of NameInfo:
@@ -14443,19 +14452,30 @@ ExprResult TreeTransform<Derived>::TransformDependentScopeDeclRefExpr(
         NameInfo.getName() == E->getDeclName())
       return E;
 
-    return getDerived().RebuildDependentScopeDeclRefExpr(
+    Result = getDerived().RebuildDependentScopeDeclRefExpr(
         QualifierLoc, TemplateKWLoc, NameInfo, /*TemplateArgs=*/nullptr,
         IsAddressOfOperand, RecoveryTSI);
+  } else {
+    TemplateArgumentListInfo TransArgs(E->getLAngleLoc(), E->getRAngleLoc());
+    if (getDerived().TransformTemplateArguments(
+            E->getTemplateArgs(), E->getNumTemplateArgs(), TransArgs))
+      return ExprError();
+
+    Result = getDerived().RebuildDependentScopeDeclRefExpr(
+        QualifierLoc, TemplateKWLoc, NameInfo, &TransArgs, IsAddressOfOperand,
+        RecoveryTSI);
   }
 
-  TemplateArgumentListInfo TransArgs(E->getLAngleLoc(), E->getRAngleLoc());
-  if (getDerived().TransformTemplateArguments(
-          E->getTemplateArgs(), E->getNumTemplateArgs(), TransArgs))
+  if (auto *MRE = dyn_cast_or_null<MemberExpr>(Result.get());
+      ScopeHadLeadingSplice && MRE && MRE->isImplicitAccess()) {
+    SemaRef.Diag(E->getExprLoc(),
+                 diag::err_dependent_splice_implicit_member_reference)
+        << E->getSourceRange();
+    SemaRef.Diag(E->getExprLoc(),
+                 diag::note_dependent_splice_explicit_this_may_fix);
     return ExprError();
-
-  return getDerived().RebuildDependentScopeDeclRefExpr(
-      QualifierLoc, TemplateKWLoc, NameInfo, &TransArgs, IsAddressOfOperand,
-      RecoveryTSI);
+  }
+  return Result;
 }
 
 template<typename Derived>

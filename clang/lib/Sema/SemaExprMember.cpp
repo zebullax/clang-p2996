@@ -2056,6 +2056,20 @@ Sema::BuildImplicitMemberExpr(const CXXScopeSpec &SS,
 
   SourceLocation loc = R.getNameLoc();
 
+  if (auto *NNS = SS.getScopeRep()) {
+    if (auto *Prefix = NNS->getPrefix())
+      NNS = Prefix;
+
+    if (NNS->getAsSpliceExpr()) {
+      Diag(SS.getBeginLoc(),
+           diag::err_dependent_splice_implicit_member_reference)
+          << SourceRange(SS.getBeginLoc(), R.getNameLoc());
+      Diag(SS.getBeginLoc(),
+           diag::note_dependent_splice_explicit_this_may_fix);
+      return ExprError();
+    }
+  }
+
   // If this is known to be an instance access, go ahead and build an
   // implicit 'this' expression now.
   QualType ThisTy = getCurrentThisType();

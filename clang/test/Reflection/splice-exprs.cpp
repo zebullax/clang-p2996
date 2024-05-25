@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// RUN: %clang_cc1 %s -std=c++23 -freflection
+// RUN: %clang_cc1 %s -std=c++23 -freflection -verify
 
 using info = decltype(^int);
 
@@ -203,6 +203,67 @@ class WithPrivateBase : S {} d;
 int dK = d.[:^S::k:];
 
 }  // namespace with_member_access
+
+                         // ===========================
+                         // with_implicit_member_access
+                         // ===========================
+
+namespace with_implicit_member_access {
+
+// Non-dependent case
+struct S {
+  static constexpr int l = 3;
+
+  int k;
+
+  void fn2() { }
+
+  void fn() {
+    static_assert([:^l:] == 3);
+    static_assert([:^S:]::l == 3);
+    (void) this->[:^k:];
+    (void) this->[:^S:]::k;
+    this->[:^fn2:]();
+    this->[:^S:]::fn2();
+
+    (void) [:^k:];  // expected-error {{cannot implicitly reference}} \
+                    // expected-note {{explicit 'this' pointer}}
+    (void) [:^S:]::k;  // expected-error {{cannot implicitly reference}} \
+                       // expected-note {{explicit 'this' pointer}}
+    [:^fn:]();  // expected-error {{cannot implicitly reference}} \
+                // expected-note {{explicit 'this' pointer}}
+    [:^S:]::fn2();  // expected-error {{cannot implicitly reference}} \
+                    // expected-note {{explicit 'this' pointer}}
+  }
+};
+
+// Dependent case
+struct D {
+  static constexpr int l = 3;
+
+  int k;
+
+  void fn2() { }
+
+  template <typename T>
+  void fn() {
+    static_assert([:^T:]::l == 3);
+    (void) this->[:^T:]::l;
+    (void) this->[:^T:]::fn2();
+
+    (void) [:^T:]::k;  // expected-error {{cannot implicitly reference}} \
+                       // expected-note {{explicit 'this' pointer}}
+    [:^T:]::fn2();  // expected-error {{cannot implicitly reference}} \
+                    // expected-note {{explicit 'this' pointer}}
+  }
+};
+
+void runner() {
+    D f = {4};
+    f.fn<D>();  // expected-note {{in instantiation of function template}}
+}
+
+}  // namespace with_implicit_member_access
 
                            // ======================
                            // with_overridden_memfns
