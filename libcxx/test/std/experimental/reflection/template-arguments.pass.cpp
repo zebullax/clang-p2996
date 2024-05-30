@@ -194,8 +194,24 @@ template<class T> struct TCls {};
 TCls<int> obj1;
 TCls<decltype(obj1)> obj2;
 
-static_assert(has_template_arguments(template_arguments_of(^decltype(obj2))[0]) ==
-              has_template_arguments(^TCls<int>));
+static_assert(
+        has_template_arguments(template_arguments_of(^decltype(obj2))[0]) ==
+        has_template_arguments(^TCls<int>));
 }  // namespace bb_clang_p2996_issue_41_regression_test
+
+                   // =======================================
+                   // bb_clang_p2996_issue_54_regression_test
+                   // =======================================
+
+namespace bb_clang_p2996_issue_54_regression_test {
+template <auto R> void fn() { }
+
+void fn() {
+    class S { S(); ~S(); };
+    fn<members_of(^S, std::meta::is_constructor)[0]>();
+    fn<members_of(^S, std::meta::is_destructor)[0]>();
+}
+}  // namespace bb_clang_p2996_issue_54_regression_test
+
 
 int main() { }

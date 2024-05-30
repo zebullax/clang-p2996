@@ -4694,6 +4694,12 @@ void CXXNameMangler::mangleReflection(const ReflectionValue &R) {
     Decl *D = R.getAsDecl();
     if (auto * ED = dyn_cast<EnumConstantDecl>(D)) {
       mangleIntegerLiteral(ED->getType(), ED->getInitVal());
+    } else if (auto *CD = dyn_cast<CXXConstructorDecl>(D)) {
+      GlobalDecl GD(CD, Ctor_Complete);
+      mangle(GD);
+    } else if (auto *DD = dyn_cast<CXXDestructorDecl>(D)) {
+      GlobalDecl GD(DD, Dtor_Complete);
+      mangle(GD);
     } else {
       mangle(cast<NamedDecl>(D));
     }
