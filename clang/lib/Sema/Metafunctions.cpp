@@ -631,6 +631,8 @@ static QualType desugarType(QualType QT, bool UnwrapAliases, bool DropCV,
       QT = AT->desugar();
     else if (auto *RT = dyn_cast<ReferenceType>(QT); RT && DropRefs)
       QT = RT->getPointeeType();
+    else if (auto *STTP = dyn_cast<SubstTemplateTypeParmType>(QT))
+      QT = STTP->getReplacementType();
     else
       break;
   }
@@ -1451,10 +1453,14 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   }
   case ReflectionValue::RK_declaration: {
     ValueDecl *VD = cast<ValueDecl>(R.getReflectedDecl());
-    return SetAndSucceed(Result, makeReflection(VD->getType()));
+    QualType QT = desugarType(VD->getType(), /*UnwrapAliases=*/false,
+                              /*DropCV=*/false, /*DropRefs=*/false);
+    return SetAndSucceed(Result, makeReflection(QT));
   }
   case ReflectionValue::RK_base_specifier: {
     QualType QT = R.getReflectedBaseSpecifier()->getType();
+    QT = desugarType(QT, /*UnwrapAliases=*/false, /*DropCV=*/false,
+                     /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
   }
   }

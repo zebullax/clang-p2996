@@ -53,9 +53,11 @@ QualType ReflectionValue::getAsType() const {
       New.setLocalFastQualifiers(QT.getLocalFastQualifiers());
       QT = New;
     }
-    if (const auto *STTPT = dyn_cast<SubstTemplateTypeParmType>(QT))
+    if (const auto *STTPT = dyn_cast<SubstTemplateTypeParmType>(QT);
+      STTPT && !STTPT->isDependentType())
       QT = STTPT->getReplacementType();
-    if (const auto *RST = dyn_cast<ReflectionSpliceType>(QT))
+    if (const auto *RST = dyn_cast<ReflectionSpliceType>(QT);
+      RST && !RST->isDependentType())
       QT = RST->getUnderlyingType();
     if (const auto *DTT = dyn_cast<DecltypeType>(QT))
       QT = DTT->desugar();
