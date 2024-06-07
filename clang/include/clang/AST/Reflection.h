@@ -42,9 +42,9 @@ public:
     /// QualType.
     RK_type = 1,
 
-    /// \brief A reflection of an expression that constant evaluates to a
-    /// prvalue. Corresponds to an object of type ConstantExpr.
-    RK_const_value = 2,
+    /// \brief A reflection of the result of an expression. Corresponds to an
+    /// object of type ConstantExpr.
+    RK_expr_result = 2,
 
     /// \brief A reflection of an expression referencing an entity (e.g.,
     /// variable, function, member function, etc). Corresponds to an object of
@@ -102,8 +102,8 @@ public:
   QualType getAsType() const;
 
   /// Returns this as an expression.
-  ConstantExpr *getAsConstValueExpr() const {
-    assert(getKind() == RK_const_value && "not a constant value");
+  ConstantExpr *getAsExprResult() const {
+    assert(getKind() == RK_expr_result && "not an expression result");
     return reinterpret_cast<ConstantExpr *>(Entity);
   }
 

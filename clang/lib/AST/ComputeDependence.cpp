@@ -955,8 +955,8 @@ ExprDependence clang::computeDependence(CXXReflectExpr *E,
       D |= ExprDependence::UnexpandedPack;
     return D;
   }
-  case ReflectionValue::RK_const_value:
-    return Operand.getAsConstValueExpr()->getDependence();
+  case ReflectionValue::RK_expr_result:
+    return Operand.getAsExprResult()->getDependence();
   case ReflectionValue::RK_declaration: {
     ValueDecl *VD = Operand.getAsDecl();
     if (VD->getType()->isDependentType())

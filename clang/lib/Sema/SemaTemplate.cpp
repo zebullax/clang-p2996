@@ -8836,8 +8836,8 @@ BuildExpressionFromReflection(Sema &S, const ReflectionValue &R,
   switch (R.getKind()) {
   case ReflectionValue::RK_type:
     return CXXReflectExpr::Create(S.Context, Loc, Loc, R.getAsType());
-  case ReflectionValue::RK_const_value:
-    return CXXReflectExpr::Create(S.Context, Loc, R.getAsConstValueExpr());
+  case ReflectionValue::RK_expr_result:
+    return CXXReflectExpr::Create(S.Context, Loc, R.getAsExprResult());
   case ReflectionValue::RK_declaration:
     return CXXReflectExpr::Create(S.Context, Loc, Loc, R.getAsDecl());
   case ReflectionValue::RK_template:

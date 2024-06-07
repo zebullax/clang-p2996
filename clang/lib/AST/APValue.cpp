@@ -636,10 +636,10 @@ QualType APValue::getReflectedType() const {
   return Refl.getAsType();
 }
 
-ConstantExpr *APValue::getReflectedConstValueExpr() const {
+ConstantExpr *APValue::getReflectedExprResult() const {
   const ReflectionValue &Refl = getReflection();
-  assert(Refl.getKind() == ReflectionValue::RK_const_value);
-  return Refl.getAsConstValueExpr();
+  assert(Refl.getKind() == ReflectionValue::RK_expr_result);
+  return Refl.getAsExprResult();
 }
 
 ValueDecl *APValue::getReflectedDecl() const {
@@ -999,8 +999,8 @@ void APValue::printPretty(raw_ostream &Out, const PrintingPolicy &Policy,
     case ReflectionValue::RK_type:
       Repr = "type";
       break;
-    case ReflectionValue::RK_const_value:
-      Repr = "constant-value";
+    case ReflectionValue::RK_expr_result:
+      Repr = "expression-result";
       break;
     case ReflectionValue::RK_declaration:
       Repr = "declaration";

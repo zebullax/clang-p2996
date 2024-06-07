@@ -15790,8 +15790,8 @@ bool ReflectionEvaluator::VisitCXXReflectExpr(const CXXReflectExpr *E) {
     APValue Result(ReflectionValue::RK_type, Ref.getAsType().getAsOpaquePtr());
     return Success(Result, E);
   }
-  case ReflectionValue::RK_const_value: {
-    APValue Result(ReflectionValue::RK_const_value, Ref.getAsConstValueExpr());
+  case ReflectionValue::RK_expr_result: {
+    APValue Result(ReflectionValue::RK_expr_result, Ref.getAsExprResult());
     return Success(Result, E);
   }
   case ReflectionValue::RK_declaration: {

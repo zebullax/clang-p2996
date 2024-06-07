@@ -1852,7 +1852,7 @@ CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T,
 CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T,
                                Expr *Operand)
     : Expr(CXXReflectExprClass, T, VK_PRValue, OK_Ordinary),
-      Ref(ReflectionValue::RK_const_value, Operand) {
+      Ref(ReflectionValue::RK_expr_result, Operand) {
   setDependence(computeDependence(this, C));
 }
 

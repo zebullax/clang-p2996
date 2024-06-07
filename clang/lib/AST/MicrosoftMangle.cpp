@@ -2048,7 +2048,7 @@ void MicrosoftCXXNameMangler::mangleReflection(const ReflectionValue &R) {
     Context.mangleCanonicalTypeName(QT, Out, false);
     break;
   }
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_declaration:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:

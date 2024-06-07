@@ -2954,8 +2954,8 @@ DEF_TRAVERSE_STMT(CXXReflectExpr, {
     TRY_TO(TraverseType(Op.getAsType()));
     break;
   }
-  case ReflectionValue::RK_const_value: {
-    TRY_TO(TraverseStmt(Op.getAsConstValueExpr()));
+  case ReflectionValue::RK_expr_result: {
+    TRY_TO(TraverseStmt(Op.getAsExprResult()));
     break;
   }
   case ReflectionValue::RK_declaration: {

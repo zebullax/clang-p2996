@@ -297,9 +297,9 @@ int main() {
 
   // RUN: grep "updated-reflect-result-global: 13" %t.stdout
   constexpr auto r = std::meta::reflect_object(
-        reflect_object_semantics::nonConstGlobal);
+        extract_ref_semantics::nonConstGlobal);
   static_assert(type_of(r) == ^int);
   [:r:] = 13;
   std::println("updated-reflect-result-global: {}",
-               reflect_object_semantics::nonConstGlobal);
+               extract_ref_semantics::nonConstGlobal);
 }

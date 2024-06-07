@@ -756,7 +756,7 @@ static APValue getNthTemplateArgument(Sema &S,
       CE->setValueKind(TExpr->getValueKind());
       CE->SetResult(ArgResult, S.Context);
 
-      return APValue(ReflectionValue::RK_const_value, CE);
+      return APValue(ReflectionValue::RK_expr_result, CE);
     }
     case TemplateArgument::Template:
       return makeReflection(templArgument.getAsTemplate());
@@ -789,7 +789,7 @@ static APValue getNthTemplateArgument(Sema &S,
       CE->setValueKind(VK);
       CE->SetResult(templArgument.getAsStructuralValue(), S.Context);
 
-      return APValue(ReflectionValue::RK_const_value, CE);
+      return APValue(ReflectionValue::RK_expr_result, CE);
     }
     case TemplateArgument::Integral: {
       ConstantExpr *CE =
@@ -799,7 +799,7 @@ static APValue getNthTemplateArgument(Sema &S,
       CE->setValueKind(VK_PRValue);
       CE->SetResult(APValue(templArgument.getAsIntegral()), S.Context);
 
-      return APValue(ReflectionValue::RK_const_value, CE);
+      return APValue(ReflectionValue::RK_expr_result, CE);
     }
     case TemplateArgument::IndeterminateSplice:
       llvm_unreachable("TemplateArgument::IndeterminateSplice should have been "
@@ -1042,7 +1042,7 @@ bool get_begin_enumerator_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
   }
   case ReflectionValue::RK_declaration:
   case ReflectionValue::RK_template:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec: {
@@ -1077,7 +1077,7 @@ bool get_next_enumerator_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
   }
   case ReflectionValue::RK_type:
   case ReflectionValue::RK_template:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec: {
@@ -1126,7 +1126,7 @@ bool get_ith_base_of(APValue &Result, Sema &S, EvalFn Evaluator,
   }
   case ReflectionValue::RK_declaration:
   case ReflectionValue::RK_template:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
@@ -1174,7 +1174,7 @@ bool get_ith_template_argument_of(APValue &Result, Sema &S, EvalFn Evaluator,
                                                         Sentinel, idx));
   }
   case ReflectionValue::RK_template:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
@@ -1246,7 +1246,7 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
   }
   case ReflectionValue::RK_declaration:
   case ReflectionValue::RK_template:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
     return true;
@@ -1326,7 +1326,7 @@ bool name_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return SetAndSucceed(Result, getTemplateName(S.Context, Evaluator, TName,
                                                  /*emptyIfUnnamed=*/true));
   }
-  case ReflectionValue::RK_const_value: {
+  case ReflectionValue::RK_expr_result: {
     if (makeCString(Result, "", S.Context, Evaluator))
       llvm_unreachable("failed to create empty string");
     return false;
@@ -1374,7 +1374,7 @@ bool display_name_of(APValue &Result, Sema &S, EvalFn Evaluator,
     return SetAndSucceed(Result, getTemplateName(S.Context, Evaluator, TName,
                                                  /*emptyIfUnnamed=*/false));
   }
-  case ReflectionValue::RK_const_value: {
+  case ReflectionValue::RK_expr_result: {
     if (makeCString(Result, "", S.Context, Evaluator))
       llvm_unreachable("failed to create empty string");
     return false;
@@ -1419,7 +1419,7 @@ bool source_location_of(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionValue::RK_namespace:
     return findDeclLoc(Result, S.Context, Evaluator, ResultTy,
                        R.getReflectedNamespace());
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
     return findDeclLoc(Result, S.Context, Evaluator, ResultTy, nullptr);
   case ReflectionValue::RK_base_specifier:
     return findBaseSpecLoc(Result, S.Context, Evaluator, ResultTy, nullptr);
@@ -1443,8 +1443,8 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_data_member_spec:
     return true;
-  case ReflectionValue::RK_const_value: {
-    ConstantExpr *E = R.getReflectedConstValueExpr();
+  case ReflectionValue::RK_expr_result: {
+    ConstantExpr *E = R.getReflectedExprResult();
     QualType QT = desugarType(E->getType(), /*UnwrapAliases=*/false,
                               /*DropCV=*/false, /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
@@ -1474,7 +1474,7 @@ bool parent_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
 
   switch (R.getReflection().getKind()) {
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_data_member_spec:
   case ReflectionValue::RK_base_specifier:
     return true;
@@ -1511,7 +1511,7 @@ bool dealias(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
 
   switch (R.getReflection().getKind()) {
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_declaration:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_base_specifier:
@@ -1543,8 +1543,8 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
 
   switch (R.getReflection().getKind()) {
-  case ReflectionValue::RK_const_value: {
-    ConstantExpr *E = R.getReflectedConstValueExpr();
+  case ReflectionValue::RK_expr_result: {
+    ConstantExpr *E = R.getReflectedExprResult();
     if (!E->isLValue())
       return SetAndSucceed(Result, R);
 
@@ -1566,7 +1566,7 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     CE->setValueKind(VK_PRValue);
     CE->SetResult(ER.Val, S.Context);
 
-    APValue Value(ReflectionValue::RK_const_value, CE);
+    APValue Value(ReflectionValue::RK_expr_result, CE);
     return SetAndSucceed(Result, Value);
   }
   case ReflectionValue::RK_declaration: {
@@ -1604,7 +1604,7 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     CE->setValueKind(VK_PRValue);
     CE->SetResult(Value, S.Context);
 
-    APValue Final(ReflectionValue::RK_const_value, CE);
+    APValue Final(ReflectionValue::RK_expr_result, CE);
     return SetAndSucceed(Result, Final);
   }
   case ReflectionValue::RK_type:
@@ -1641,7 +1641,7 @@ bool template_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
 
     return SetAndSucceed(Result, makeReflection(TName));
   }
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
@@ -1660,7 +1660,7 @@ bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
     switch (RV.getKind()) {
     case ReflectionValue::RK_type:
     case ReflectionValue::RK_declaration:
-    case ReflectionValue::RK_const_value:
+    case ReflectionValue::RK_expr_result:
     case ReflectionValue::RK_template:
       return true;
     case ReflectionValue::RK_namespace:
@@ -1721,8 +1721,8 @@ bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
       case ReflectionValue::RK_type:
         TArgs.emplace_back(Unwrapped.getReflectedType().getCanonicalType());
         break;
-      case ReflectionValue::RK_const_value: {
-        ConstantExpr *E = Unwrapped.getReflectedConstValueExpr();
+      case ReflectionValue::RK_expr_result: {
+        ConstantExpr *E = Unwrapped.getReflectedExprResult();
         if (E->getType()->isIntegralOrEnumerationType()) {
           llvm::APSInt UnwrappedIntegral = E->EvaluateKnownConstInt(S.Context);
           TArgs.emplace_back(S.Context, UnwrappedIntegral,
@@ -1733,7 +1733,7 @@ bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
             return true;
           TArgs.emplace_back(S.Context, R.getReflection());
         } else {
-          TArgs.emplace_back(Unwrapped.getReflectedConstValueExpr());
+          TArgs.emplace_back(Unwrapped.getReflectedExprResult());
         }
         break;
       }
@@ -1787,7 +1787,7 @@ bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     switch (RV.getKind()) {
     case ReflectionValue::RK_type:
     case ReflectionValue::RK_declaration:
-    case ReflectionValue::RK_const_value:
+    case ReflectionValue::RK_expr_result:
     case ReflectionValue::RK_template:
       return true;
     case ReflectionValue::RK_namespace:
@@ -1848,8 +1848,8 @@ bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
       case ReflectionValue::RK_type:
         TArgs.emplace_back(Unwrapped.getReflectedType().getCanonicalType());
         break;
-      case ReflectionValue::RK_const_value: {
-        ConstantExpr *E = Unwrapped.getReflectedConstValueExpr();
+      case ReflectionValue::RK_expr_result: {
+        ConstantExpr *E = Unwrapped.getReflectedExprResult();
         if (E->getType()->isIntegralOrEnumerationType()) {
           llvm::APSInt UnwrappedIntegral = E->EvaluateKnownConstInt(S.Context);
           TArgs.emplace_back(S.Context, UnwrappedIntegral,
@@ -1860,7 +1860,7 @@ bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
             return true;
           TArgs.emplace_back(S.Context, R.getReflection());
         } else {
-          TArgs.emplace_back(Unwrapped.getReflectedConstValueExpr());
+          TArgs.emplace_back(Unwrapped.getReflectedExprResult());
         }
         break;
       }
@@ -1994,7 +1994,7 @@ bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     CE->setValueKind(VK_PRValue);
     CE->SetResult(SatisfiesConcept, S.Context);
 
-    APValue Value(ReflectionValue::RK_const_value, CE);
+    APValue Value(ReflectionValue::RK_expr_result, CE);
     return SetAndSucceed(Result, Value);
   }
   llvm_unreachable("unimplemented for template kind");
@@ -2018,8 +2018,8 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
 
   switch (R.getReflection().getKind()) {
-  case ReflectionValue::RK_const_value: {
-    Expr *Synthesized = R.getReflectedConstValueExpr();
+  case ReflectionValue::RK_expr_result: {
+    Expr *Synthesized = R.getReflectedExprResult();
 
     if (auto *RD = dyn_cast_or_null<RecordDecl>(
             Synthesized->getType()->getAsCXXRecordDecl());
@@ -2179,7 +2179,7 @@ bool is_public(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     bool IsPublic = (Base->getAccessSpecifier() == AS_public);
     return SetAndSucceed(Result, makeBool(S.Context, IsPublic));
   }
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_data_member_spec:
   case ReflectionValue::RK_namespace:
     return SetAndSucceed(Result, makeBool(S.Context, false));
@@ -2220,7 +2220,7 @@ bool is_protected(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     bool IsProtected = (Base->getAccessSpecifier() == AS_protected);
     return SetAndSucceed(Result, makeBool(S.Context, IsProtected));
   }
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_data_member_spec:
   case ReflectionValue::RK_namespace:
     return SetAndSucceed(Result, makeBool(S.Context, false));
@@ -2261,7 +2261,7 @@ bool is_private(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     bool IsPrivate = (Base->getAccessSpecifier() == AS_private);
     return SetAndSucceed(Result, makeBool(S.Context, IsPrivate));
   }
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_data_member_spec:
     return SetAndSucceed(Result, makeBool(S.Context, false));
@@ -2336,7 +2336,7 @@ bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator,
     bool Accessible = (AR == Sema::AR_accessible);
     return SetAndSucceed(Result, makeBool(S.Context, Accessible));
   }
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_data_member_spec:
     return SetAndSucceed(Result, makeBool(S.Context, false));
@@ -2366,7 +2366,7 @@ bool is_virtual(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return SetAndSucceed(Result, makeBool(S.Context, IsVirtual));
   }
   case ReflectionValue::RK_type:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_data_member_spec:
@@ -2387,7 +2387,7 @@ bool is_pure_virtual(APValue &Result, Sema &S, EvalFn Evaluator,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
@@ -2414,7 +2414,7 @@ bool is_override(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   bool IsOverride = false;
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
@@ -2440,7 +2440,7 @@ bool is_deleted(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
@@ -2466,7 +2466,7 @@ bool is_defaulted(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
@@ -2492,7 +2492,7 @@ bool is_explicit(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
@@ -2681,7 +2681,7 @@ bool is_static_member(APValue &Result, Sema &S, EvalFn Evaluator,
     return SetAndSucceed(Result, makeBool(S.Context, result));
   }
   case ReflectionValue::RK_type:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
@@ -2788,7 +2788,7 @@ bool is_alias(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     bool result = isa<TypeAliasTemplateDecl>(TDecl);
     return SetAndSucceed(Result, makeBool(S.Context, result));
   }
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_declaration:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
@@ -2926,8 +2926,8 @@ bool is_value(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
 
   bool IsValue = false;
-  if (R.getReflection().getKind() == ReflectionValue::RK_const_value)
-    IsValue = R.getReflectedConstValueExpr()->isPRValue();
+  if (R.getReflection().getKind() == ReflectionValue::RK_expr_result)
+    IsValue = R.getReflectedExprResult()->isPRValue();
 
   return SetAndSucceed(Result, makeBool(S.Context, IsValue));
 }
@@ -2942,8 +2942,8 @@ bool is_object(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
 
   bool IsObject = false;
-  if (R.getReflection().getKind() == ReflectionValue::RK_const_value)
-    IsObject = R.getReflectedConstValueExpr()->isLValue();
+  if (R.getReflection().getKind() == ReflectionValue::RK_expr_result)
+    IsObject = R.getReflectedExprResult()->isLValue();
   else if (R.getReflection().getKind() == ReflectionValue::RK_declaration)
     IsObject = isa<VarDecl>(R.getReflectedDecl());
 
@@ -2977,7 +2977,7 @@ bool has_template_arguments(APValue &Result, Sema &S, EvalFn Evaluator,
 
     return SetAndSucceed(Result, makeBool(S.Context, result));
   }
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
@@ -2999,7 +2999,7 @@ bool is_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
@@ -3031,7 +3031,7 @@ bool is_destructor(APValue &Result, Sema &S, EvalFn Evaluator,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
@@ -3057,7 +3057,7 @@ bool is_special_member(APValue &Result, Sema &S, EvalFn Evaluator,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
@@ -3118,7 +3118,7 @@ bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
         return SetAndSucceed(Result,
                              makeReflection(LVBase.get<const ValueDecl *>()));
 
-  APValue Value(ReflectionValue::RK_const_value, E);
+  APValue Value(ReflectionValue::RK_expr_result, E);
   return SetAndSucceed(Result, Value);
 }
 
@@ -3164,8 +3164,8 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
         return true;
 
       ReflectionValue RV = ArgResult.getReflection();
-      if (RV.getKind() == ReflectionValue::RK_const_value) {
-        ArgExprs.push_back(RV.getAsConstValueExpr());
+      if (RV.getKind() == ReflectionValue::RK_expr_result) {
+        ArgExprs.push_back(RV.getAsExprResult());
       } else if (RV.getKind() == ReflectionValue::RK_declaration) {
         ValueDecl *D = RV.getAsDecl();
         ArgExprs.push_back(
@@ -3189,8 +3189,8 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
     return true;
-  case ReflectionValue::RK_const_value:
-    FnRefExpr = Scratch.getReflectedConstValueExpr();
+  case ReflectionValue::RK_expr_result:
+    FnRefExpr = Scratch.getReflectedExprResult();
     break;
   case ReflectionValue::RK_declaration: {
     ValueDecl *D = Scratch.getReflectedDecl();
@@ -3262,7 +3262,7 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
   CE->setValueKind(VK_PRValue);
   CE->SetResult(FnResult, S.Context);
 
-  APValue Value(ReflectionValue::RK_const_value, CE);
+  APValue Value(ReflectionValue::RK_expr_result, CE);
   return SetAndSucceed(Result, Value);
 }
 
@@ -3628,7 +3628,7 @@ bool offset_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
@@ -3665,8 +3665,8 @@ bool size_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
             Result,
             APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
   }
-  case ReflectionValue::RK_const_value: {
-    const Expr *E = R.getReflectedConstValueExpr();
+  case ReflectionValue::RK_expr_result: {
+    const Expr *E = R.getReflectedExprResult();
     size_t Sz = S.Context.getTypeSizeInChars(E->getType()).getQuantity();
     return SetAndSucceed(
             Result,
@@ -3700,7 +3700,7 @@ bool bit_offset_of(APValue &Result, Sema &S, EvalFn Evaluator,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
@@ -3737,8 +3737,8 @@ bool bit_size_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
             Result,
             APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
   }
-  case ReflectionValue::RK_const_value: {
-    const Expr *E = R.getReflectedConstValueExpr();
+  case ReflectionValue::RK_expr_result: {
+    const Expr *E = R.getReflectedExprResult();
     size_t Sz = S.Context.getTypeSize(E->getType());
     return SetAndSucceed(
             Result,
@@ -3783,8 +3783,8 @@ bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator,
             Result,
             APValue(S.Context.MakeIntValue(Align, S.Context.getSizeType())));
   }
-  case ReflectionValue::RK_const_value: {
-    const Expr *E = R.getReflectedConstValueExpr();
+  case ReflectionValue::RK_expr_result: {
+    const Expr *E = R.getReflectedExprResult();
     size_t Align = S.Context.getTypeAlignInChars(E->getType()).getQuantity();
     return SetAndSucceed(
             Result,
@@ -3852,7 +3852,7 @@ bool get_ith_parameter_of(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
   }
   case ReflectionValue::RK_template:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
@@ -3873,7 +3873,7 @@ bool has_consistent_name(APValue &Result, Sema &S, EvalFn Evaluator,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
@@ -3918,7 +3918,7 @@ bool has_default_argument(APValue &Result, Sema &S, EvalFn Evaluator,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type:
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:

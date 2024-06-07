@@ -140,8 +140,8 @@ ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OpLoc,
   switch (RV.getKind()) {
   case ReflectionValue::RK_type:
     return BuildCXXReflectExpr(OpLoc, E->getExprLoc(), RV.getAsType());
-  case ReflectionValue::RK_const_value:
-    return BuildCXXReflectExpr(OpLoc, RV.getAsConstValueExpr());
+  case ReflectionValue::RK_expr_result:
+    return BuildCXXReflectExpr(OpLoc, RV.getAsExprResult());
   case ReflectionValue::RK_declaration:
     return BuildCXXReflectExpr(OpLoc, E->getExprLoc(), RV.getAsDecl());
   case ReflectionValue::RK_template:
@@ -321,9 +321,9 @@ ParsedTemplateArgument Sema::ActOnTemplateIndeterminateSpliceArgument(
     return ParsedTemplateArgument(ParsedTemplateArgument::Type,
                                   RV.getAsType().getAsOpaquePtr(),
                                   Splice->getExprLoc());
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
     return ParsedTemplateArgument(ParsedTemplateArgument::NonType,
-                                  RV.getAsConstValueExpr(),
+                                  RV.getAsExprResult(),
                                   Splice->getExprLoc());
   case ReflectionValue::RK_template: {
     TemplateName TName = RV.getAsTemplate();
@@ -705,8 +705,8 @@ ExprResult Sema::BuildReflectionSpliceExpr(
                                           RSplice, TArgs, AllowMemberReference);
       break;
     }
-    case ReflectionValue::RK_const_value: {
-      Operand = RV.getAsConstValueExpr();
+    case ReflectionValue::RK_expr_result: {
+      Operand = RV.getAsExprResult();
       if (!isConstantEvaluatedContext() && !isa<ConstantExpr>(Operand)) {
         Operand = ConstantExpr::Create(Context, Operand,
                                        ConstantResultStorageKind::APValue,
@@ -905,7 +905,7 @@ DeclContext *Sema::TryFindDeclContextOf(const Expr *E) {
       NS = A->getNamespace();
     return cast<DeclContext>(NS);
   }
-  case ReflectionValue::RK_const_value:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_declaration:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_base_specifier:

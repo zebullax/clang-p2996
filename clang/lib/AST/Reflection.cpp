@@ -73,12 +73,12 @@ void ReflectionValue::Profile(llvm::FoldingSetNodeID &ID) const {
     QT.Profile(ID);
     break;
   }
-  case RK_const_value:
-    if (auto *RD = getAsConstValueExpr()->getType()->getAsRecordDecl();
+  case RK_expr_result:
+    if (auto *RD = getAsExprResult()->getType()->getAsRecordDecl();
         RD && RD->isLambda()) {
       QualType(RD->getTypeForDecl(), 0).Profile(ID);
     }
-    getAsConstValueExpr()->getAPValueResult().Profile(ID);
+    getAsExprResult()->getAPValueResult().Profile(ID);
     break;
   case RK_declaration:
     ID.AddPointer(getAsDecl());
@@ -136,15 +136,15 @@ bool ReflectionValue::operator==(ReflectionValue const& Rhs) const {
 
     return LQT.getCanonicalType() == RQT.getCanonicalType();
   }
-  case RK_const_value: {
-    APValue LV = getAsConstValueExpr()->getAPValueResult();
-    APValue RV = Rhs.getAsConstValueExpr()->getAPValueResult();
+  case RK_expr_result: {
+    APValue LV = getAsExprResult()->getAPValueResult();
+    APValue RV = Rhs.getAsExprResult()->getAPValueResult();
 
     llvm::FoldingSetNodeID LID, RID;
-    getAsConstValueExpr()->getType()
+    getAsExprResult()->getType()
         .getCanonicalType().getUnqualifiedType().Profile(LID);
     LV.Profile(LID);
-    Rhs.getAsConstValueExpr()->getType()
+    Rhs.getAsExprResult()->getType()
         .getCanonicalType().getUnqualifiedType().Profile(RID);
     RV.Profile(RID);
 

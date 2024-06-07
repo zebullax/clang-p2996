@@ -8745,8 +8745,8 @@ TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
     return getSema().BuildCXXReflectExpr(E->getOperatorLoc(),
                                          E->getArgLoc(), New);
   }
-  case ReflectionValue::RK_const_value: {
-    ExprResult Result = getDerived().TransformExpr(Refl.getAsConstValueExpr());
+  case ReflectionValue::RK_expr_result: {
+    ExprResult Result = getDerived().TransformExpr(Refl.getAsExprResult());
     if (Result.isInvalid())
       return ExprError();
 
