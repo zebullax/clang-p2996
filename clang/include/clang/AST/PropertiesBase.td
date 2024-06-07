@@ -265,6 +265,11 @@ class PropertyTypeCase<PropertyType type, string name> : HasProperties {
 // Type cases for ReflectionValue.
 def : PropertyTypeKind<ReflectionValue, ReflectionKind,
                        "node.getKind()">;
+let Class = PropertyTypeCase<ReflectionValue, "RK_null"> in {
+  def : Creator<[{
+    return ReflectionValue();
+  }]>;
+}
 let Class = PropertyTypeCase<ReflectionValue, "RK_type"> in {
   def : Property<"value", QualType> {
     let Read = [{ node.getAsType() }];

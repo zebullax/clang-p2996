@@ -22,6 +22,8 @@
 
 namespace clang {
 
+ReflectionValue::ReflectionValue() : Kind(RK_null), Entity(nullptr) { }
+
 ReflectionValue::ReflectionValue(ReflectionKind Kind, void *Entity)
     : Kind(Kind), Entity(Entity) {
 }
@@ -36,6 +38,8 @@ ReflectionValue &ReflectionValue::operator=(ReflectionValue const&Rhs) {
 
   return *this;
 }
+
+bool ReflectionValue::isNull() const { return Kind == RK_null; }
 
 QualType ReflectionValue::getAsType() const {
   assert(getKind() == RK_type && "not a type");
@@ -68,6 +72,8 @@ QualType ReflectionValue::getAsType() const {
 void ReflectionValue::Profile(llvm::FoldingSetNodeID &ID) const {
   ID.AddInteger(Kind);
   switch (Kind) {
+  case RK_null:
+    break;
   case RK_type: {
     QualType QT = getAsType();
     QT.Profile(ID);
@@ -115,6 +121,8 @@ bool ReflectionValue::operator==(ReflectionValue const& Rhs) const {
     return false;
 
   switch (getKind()) {
+  case RK_null:
+    return true;
   case RK_type: {
     QualType LQT = getAsType(), RQT = Rhs.getAsType();
     if (LQT.getQualifiers() != RQT.getQualifiers())

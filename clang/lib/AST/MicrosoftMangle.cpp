@@ -2031,6 +2031,9 @@ void MicrosoftCXXNameMangler::mangleReflection(const ReflectionValue &R) {
 
   const void *opaque = R.getOpaqueValue();
   switch (R.getKind()) {
+  case ReflectionValue::RK_null:
+    Out << '0';
+    break;
   case ReflectionValue::RK_type: {
     Out << 't';
     QualType QT = QualType::getFromOpaquePtr(opaque);

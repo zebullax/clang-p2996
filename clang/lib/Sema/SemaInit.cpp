@@ -5431,6 +5431,11 @@ static void TryDefaultInitialization(Sema &S,
     return;
   }
 
+  if (DestType->isReflectionType()) {
+    Sequence.AddZeroInitializationStep(Entity.getType());
+    return;
+  }
+
   //     - otherwise, no initialization is performed.
 
   //   If a program calls for the default initialization of an object of

@@ -37,6 +37,23 @@ namespace ns_alias = ns;
 enum Enum { A };
 enum class EnumCls { A };
 
+constexpr std::meta::info null_reflection;
+static_assert(!is_type(null_reflection));
+static_assert(!is_incomplete_type(null_reflection));
+static_assert(!is_alias(null_reflection));
+static_assert(!is_function(null_reflection));
+static_assert(!is_variable(null_reflection));
+static_assert(!is_namespace(null_reflection));
+static_assert(!is_template(null_reflection));
+static_assert(!is_function_template(null_reflection));
+static_assert(!is_variable_template(null_reflection));
+static_assert(!is_class_template(null_reflection));
+static_assert(!is_alias_template(null_reflection));
+static_assert(!is_concept(null_reflection));
+static_assert(!is_base(null_reflection));
+static_assert(!is_value(null_reflection));
+static_assert(!is_object(null_reflection));
+
 static_assert(!is_type(std::meta::reflect_value(3)));
 static_assert(!is_incomplete_type(std::meta::reflect_value(3)));
 static_assert(!is_alias(std::meta::reflect_value(3)));

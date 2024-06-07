@@ -4672,6 +4672,9 @@ void CXXNameMangler::mangleReflection(const ReflectionValue &R) {
   Out << 'M';
 
   switch (R.getKind()) {
+  case ReflectionValue::RK_null:
+    Out << '0';
+    break;
   case ReflectionValue::RK_type: {
     Out << 't';
     QualType QT = R.getAsType();

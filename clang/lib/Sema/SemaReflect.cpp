@@ -148,6 +148,7 @@ ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OpLoc,
     return BuildCXXReflectExpr(OpLoc, E->getExprLoc(), RV.getAsTemplate());
   case ReflectionValue::RK_namespace:
     return BuildCXXReflectExpr(OpLoc, E->getExprLoc(), RV.getAsNamespace());
+  case ReflectionValue::RK_null:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
     return ExprError();
@@ -337,6 +338,10 @@ ParsedTemplateArgument Sema::ActOnTemplateIndeterminateSpliceArgument(
     return ParsedTemplateArgument(ParsedTemplateArgument::NonType, E,
                                   E->getExprLoc());
   }
+  case ReflectionValue::RK_null:
+    Diag(Splice->getExprLoc(), diag::err_unsupported_splice_kind)
+      << "null reflections" << 0 << 0;
+    break;
   case ReflectionValue::RK_namespace:
     Diag(Splice->getExprLoc(), diag::err_unsupported_splice_kind)
       << "namespaces" << 0 << 0;
@@ -784,6 +789,7 @@ ExprResult Sema::BuildReflectionSpliceExpr(
                                           AllowMemberReference);
       break;
     }
+    case ReflectionValue::RK_null:
     case ReflectionValue::RK_type:
     case ReflectionValue::RK_namespace:
     case ReflectionValue::RK_base_specifier:
@@ -905,6 +911,7 @@ DeclContext *Sema::TryFindDeclContextOf(const Expr *E) {
       NS = A->getNamespace();
     return cast<DeclContext>(NS);
   }
+  case ReflectionValue::RK_null:
   case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_declaration:
   case ReflectionValue::RK_template:

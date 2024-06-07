@@ -5329,6 +5329,7 @@ class CXXReflectExpr : public Expr {
   SourceLocation OpLoc;
   SourceLocation ArgLoc;
 
+  CXXReflectExpr(const ASTContext &C, QualType T);
   CXXReflectExpr(const ASTContext &C, QualType T, QualType Arg);
   CXXReflectExpr(const ASTContext &C, QualType T, Expr *Arg);
   CXXReflectExpr(const ASTContext &C, QualType T, Decl *Arg, bool IsNamespace);
@@ -5337,6 +5338,8 @@ class CXXReflectExpr : public Expr {
   CXXReflectExpr(const ASTContext &C, QualType T, TagDataMemberSpec *Arg);
 
 public:
+  static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
+                                SourceLocation OperandLoc);
   static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
                                 SourceLocation ArgLoc, QualType Operand);
   static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,

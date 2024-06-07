@@ -123,6 +123,22 @@ void run_test() {
 }
 }  // namespace std_apply_with_function_splice
 
+                 // ==========================================
+                 // array_with_default_initialized_reflections
+                 // ==========================================
+
+namespace array_with_default_initialized_reflections {
+consteval auto fn() {
+    std::array<std::meta::info, 3> arr = {};
+    arr[0] = ^int;
+
+    return arr;
+}
+
+[[maybe_unused]] constexpr auto rs = fn();
+}  // namespace array_with_default_initialized_reflections
+
+
 template <std::meta::info... Tests>
 void run_tests() {
   (..., [:Tests:]::run_test());

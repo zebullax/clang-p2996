@@ -38,6 +38,9 @@ class ReflectionValue {
 public:
   /// \brief The kind of construct reflected.
   enum ReflectionKind {
+    /// \brief A null reflection. Corresponds to no object.
+    RK_null = 0,
+
     /// \brief A reflection of a type. Corresponds to an object of type
     /// QualType.
     RK_type = 1,
@@ -86,7 +89,7 @@ private:
   void *Entity;
 
 public:
-  ReflectionValue() = default;
+  ReflectionValue();
   ReflectionValue(ReflectionValue const&Rhs);
   ReflectionValue(ReflectionKind ReflKind, void *Entity);
   ReflectionValue &operator=(ReflectionValue const& Rhs);
@@ -97,6 +100,9 @@ public:
   void *getOpaqueValue() const {
     return Entity;
   }
+
+  /// Returns whether this is a null reflection.
+  bool isNull() const;
 
   /// Returns this as a type operand.
   QualType getAsType() const;

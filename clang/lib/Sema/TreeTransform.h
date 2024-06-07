@@ -8797,6 +8797,8 @@ TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
     return E;
+  case ReflectionValue::RK_null:
+    llvm_unreachable("reflect operand should never yield the null reflection");
   }
   llvm_unreachable("invalid reflection");
 }

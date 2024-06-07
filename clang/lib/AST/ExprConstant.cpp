@@ -15777,6 +15777,15 @@ public:
     return true;
   }
 
+  bool ZeroInitialization(const Expr *E) {
+    Result = APValue(ReflectionValue::RK_null, nullptr);
+    return true;
+  }
+
+  bool VisitImplicitValueInitExpr(const ImplicitValueInitExpr *E) {
+    return ZeroInitialization(E);
+  }
+
   bool VisitCXXReflectExpr(const CXXReflectExpr *E);
   bool VisitCXXMetafunctionExpr(const CXXMetafunctionExpr *E);
   bool VisitCXXIndeterminateSpliceExpr(const CXXIndeterminateSpliceExpr *E);
@@ -15786,6 +15795,10 @@ public:
 bool ReflectionEvaluator::VisitCXXReflectExpr(const CXXReflectExpr *E) {
   const ReflectionValue &Ref = E->getOperand();
   switch (Ref.getKind()) {
+  case ReflectionValue::RK_null: {
+    APValue Result(ReflectionValue::RK_null, nullptr);
+    return Success(Result, E);
+  }
   case ReflectionValue::RK_type: {
     APValue Result(ReflectionValue::RK_type, Ref.getAsType().getAsOpaquePtr());
     return Success(Result, E);

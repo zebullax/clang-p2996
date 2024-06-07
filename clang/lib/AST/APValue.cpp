@@ -996,6 +996,9 @@ void APValue::printPretty(raw_ostream &Out, const PrintingPolicy &Policy,
     const ReflectionValue& Refl = getReflection();
     std::string Repr("...");
     switch (Refl.getKind()) {
+    case ReflectionValue::RK_null:
+      Repr = "null";
+      break;
     case ReflectionValue::RK_type:
       Repr = "type";
       break;
