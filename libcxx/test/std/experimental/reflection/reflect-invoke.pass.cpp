@@ -115,7 +115,7 @@ template <typename T, template <typename, size_t> class C, size_t Sz>
 consteval bool FirstElemZero(C<T, Sz> Container) { return Container[0] == 0; }
 static_assert(
         [:reflect_invoke(substitute(^FirstElemZero, {^int, ^std::array, ^4}),
-                         {std::meta::reflect_result(std::array{0,2,3,4})}):]);
+                         {std::meta::reflect_value(std::array{0,2,3,4})}):]);
 
 }  // namespace function_templates
 

@@ -436,7 +436,7 @@ static APValue makeReflection(QualType QT) {
   return APValue(ReflectionValue::RK_type, QT.getAsOpaquePtr());
 }
 
-static APValue makeReflection(Decl *D) {
+static APValue makeReflection(const Decl *D) {
   if (isa<NamespaceDecl>(D) || isa<NamespaceAliasDecl>(D) ||
       isa<TranslationUnitDecl>(D))
     return APValue(ReflectionValue::RK_namespace, D);
@@ -1447,8 +1447,6 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     ConstantExpr *E = R.getReflectedConstValueExpr();
     QualType QT = desugarType(E->getType(), /*UnwrapAliases=*/false,
                               /*DropCV=*/false, /*DropRefs=*/false);
-    if (E->isLValue())
-      QT = S.Context.getLValueReferenceType(QT);
     return SetAndSucceed(Result, makeReflection(QT));
   }
   case ReflectionValue::RK_declaration: {
@@ -3093,6 +3091,9 @@ bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
   assert(ArgTy.getReflection().getKind() == ReflectionValue::RK_type);
   bool IsLValue = isa<ReferenceType>(ArgTy.getReflectedType());
 
+  if (!IsLValue && !ArgTy.getReflectedType()->isStructuralType())
+    return true;
+
   APValue Arg;
   if (!Evaluator(Arg, Args[1], !IsLValue))
     return true;
@@ -3103,6 +3104,19 @@ bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
   E->setType(Args[1]->getType());
   E->setValueKind(IsLValue ? VK_LValue : VK_PRValue);
   E->SetResult(Arg, S.Context);
+  {
+    Expr::EvalResult Discarded;
+    if (IsLValue && !E->EvaluateAsLValue(Discarded, S.Context, true))
+      return true;
+  }
+
+  if (!E->getType()->isPointerType() && Arg.getKind() == APValue::LValue &&
+      Arg.getLValueOffset().isZero())
+    if (!Arg.hasLValuePath() || Arg.getLValuePath().size() == 0)
+      if (APValue::LValueBase LVBase = Arg.getLValueBase();
+          LVBase.is<const ValueDecl *>())
+        return SetAndSucceed(Result,
+                             makeReflection(LVBase.get<const ValueDecl *>()));
 
   APValue Value(ReflectionValue::RK_const_value, E);
   return SetAndSucceed(Result, Value);

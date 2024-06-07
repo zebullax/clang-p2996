@@ -40,7 +40,7 @@ template<typename R>
 consteval auto expand(R range) {
   std::vector<std::meta::info> args;
   for (auto r : range) {
-    args.push_back(std::meta::reflect_result(r));
+    args.push_back(std::meta::reflect_value(r));
   }
   return substitute(^__impl::replicator, args);
 }

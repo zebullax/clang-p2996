@@ -43,7 +43,7 @@ consteval auto make_struct_of_arrays(std::meta::info type,
 
 template <typename T, size_t N>
 using struct_of_arrays = 
-    [: make_struct_of_arrays(^T, std::meta::reflect_result(N)) :];
+    [: make_struct_of_arrays(^T, std::meta::reflect_value(N)) :];
 
 
 struct point {
