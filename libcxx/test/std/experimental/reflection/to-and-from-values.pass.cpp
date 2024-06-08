@@ -21,6 +21,7 @@
 #include <experimental/meta>
 
 #include <print>
+#include <utility>
 
 
 enum Enum { A = 42 };
@@ -34,12 +35,6 @@ struct Cls {
 };
 template <int K> struct TCls {
   static constexpr int value = K;
-};
-
-template <typename T1, typename T2>
-struct Pair {
-  T1 first;
-  T2 second;
 };
 
                             // =====================
@@ -84,10 +79,11 @@ static_assert(type_of(std::meta::reflect_object(ConstVar)) == ^const int);
 static_assert(std::meta::reflect_object(ConstexprVar) == ^ConstexprVar);
 static_assert(type_of(std::meta::reflect_object(ConstexprVar)) == ^const int);
 
-static constexpr Pair<int, short> p = {1, 2};
+static constexpr std::pair<int, short> p = {1, 2};
 static_assert(std::meta::reflect_object(p) == ^p);
 static_assert(std::meta::reflect_object(p.first) != ^p);
-static_assert(type_of(std::meta::reflect_object(p)) == ^const Pair<int, short>);
+static_assert(type_of(std::meta::reflect_object(p)) ==
+              ^const std::pair<int, short>);
 
 static_assert(&[:std::meta::reflect_object(p.first):] == &p.first);
 static_assert([:std::meta::reflect_object(p.first):] == 1);
@@ -219,6 +215,10 @@ static_assert(type_of(value_of(^a2)) == ^const S);
 
 constexpr const int &ref = a1;
 static_assert(type_of(value_of(^ref)) == ^int);
+
+constexpr std::pair<std::pair<int, bool>, int> p = {{1, true}, 2};
+static_assert(type_of(value_of(std::meta::reflect_object(p.first))) ==
+              ^const std::pair<int, bool>);
 }  // namespace value_of_types
 
                              // ===================
@@ -254,6 +254,17 @@ static_assert(value_of(^ce) != std::meta::reflect_value(0));
 static_assert(value_of(^ce) != std::meta::reflect_value(Enum(0)));
 static_assert(value_of(^ce) == std::meta::reflect_value(EnumCls(0)));
 
+constexpr std::pair<std::pair<int, bool>, int> p = {{1, true}, 2};
+constexpr std::meta::info rfirst = std::meta::reflect_object(p.first);
+static_assert(is_object(rfirst) && !is_value(rfirst));
+static_assert(type_of(rfirst) == ^const std::pair<int, bool>);
+static_assert(rfirst != std::meta::reflect_value(std::make_pair(1, true)));
+
+constexpr std::meta::info rvfirst = value_of(rfirst);
+static_assert(!is_object(rvfirst) && is_value(rvfirst));
+static_assert(type_of(rvfirst) == ^const std::pair<int, bool>);
+static_assert(rvfirst == std::meta::reflect_value(std::make_pair(1, true)));
+static_assert([:rvfirst:].first == 1);
 }  // namespace values_from_objects
 
 int main() {
@@ -302,4 +313,10 @@ int main() {
   [:r:] = 13;
   std::println("updated-reflect-result-global: {}",
                extract_ref_semantics::nonConstGlobal);
+
+  // RUN: grep "splice-value-reflection: 1" %t.stdout
+  static constexpr std::pair<std::pair<int, bool>, int> p = {{1, true}, 2};
+  constexpr auto rvfirst = value_of(std::meta::reflect_object(p.first));
+  int v = [:rvfirst:].first;
+  std::println("splice-value-reflection: {}", v);
 }

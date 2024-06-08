@@ -1454,7 +1454,8 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
   case ReflectionValue::RK_expr_result: {
     ConstantExpr *E = R.getReflectedExprResult();
-    QualType QT = desugarType(E->getType(), /*UnwrapAliases=*/false,
+    bool UnwrapAliases = E->isPRValue();
+    QualType QT = desugarType(E->getType(), /*UnwrapAliases=*/UnwrapAliases,
                               /*DropCV=*/false, /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
   }
@@ -1559,20 +1560,18 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     if (!E->isLValue())
       return SetAndSucceed(Result, R);
 
-    Expr *Synthesized = ImplicitCastExpr::Create(S.Context, E->getType(),
-                                                 CK_LValueToRValue, E, nullptr,
-                                                 VK_PRValue,
-                                                 FPOptionsOverride());
+    if (!E->getType()->isStructuralType())
+      return true;
 
     Expr::EvalResult ER;
-    if (!Synthesized->EvaluateAsRValue(ER, S.Context, true))
+    if (!E->EvaluateAsRValue(ER, S.Context, true))
       return true;
 
     ConstantExpr *CE =
         ConstantExpr::CreateEmpty(S.Context,
                                   ConstantResultStorageKind::APValue);
-    CE->setType(desugarType(Synthesized->getType(), /*UnwrapAliases=*/true,
-                            /*DropCV=*/!Synthesized->getType()->isRecordType(),
+    CE->setType(desugarType(E->getType(), /*UnwrapAliases=*/true,
+                            /*DropCV=*/!E->getType()->isRecordType(),
                             /*DropRefs=*/true));
     CE->setValueKind(VK_PRValue);
     CE->SetResult(ER.Val, S.Context);

@@ -16027,6 +16027,9 @@ static bool FastEvaluateAsRValue(const Expr *Exp, Expr::EvalResult &Result,
 
   if (const auto *CE = dyn_cast<ConstantExpr>(Exp)) {
     if (CE->hasAPValueResult()) {
+      if (CE->isLValue())
+        return false;
+
       Result.Val = CE->getAPValueResult();
       IsConst = true;
       return true;
