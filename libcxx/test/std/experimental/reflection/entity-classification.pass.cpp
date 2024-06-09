@@ -25,6 +25,7 @@ using alias = type;
 int var;
 void func();
 
+template <typename T> struct IncompleteTCls;
 template <typename T> struct TCls {};
 template <typename T> void TFn();
 template <typename T> concept TConcept = requires { true; };
@@ -150,8 +151,24 @@ static_assert(!is_base(^TCls));
 static_assert(!is_value(^TCls));
 static_assert(!is_object(^TCls));
 
+static_assert(is_type(^IncompleteTCls<int>));
+static_assert(is_incomplete_type(^IncompleteTCls<int>));
+static_assert(!is_alias(^IncompleteTCls<int>));
+static_assert(!is_function(^IncompleteTCls<int>));
+static_assert(!is_variable(^IncompleteTCls<int>));
+static_assert(!is_template(^IncompleteTCls<int>));
+static_assert(!is_namespace(^IncompleteTCls<int>));
+static_assert(!is_function_template(^IncompleteTCls<int>));
+static_assert(!is_variable_template(^IncompleteTCls<int>));
+static_assert(!is_class_template(^IncompleteTCls<int>));
+static_assert(!is_alias_template(^IncompleteTCls<int>));
+static_assert(!is_concept(^IncompleteTCls<int>));
+static_assert(!is_base(^IncompleteTCls<int>));
+static_assert(!is_value(^IncompleteTCls<int>));
+static_assert(!is_object(^IncompleteTCls<int>));
+
 static_assert(is_type(^TCls<int>));
-static_assert(is_incomplete_type(^TCls<int>));
+static_assert(!is_incomplete_type(^TCls<int>));
 static_assert(!is_alias(^TCls<int>));
 static_assert(!is_function(^TCls<int>));
 static_assert(!is_variable(^TCls<int>));
@@ -279,7 +296,7 @@ static_assert(!is_value(^TClsAlias));
 static_assert(!is_object(^TClsAlias));
 
 static_assert(is_type(^TClsAlias<int>));
-static_assert(is_incomplete_type(^TClsAlias<int>));
+static_assert(!is_incomplete_type(^TClsAlias<int>));
 static_assert(is_alias(^TClsAlias<int>));
 static_assert(!is_function(^TClsAlias<int>));
 static_assert(!is_variable(^TClsAlias<int>));
@@ -414,11 +431,12 @@ struct incomplete_type {};
 static_assert(!is_incomplete_type(^incomplete_type));
 static_assert(!is_incomplete_type(^incomplete_alias));
 
-static_assert(is_incomplete_type(^TCls<int>));
-static_assert(is_incomplete_type(^TClsAlias<int>));
-namespace { [[maybe_unused]] TCls<int> TClsCompletion; };
-static_assert(!is_incomplete_type(^TCls<int>));
-static_assert(!is_incomplete_type(^TClsAlias<int>));
+template <typename T> using IncompleteTClsAlias = IncompleteTCls<T>;
+static_assert(is_incomplete_type(^IncompleteTCls<int>));
+static_assert(is_incomplete_type(^IncompleteTClsAlias<int>));
+template <typename T> struct IncompleteTCls {};
+static_assert(!is_incomplete_type(^IncompleteTCls<int>));
+static_assert(!is_incomplete_type(^IncompleteTClsAlias<int>));
 
 struct Base {};
 struct Derived : Base {};

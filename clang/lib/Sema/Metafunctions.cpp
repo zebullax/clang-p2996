@@ -1219,14 +1219,15 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
     Decl *typeDecl = findTypeDecl(QT);
     if (!typeDecl)
       return true;
+
+    if (!ensureInstantiated(S, typeDecl, Range))
+      return true;
+
     if (auto *CXXRD = dyn_cast<CXXRecordDecl>(typeDecl))
       S.ForceDeclarationOfImplicitMembers(CXXRD);
 
     DeclContext *declContext = dyn_cast<DeclContext>(typeDecl);
     assert(declContext && "no DeclContext?");
-
-    if (!ensureInstantiated(S, typeDecl, Range))
-      llvm_unreachable("could not instantiate");
 
     Decl* beginMember = findIterableMember(S.Context,
                                            *declContext->decls_begin(), true);
@@ -2836,6 +2837,11 @@ bool is_incomplete_type(APValue &Result, Sema &S, EvalFn Evaluator,
 
   bool result = false;
   if (R.getReflection().getKind() == ReflectionValue::RK_type) {
+    // If this is a declared type with a reachable definition, ensure that the
+    // type is instantiated.
+    if (Decl *typeDecl = findTypeDecl(R.getReflectedType()))
+      (void) ensureInstantiated(S, typeDecl, Range);
+
     result = R.getReflectedType()->isIncompleteType();
   }
   return SetAndSucceed(Result, makeBool(S.Context, result));
