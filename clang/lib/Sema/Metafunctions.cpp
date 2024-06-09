@@ -512,8 +512,11 @@ static APValue getTypeName(ASTContext &C, EvalFn Evaluator, QualType QT,
 static APValue getDeclName(ASTContext &C, EvalFn Evaluator, const Decl *D,
                            bool emptyIfUnnamed) {
   std::string Name;
-  if (const auto *ND = dyn_cast<NamedDecl>(D))
-    Name = ND->getNameAsString();
+  {
+    llvm::raw_string_ostream NameOut(Name);
+    if (const auto *ND = dyn_cast<NamedDecl>(D))
+      ND->printName(NameOut, C.getPrintingPolicy());
+  }
 
   // Return the declaration name.
   APValue Result;
@@ -528,7 +531,7 @@ static APValue getTemplateName(ASTContext &C, EvalFn Evaluator,
   std::string Name;
   {
     llvm::raw_string_ostream NameOut(Name);
-    TName.print(NameOut, C.getPrintingPolicy());
+    TName.print(NameOut, C.getPrintingPolicy(), TemplateName::Qualified::None);
   }
 
   // Return the template name.
