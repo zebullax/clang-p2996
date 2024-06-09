@@ -380,6 +380,32 @@ struct S { static constexpr int val = 4; };
 static_assert([:substitute(^Plus1, {static_data_members_of(^S)[0]}):] == 5);
 }  // namespace with_reflection_of_declaration
 
+                         // ==========================
+                         // with_non_contiguous_ranges
+                         // ==========================
+
+namespace with_non_contiguous_ranges {
+template <char... Is> consteval std::string join() {
+  return std::string{Is...};
+}
+static_assert(
+    [:substitute(^join, "Hello, world!" |
+                        std::views::filter([](char c) {
+                          return (c >= 'A' && c <= 'Z') ||
+                                 (c >= 'a' && c <= 'z') || c == ' ';
+                        }) |
+                        std::views::transform(std::meta::reflect_value<char>))
+    :]() == "Hello world");
+
+static_assert(!can_substitute(^join, std::vector {^int, ^std::array, ^bool} |
+                                     std::views::filter(std::meta::is_type)));
+
+static_assert(test_types(^std::is_same_v, std::vector {^int, ^void, ^int} |
+                                          std::views::filter([](auto R) {
+                                            return R != ^void;
+                                          })));
+}  // namespace with_non_contiguous_ranges
+
                             // ====================
                             // invalid_template_ids
                             // ====================
@@ -394,6 +420,5 @@ static_assert(!can_substitute(^Cls, {^int, ^bool, ^std::array}));
 static_assert(!can_substitute(^Cls, {^int, ^bool, ^bool}));
 static_assert(!can_substitute(^Cls, {^int, ^bool, ^std::array, ^std::array}));
 }  // namespace invalid_template_ids
-
 
 int main() { }

@@ -171,4 +171,20 @@ static_assert(v == std::meta::reflect_value(0));
 
 }  // namespace returning_references
 
+                         // ==========================
+                         // with_non_contiguous_ranges
+                         // ==========================
+
+namespace with_non_contiguous_ranges {
+consteval auto sum(auto... vs) { return (... + vs); }
+
+static_assert(
+    std::meta::reflect_value(20) ==
+    reflect_invoke(^sum, std::ranges::iota_view{1, 10} |
+                         std::views::filter([](int v) {
+                           return v % 2 == 0;
+                         }) |
+                         std::views::transform(std::meta::reflect_value<int>)));
+}  // namespace with_non_contiguous_ranges
+
 int main() { }

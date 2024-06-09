@@ -26,6 +26,10 @@ inline namespace reflection_v2
 // std::meta::info
 using info = decltype(^int);
 
+// concept reflection_range
+template <typename R>
+concept reflection_range = see below;
+
 // name and location
 consteval auto name_of(info) -> string_view;
 consteval auto display_name_of(info) -> string_view;
@@ -54,8 +58,19 @@ consteval auto subobjects_of(info class_type) -> vector<info>;
 consteval auto enumerators_of(info enum_type) -> vector<info>;
 
 // substitute
-consteval auto can_substitute(info templ, span<info const>) -> bool;
-consteval auto substitute(info templ, span<info const>) -> info;
+template <reflection_range R = span<info const>>
+consteval auto can_substitute(info templ, R &&args) -> bool;
+template <reflection_range R = span<info const>>
+consteval auto substitute(info templ, R &&args) -> info;
+
+// reflect_invoke
+template <reflection_range R = span<info const>>
+consteval auto reflect_invoke(info target, R &&args) -> info;
+
+// reflect expression results
+consteval auto reflect_value(auto) -> info;
+consteval auto reflect_object(auto &) -> info;
+consteval auto reflect_function(auto &) -> info;
 
 // extract<T>
 template <typename Ty>
@@ -63,6 +78,7 @@ template <typename Ty>
 
 // test_type
 consteval auto test_type(info templ, info type) -> bool;
+template <reflection_range R = span<info const>>
 consteval auto test_types(info templ, span<info const> types) -> bool;
 
 // other type predicates
@@ -103,18 +119,11 @@ consteval auto is_constructor(info) -> bool;
 consteval auto is_destructor(info) -> bool;
 consteval auto is_special_member(info) -> bool;
 
-// reflect expression results
-consteval auto reflect_value(auto) -> info;
-consteval auto reflect_object(auto &) -> info;
-consteval auto reflect_function(auto &) -> info;
-
-// reflect_invoke
-consteval auto reflect_invoke(info target, span<info const> args) -> info;
-
 // define_class
 struct data_member_options_t;
 consteval auto data_member_spec(info class_type,
                                 data_member_options = {}) -> info;
+template <reflection_range R = span<info const>>
 consteval auto define_class(info class_type, span<info const>) -> info;
 
 // data layout
@@ -137,6 +146,7 @@ consteval auto has_default_argument(info) -> bool;
 
 #include <experimental/__config>
 #include <optional>
+#include <ranges>
 #include <source_location>
 #include <span>
 #include <string_view>
@@ -149,6 +159,12 @@ _LIBCPP_BEGIN_NAMESPACE_META_V2
 
 // An opaque handle to a reflected entity.
 using info = decltype(^int);
+
+template <typename R>
+concept reflection_range =
+  ranges::input_range<R> &&
+  same_as<ranges::range_value_t<R>, info> &&
+  same_as<remove_cvref_t<ranges::range_reference_t<R>>, info>;
 
 namespace detail {
 enum : unsigned {
@@ -613,26 +629,41 @@ consteval auto enumerators_of(info r) -> vector<info> {
 }
 
 // Returns whether 'templ' substituted with 'args' forms a valid template-id.
-consteval auto can_substitute(info templ, span<info const> args) -> bool {
-  return __metafunction(detail::__metafn_can_substitute, templ,
-                        args.data(), args.size());
+template <reflection_range R = span<info const>>
+consteval auto can_substitute(info templ, R &&args) -> bool {
+  if constexpr (ranges::contiguous_range<R>) {
+    return __metafunction(detail::__metafn_can_substitute, templ,
+                          ranges::data(args), ranges::size(args));
+  } else {
+    vector vargs = args | ranges::to<vector>();
+    return __metafunction(detail::__metafn_can_substitute, templ,
+                          vargs.data(), vargs.size());
+  }
 }
 
 // Returns a reflection representing the template instantiation of the entity
 // reflected by 'templ' with the entities reflected by 'args'.
-consteval auto substitute(info templ, span<info const> args) -> info {
-  return __metafunction(detail::__metafn_substitute, templ,
-                        args.data(), args.size());
+template <reflection_range R = span<info const>>
+consteval auto substitute(info templ, R &&args) -> info {
+  if constexpr (ranges::contiguous_range<R>) {
+    return __metafunction(detail::__metafn_substitute, templ,
+                          ranges::data(args), ranges::size(args));
+  } else {
+    vector vargs = args | ranges::to<vector>();
+    return __metafunction(detail::__metafn_substitute, templ, vargs.data(),
+                          vargs.size());
+  }
 }
 
 // Returns the value or object from 'r' if 'r' is a reflection of a value
 // or object having type 'T'.
-template <typename Ty> requires (!std::is_rvalue_reference_v<Ty>)
+template <typename Ty> requires (!is_rvalue_reference_v<Ty>)
 consteval auto extract(info r) -> Ty {
   return __metafunction(detail::__metafn_extract, ^Ty, r);
 }
 
-consteval auto test_types(info templ, span<info const> args) -> bool {
+template <reflection_range R = span<info const>>
+consteval auto test_types(info templ, R &&args) -> bool {
   return extract<bool>(substitute(templ, args));
 }
 
@@ -806,7 +837,10 @@ consteval auto is_special_member(info r) -> bool {
 
 // Returns a reflection of the value held by the provided argument.
 consteval auto reflect_value(auto r) -> info {
-  constexpr std::meta::info Ty = type_of(^r);
+  static_assert(!is_reference_v<decltype(r)>,
+                "values cannot have reference type");
+
+  constexpr info Ty = type_of(^r);
 
   return __metafunction(detail::__metafn_reflect_result, Ty,
                         static_cast<typename [:Ty:]>(r));
@@ -814,17 +848,23 @@ consteval auto reflect_value(auto r) -> info {
 
 // Returns a reflection of the object designated by the provided argument.
 consteval auto reflect_object(auto &r) -> info {
+  static_assert(is_lvalue_reference_v<decltype(r)>,
+                "objects must be designated by lvalue references");
+
   constexpr auto Ty = type_of(^r);
 
-  static_assert(!is_function_v<std::remove_reference<typename [:Ty:]>>,
+  static_assert(!is_function_v<remove_reference<typename [:Ty:]>>,
                 "use 'reflect_function' for references to functions");
   return __metafunction(detail::__metafn_reflect_result, Ty, r);
 }
 
 // Returns a reflection of the object designated by the provided argument.
 consteval auto reflect_function(auto &r) -> info {
+  static_assert(is_lvalue_reference_v<decltype(r)>,
+                "functions must be designated by lvalue references");
+
   constexpr auto Ty = type_of(^r);
-  using UnrefTy = std::remove_reference_t<[:Ty:]>;
+  using UnrefTy = remove_reference_t<[:Ty:]>;
 
   constexpr bool IsPtr = is_pointer_v<UnrefTy>;
   static_assert(!IsPtr, "use 'reflect_value' for pointers to functions");
@@ -838,9 +878,16 @@ consteval auto reflect_function(auto &r) -> info {
 
 // Returns a reflection of the constant value obtained from calling
 //   target(args...)
-consteval auto reflect_invoke(info target, span<info const> args) -> info {
-  return __metafunction(detail::__metafn_reflect_invoke, target,
-                        args.data(), args.size());
+template <reflection_range R = span<info const>>
+consteval auto reflect_invoke(info target, R &&args) -> info {
+  if constexpr (ranges::contiguous_range<R>) {
+    return __metafunction(detail::__metafn_reflect_invoke, target,
+                          ranges::data(args), ranges::size(args));
+  } else {
+    vector vargs = args | ranges::to<vector>();
+    return __metafunction(detail::__metafn_reflect_invoke, target,
+                          vargs.data(), vargs.size());
+  }
 }
 
 // Representation of a data member which may be passed to 'data_member_spec'.
@@ -869,10 +916,16 @@ consteval auto data_member_spec(info member_type,
 
 // Completes the definition of the record type reflected by 'class_type' with
 // the members described by the reflections in the provided span.
-consteval auto define_class(info class_type,
-                            span<info const> members) -> info {
-  return __metafunction(detail::__metafn_define_class, class_type,
-                        members.size(), members.data());
+template <reflection_range R = span<info const>>
+consteval auto define_class(info class_type, R &&members) -> info {
+  if constexpr (ranges::contiguous_range<R>) {
+    return __metafunction(detail::__metafn_define_class, class_type,
+                          ranges::size(members), ranges::data(members));
+  } else {
+    vector vmembers = members | ranges::to<vector>();
+    return __metafunction(detail::__metafn_define_class, class_type,
+                          vmembers.size(), vmembers.data());
+  }
 }
 
 // Returns the offset of the reflected entity.
@@ -928,7 +981,7 @@ template <typename Ty>
 consteval auto reflect_result(Ty r) -> info {
   constexpr auto DTy = dealias(^Ty);
   constexpr auto RTy = is_class_v<[:DTy:]> || is_reference_v<[:DTy:]> ?
-                       DTy : ^std::remove_cv_t<[:DTy:]>;
+                       DTy : ^remove_cv_t<[:DTy:]>;
 
   return __metafunction(detail::__metafn_reflect_result, dealias(RTy),
                         static_cast<typename [:DTy:]>(r));
