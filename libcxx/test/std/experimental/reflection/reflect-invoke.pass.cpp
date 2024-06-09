@@ -148,5 +148,27 @@ static_assert([:reflect_invoke(ctor(1), {^'c'}):].value == 1);
 
 }  // namespace constructors_and_destructors
 
+                            // ====================
+                            // returning_references
+                            // ====================
+
+namespace returning_references {
+const int K = 0;
+consteval const int &fn() { return K; }
+
+constexpr auto r = reflect_invoke(^fn, {});
+static_assert(is_object(r) && !is_value(r));
+static_assert(type_of(r) == ^const int);
+static_assert(is_variable(r));
+static_assert(name_of(r) == "K");
+static_assert(r != std::meta::reflect_value(0));
+
+constexpr auto v = value_of(r);
+static_assert(is_value(v) && !is_object(v));
+static_assert(type_of(v) == ^int);
+static_assert(!is_variable(v));
+static_assert(v == std::meta::reflect_value(0));
+
+}  // namespace returning_references
 
 int main() { }

@@ -3141,6 +3141,8 @@ bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
       return true;
   }
 
+  // If this is an lvalue to a complete object, promote the result to reflect
+  // the declaration.
   if (!E->getType()->isPointerType() && Arg.getKind() == APValue::LValue &&
       Arg.getLValueOffset().isZero())
     if (!Arg.hasLValuePath() || Arg.getLValuePath().size() == 0)
@@ -3284,8 +3286,19 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
 
   APValue FnResult;
-  if (!Evaluator(FnResult, ResultExpr, true))
+  if (!Evaluator(FnResult, ResultExpr, !ResultExpr->isLValue()))
     return true;
+
+  // If this is an lvalue to a complete object, promote the result to reflect
+  // the declaration.
+  if (!ResultExpr->getType()->isPointerType() &&
+      FnResult.getKind() == APValue::LValue &&
+      FnResult.getLValueOffset().isZero())
+    if (!FnResult.hasLValuePath() || FnResult.getLValuePath().size() == 0)
+      if (APValue::LValueBase LVBase = FnResult.getLValueBase();
+          LVBase.is<const ValueDecl *>())
+        return SetAndSucceed(Result,
+                             makeReflection(LVBase.get<const ValueDecl *>()));
 
   ConstantExpr *CE =
             ConstantExpr::CreateEmpty(S.Context,

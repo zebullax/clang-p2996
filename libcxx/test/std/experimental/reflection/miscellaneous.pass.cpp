@@ -85,9 +85,9 @@ void run_test() {
 }
 }  // namespace alexandrescu_lambda_to_tuple
 
-                      // =================================
-                      // namespace pdimov_sorted_type_list
-                      // =================================
+                           // =======================
+                           // pdimov_sorted_type_list
+                           // =======================
 
 namespace pdimov_sorted_type_list {
 template<class...> struct type_list { };
@@ -110,9 +110,9 @@ void run_test() {
 }
 }  // namespace pdimov_sorted_type_list
 
-                      // =================================
-                      // namespace alisdair_universal_swap
-                      // =================================
+                           // =======================
+                           // alisdair_universal_swap
+                           // =======================
 
 namespace alisdair_universal_swap {
 namespace __impl {
