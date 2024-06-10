@@ -119,6 +119,25 @@ static_assert(
 
 }  // namespace function_templates
 
+                           // ======================
+                           // explicit_template_args
+                           // ======================
+
+namespace explicit_template_args {
+template <template <typename, size_t> class C, typename T, size_t Sz>
+consteval auto GetSubstitution() { return ^C<T, Sz>; }
+
+static_assert([:reflect_invoke(^GetSubstitution,
+                               {^std::array, ^int, ^5}, {}):] ==
+              ^std::array<int, 5>);
+
+template <typename... Ts> consteval auto sum(Ts... ts) { return (... + ts); }
+
+static_assert(type_of(reflect_invoke(^sum, {^long, ^long, ^long},
+              {std::meta::reflect_value(1), std::meta::reflect_value(2),
+               std::meta::reflect_value(3)})) == ^long);
+}  // namespace explicit_template_args
+
                                 // ============
                                 // constructors
                                 // ============

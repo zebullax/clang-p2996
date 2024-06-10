@@ -391,7 +391,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_destructor },
   { Metafunction::MFRK_bool, 1, 1, is_special_member },
   { Metafunction::MFRK_metaInfo, 2, 2, reflect_result },
-  { Metafunction::MFRK_metaInfo, 3, 3, reflect_invoke },
+  { Metafunction::MFRK_metaInfo, 5, 5, reflect_invoke },
   { Metafunction::MFRK_metaInfo, 9, 9, data_member_spec },
   { Metafunction::MFRK_metaInfo, 3, 3, define_class },
   { Metafunction::MFRK_sizeT, 1, 1, offset_of },
@@ -1686,27 +1686,77 @@ bool template_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   llvm_unreachable("unknown reflection kind");
 }
 
+static bool CanActAsTemplateArg(const ReflectionValue &RV) {
+  switch (RV.getKind()) {
+  case ReflectionValue::RK_type:
+  case ReflectionValue::RK_declaration:
+  case ReflectionValue::RK_expr_result:
+  case ReflectionValue::RK_template:
+    return true;
+  case ReflectionValue::RK_namespace:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+  case ReflectionValue::RK_null:
+    return false;
+  }
+  llvm_unreachable("unknown reflection kind");
+}
+
+static TemplateArgument TArgFromReflection(Sema &S, EvalFn Evaluator,
+                                           const ReflectionValue &RV,
+                                           SourceLocation Loc) {
+  switch (RV.getKind()) {
+  case ReflectionValue::RK_type:
+    return RV.getAsType().getCanonicalType();
+  case ReflectionValue::RK_expr_result: {
+    ConstantExpr *E = RV.getAsExprResult();
+    if (E->getType()->isIntegralOrEnumerationType()) {
+      llvm::APSInt UnwrappedIntegral = E->EvaluateKnownConstInt(S.Context);
+      return TemplateArgument(S.Context, UnwrappedIntegral,
+                              E->getType().getCanonicalType());
+    } else if(E->getType()->isReflectionType()) {
+      APValue R;
+      if (!Evaluator(R, E, true))
+        break;
+      return TemplateArgument(S.Context, R.getReflection());
+    } else {
+      return TemplateArgument(RV.getAsExprResult());
+    }
+    break;
+  }
+  case ReflectionValue::RK_declaration: {
+    ValueDecl *Decl = RV.getAsDecl();
+    Expr *Synthesized =
+        DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
+                            SourceLocation(), Decl, false, Loc,
+                            Decl->getType(), VK_LValue, Decl, nullptr);
+    APValue R;
+    if (!Evaluator(R, Synthesized, true))
+      break;
+
+    if (Synthesized->getType()->isIntegralOrEnumerationType())
+      return TemplateArgument(S.Context, R.getInt(),
+                              Synthesized->getType().getCanonicalType());
+    else if(Synthesized->getType()->isReflectionType())
+      return TemplateArgument(S.Context, R.getReflection());
+    else
+      return TemplateArgument(Synthesized);
+    break;
+  }
+  case ReflectionValue::RK_template:
+    return TemplateArgument(RV.getAsTemplate());
+    break;
+  default:
+    llvm_unreachable("unimplemented for template argument kind");
+  }
+  return TemplateArgument();
+}
+
 // TODO(P2996): Abstract this out, and use as an implementation detail of
 // 'substitute'.
 bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
                     QualType ResultTy, SourceRange Range,
                     ArrayRef<Expr *> Args) {
-  static auto CanActAsTemplateArg = [](const ReflectionValue &RV) -> bool {
-    switch (RV.getKind()) {
-    case ReflectionValue::RK_type:
-    case ReflectionValue::RK_declaration:
-    case ReflectionValue::RK_expr_result:
-    case ReflectionValue::RK_template:
-      return true;
-    case ReflectionValue::RK_namespace:
-    case ReflectionValue::RK_base_specifier:
-    case ReflectionValue::RK_data_member_spec:
-    case ReflectionValue::RK_null:
-      return false;
-    }
-    llvm_unreachable("unknown reflection kind");
-  };
-
   assert(Args[0]->getType()->isReflectionType());
   assert(
       Args[1]->getType()->getPointeeOrArrayElementType()->isReflectionType());
@@ -1753,51 +1803,12 @@ bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
           !CanActAsTemplateArg(Unwrapped.getReflection()))
         return true;
 
-      switch (Unwrapped.getReflection().getKind()) {
-      case ReflectionValue::RK_type:
-        TArgs.emplace_back(Unwrapped.getReflectedType().getCanonicalType());
-        break;
-      case ReflectionValue::RK_expr_result: {
-        ConstantExpr *E = Unwrapped.getReflectedExprResult();
-        if (E->getType()->isIntegralOrEnumerationType()) {
-          llvm::APSInt UnwrappedIntegral = E->EvaluateKnownConstInt(S.Context);
-          TArgs.emplace_back(S.Context, UnwrappedIntegral,
-                             E->getType().getCanonicalType());
-        } else if(E->getType()->isReflectionType()) {
-          APValue R;
-          if (!Evaluator(R, E, true))
-            return true;
-          TArgs.emplace_back(S.Context, R.getReflection());
-        } else {
-          TArgs.emplace_back(Unwrapped.getReflectedExprResult());
-        }
-        break;
-      }
-      case ReflectionValue::RK_declaration: {
-        ValueDecl *Decl = Unwrapped.getReflectedDecl();
-        Expr *Synthesized =
-            DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
-                                SourceLocation(), Decl, false, Range.getBegin(),
-                                Decl->getType(), VK_LValue, Decl, nullptr);
-        APValue R;
-        if (!Evaluator(Unwrapped, Synthesized, true))
-          return true;
-
-        if (Synthesized->getType()->isIntegralOrEnumerationType())
-          TArgs.emplace_back(S.Context, R.getInt(),
-                             Synthesized->getType().getCanonicalType());
-        else if(Synthesized->getType()->isReflectionType())
-          TArgs.emplace_back(S.Context, R.getReflection());
-        else
-          TArgs.emplace_back(Synthesized);
-        break;
-      }
-      case ReflectionValue::RK_template:
-        TArgs.emplace_back(Unwrapped.getReflectedTemplate());
-        break;
-      default:
-        llvm_unreachable("unimplemented for template argument kind");
-      }
+      TemplateArgument TArg = TArgFromReflection(S, Evaluator,
+                                                 Unwrapped.getReflection(),
+                                                 Range.getBegin());
+      if (TArg.isNull())
+        return true;
+      TArgs.push_back(TArg);
     }
   }
 
@@ -1819,22 +1830,6 @@ bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
 
 bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
                 SourceRange Range, ArrayRef<Expr *> Args) {
-  static auto CanActAsTemplateArg = [](const ReflectionValue &RV) -> bool {
-    switch (RV.getKind()) {
-    case ReflectionValue::RK_type:
-    case ReflectionValue::RK_declaration:
-    case ReflectionValue::RK_expr_result:
-    case ReflectionValue::RK_template:
-      return true;
-    case ReflectionValue::RK_null:
-    case ReflectionValue::RK_namespace:
-    case ReflectionValue::RK_base_specifier:
-    case ReflectionValue::RK_data_member_spec:
-      return false;
-    }
-    llvm_unreachable("unknown reflection kind");
-  };
-
   assert(Args[0]->getType()->isReflectionType());
   assert(
       Args[1]->getType()->getPointeeOrArrayElementType()->isReflectionType());
@@ -1881,51 +1876,12 @@ bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
           !CanActAsTemplateArg(Unwrapped.getReflection()))
         return true;
 
-      switch (Unwrapped.getReflection().getKind()) {
-      case ReflectionValue::RK_type:
-        TArgs.emplace_back(Unwrapped.getReflectedType().getCanonicalType());
-        break;
-      case ReflectionValue::RK_expr_result: {
-        ConstantExpr *E = Unwrapped.getReflectedExprResult();
-        if (E->getType()->isIntegralOrEnumerationType()) {
-          llvm::APSInt UnwrappedIntegral = E->EvaluateKnownConstInt(S.Context);
-          TArgs.emplace_back(S.Context, UnwrappedIntegral,
-                             E->getType().getCanonicalType());
-        } else if(E->getType()->isReflectionType()) {
-          APValue R;
-          if (!Evaluator(R, E, true))
-            return true;
-          TArgs.emplace_back(S.Context, R.getReflection());
-        } else {
-          TArgs.emplace_back(Unwrapped.getReflectedExprResult());
-        }
-        break;
-      }
-      case ReflectionValue::RK_declaration: {
-        ValueDecl *Decl = Unwrapped.getReflectedDecl();
-        Expr *Synthesized =
-            DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
-                                SourceLocation(), Decl, false, Range.getBegin(),
-                                Decl->getType(), VK_LValue, Decl, nullptr);
-        APValue R;
-        if (!Evaluator(R, Synthesized, true))
-          return true;
-
-        if (Synthesized->getType()->isIntegralOrEnumerationType())
-          TArgs.emplace_back(S.Context, R.getInt(),
-                             Synthesized->getType().getCanonicalType());
-        else if(Synthesized->getType()->isReflectionType())
-          TArgs.emplace_back(S.Context, R.getReflection());
-        else
-          TArgs.emplace_back(Synthesized);
-        break;
-      }
-      case ReflectionValue::RK_template:
-        TArgs.emplace_back(Unwrapped.getReflectedTemplate());
-        break;
-      default:
-        llvm_unreachable("unimplemented for template argument kind");
-      }
+      TemplateArgument TArg = TArgFromReflection(S, Evaluator,
+                                                 Unwrapped.getReflection(),
+                                                 Range.getBegin());
+      if (TArg.isNull())
+        return true;
+      TArgs.push_back(TArg);
     }
   }
 
@@ -3190,41 +3146,70 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
   assert(
       Args[1]->getType()->getPointeeOrArrayElementType()->isReflectionType());
   assert(Args[2]->getType()->isIntegerType());
+  assert(
+      Args[3]->getType()->getPointeeOrArrayElementType()->isReflectionType());
+  assert(Args[4]->getType()->isIntegerType());
+
+  using ReflectionVector = SmallVector<ReflectionValue, 4>;
+  auto UnpackReflectionsIntoVector = [&](ReflectionVector &Out,
+                                         Expr *DataExpr, Expr *SzExpr) -> bool {
+    APValue Scratch;
+    if (!Evaluator(Scratch, SzExpr, true))
+      return false;
+
+    size_t nArgs = Scratch.getInt().getExtValue();
+    Out.reserve(nArgs);
+    for (uint64_t k = 0; k < nArgs; ++k) {
+      llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
+      Expr *Synthesized = IntegerLiteral::Create(S.Context, Idx,
+                                                 S.Context.getSizeType(),
+                                                 DataExpr->getExprLoc());
+
+      Synthesized = new (S.Context) ArraySubscriptExpr(DataExpr, Synthesized,
+                                                       S.Context.MetaInfoTy,
+                                                       VK_LValue, OK_Ordinary,
+                                                       Range.getBegin());
+
+      if (Synthesized->isValueDependent() || Synthesized->isTypeDependent())
+        return false;
+
+      if (!Evaluator(Scratch, Synthesized, true) || !Scratch.isReflection())
+        return false;
+      Out.push_back(Scratch.getReflection());
+    }
+
+    return true;
+  };
+
+  TemplateArgumentListInfo ExplicitTAListInfo;
+  SmallVector<TemplateArgument, 4> ExplicitTArgs;
+  {
+    SmallVector<ReflectionValue, 4> Reflections;
+    if (!UnpackReflectionsIntoVector(Reflections, Args[1], Args[2]))
+      return true;
+
+    SmallVector<TemplateArgument, 4> ExplicitTArgs;
+    for (ReflectionValue RV : Reflections) {
+      if (!CanActAsTemplateArg(RV))
+        return true;
+
+      TemplateArgument TArg = TArgFromReflection(S, Evaluator, RV,
+                                                 Range.getBegin());
+      if (TArg.isNull())
+        return true;
+      ExplicitTArgs.push_back(TArg);
+    }
+
+    ExplicitTAListInfo = addLocToTemplateArgs(S, ExplicitTArgs, Args[1]);
+  }
 
   SmallVector<Expr *, 4> ArgExprs;
   {
-    APValue NumArgs;
-    if (!Evaluator(NumArgs, Args[2], true))
+    SmallVector<ReflectionValue, 4> Reflections;
+    if (!UnpackReflectionsIntoVector(Reflections, Args[3], Args[4]))
       return true;
 
-    size_t nArgs = NumArgs.getInt().getExtValue();
-    ArgExprs.reserve(nArgs);
-    for (uint64_t k = 0; k < nArgs; ++k) {
-      llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
-      Expr *IdxExpr = IntegerLiteral::Create(S.Context, Idx,
-                                             S.Context.getSizeType(),
-                                             Args[1]->getExprLoc());
-
-      ArraySubscriptExpr *SubscriptExpr =
-            new (S.Context) ArraySubscriptExpr(Args[1], IdxExpr,
-                                               S.Context.MetaInfoTy,
-                                               VK_LValue, OK_Ordinary,
-                                               Range.getBegin());
-
-      ImplicitCastExpr *RVExpr = ImplicitCastExpr::Create(S.Context,
-                                                          S.Context.MetaInfoTy,
-                                                          CK_LValueToRValue,
-                                                          SubscriptExpr,
-                                                          nullptr, VK_PRValue,
-                                                          FPOptionsOverride());
-      if (RVExpr->isValueDependent() || RVExpr->isTypeDependent())
-        return true;
-
-      APValue ArgResult;
-      if (!Evaluator(ArgResult, RVExpr, true))
-        return true;
-
-      ReflectionValue RV = ArgResult.getReflection();
+    for (ReflectionValue RV : Reflections) {
       if (RV.getKind() == ReflectionValue::RK_expr_result) {
         ArgExprs.push_back(RV.getAsExprResult());
       } else if (RV.getKind() == ReflectionValue::RK_declaration) {
@@ -3241,6 +3226,10 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
 
   APValue Scratch;
   if (!Evaluator(Scratch, Args[0], true) || !Scratch.isReflection())
+    return true;
+
+  if (ExplicitTAListInfo.size() > 0 &&
+      Scratch.getReflection().getKind() != ReflectionValue::RK_template)
     return true;
 
   Expr *FnRefExpr = nullptr;
@@ -3276,8 +3265,8 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
       sema::TemplateDeductionInfo Info(Args[0]->getExprLoc(),
                                        FTD->getTemplateDepth());
       TemplateDeductionResult Result = S.DeduceTemplateArguments(
-            FTD, nullptr, ArgExprs, Specialization, Info, false, true,
-            QualType(), Expr::Classification(),
+            FTD, &ExplicitTAListInfo, ArgExprs, Specialization, Info, false,
+            true, QualType(), Expr::Classification(),
             [](ArrayRef<QualType>) { return false; });
       if (Result != TemplateDeductionResult::Success)
         return true;

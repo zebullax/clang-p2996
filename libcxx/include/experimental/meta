@@ -69,6 +69,10 @@ template <reflection_range R = span<info const>>
 // reflect_invoke
 template <reflection_range R = span<info const>>
   consteval auto reflect_invoke(info target, R &&args) -> info;
+template <reflection_range R1 = span<info const>,
+          reflection_range R2 = span<info const>>
+  consteval auto reflect_invoke(info target,
+                                R1 &&tmpl_args, R2 &&args) -> info;
 
 // reflect expression results
 consteval auto reflect_value(auto) -> info;
@@ -897,11 +901,42 @@ template <reflection_range R = span<info const>>
 consteval auto reflect_invoke(info target, R &&args) -> info {
   if constexpr (ranges::contiguous_range<R>) {
     return __metafunction(detail::__metafn_reflect_invoke, target,
+                          static_cast<std::meta::info *>(nullptr), 0,
                           ranges::data(args), ranges::size(args));
   } else {
     vector vargs = args | ranges::to<vector>();
     return __metafunction(detail::__metafn_reflect_invoke, target,
+                          static_cast<std::meta::info *>(nullptr), 0,
                           vargs.data(), vargs.size());
+  }
+}
+
+template <reflection_range R1 = span<info const>,
+          reflection_range R2 = span<info const>>
+consteval auto reflect_invoke(info target, R1 &&targs, R2 &&args) -> info {
+  if constexpr (ranges::contiguous_range<R1>) {
+    if constexpr (ranges::contiguous_range<R2>) {
+      return __metafunction(detail::__metafn_reflect_invoke, target,
+                            ranges::data(targs), ranges::size(targs),
+                            ranges::data(args), ranges::size(args));
+    } else {
+      vector vargs = args | ranges::to<vector>();
+      return __metafunction(detail::__metafn_reflect_invoke, target,
+                            ranges::data(targs), ranges::size(targs),
+                            vargs.data(), vargs.size());
+    }
+  } else {
+    vector vtargs = targs | ranges::to<vector>();
+    if constexpr (ranges::contiguous_range<R2>) {
+      return __metafunction(detail::__metafn_reflect_invoke, target,
+                            vtargs.data(), vtargs.size(),
+                            ranges::data(args), ranges::size(args));
+    } else {
+      vector vargs = args | ranges::to<vector>();
+      return __metafunction(detail::__metafn_reflect_invoke, target,
+                            vtargs.data(), vtargs.size(),
+                            vargs.data(), vargs.size());
+    }
   }
 }
 
