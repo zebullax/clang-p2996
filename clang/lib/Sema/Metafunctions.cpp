@@ -27,6 +27,10 @@
 #include "clang/Sema/Template.h"
 #include "clang/Sema/TemplateDeduction.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/ConvertUTF.h"
+#include "llvm/Support/Format.h"
+#include "llvm/Support/UnicodeCharRanges.h"
+#include "llvm/Support/raw_ostream.h"
 
 
 namespace clang {
@@ -337,8 +341,8 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_metaInfo, 1, 1, map_decl_to_entity },
 
   // exposed metafunctions
-  { Metafunction::MFRK_cstring, 1, 1, name_of },
-  { Metafunction::MFRK_cstring, 1, 1, display_name_of },
+  { Metafunction::MFRK_spliceFromArg, 3, 3, name_of },
+  { Metafunction::MFRK_spliceFromArg, 3, 3, display_name_of },
   { Metafunction::MFRK_sourceLoc, 1, 1, source_location_of },
   { Metafunction::MFRK_metaInfo, 1, 1, type_of },
   { Metafunction::MFRK_metaInfo, 1, 1, parent_of },
@@ -428,6 +432,15 @@ bool Metafunction::Lookup(unsigned ID, const Metafunction *&result) {
 // Metafunction helper functions
 // -----------------------------------------------------------------------------
 
+static bool isBasicCharacter(uint32_t c) {
+  static llvm::sys::UnicodeCharRange BasicCharRanges[] = {
+    {0x0009, 0x0009}, {0x000A, 0x000C}, {0x0020, 0x007E},
+  };
+  static llvm::sys::UnicodeCharSet BasicCharSet(BasicCharRanges);
+
+  return BasicCharSet.contains(c);
+}
+
 static APValue makeBool(ASTContext &C, bool B) {
   return APValue(C.MakeIntValue(B, C.BoolTy));
 }
@@ -456,28 +469,26 @@ static APValue makeReflection(TagDataMemberSpec *TDMS) {
   return APValue(ReflectionValue::RK_data_member_spec, TDMS);
 }
 
-static bool makeCString(APValue &Result, StringRef Str, ASTContext &C,
-                        EvalFn Evaluator, SourceLocation Loc = {}) {
+static Expr *makeCString(StringRef Str, ASTContext &C, bool Utf8) {
+  QualType ConstCharTy = (Utf8 ? C.Char8Ty : C.CharTy).withConst();
+
   // Get the type for 'const char[Str.size()]'.
   QualType StrLitTy =
-        C.getConstantArrayType(C.CharTy.withConst(),
-                               llvm::APInt(32, Str.size() + 1),
+        C.getConstantArrayType(ConstCharTy, llvm::APInt(32, Str.size() + 1),
                                nullptr, ArraySizeModifier::Normal, 0);
 
   // Create a string literal having type 'const char [Str.size()]'.
-  StringLiteral *StrLit = StringLiteral::Create(C, Str,
-                                                StringLiteralKind::Ordinary,
-                                                false, StrLitTy, Loc);
+  StringLiteralKind SLK = Utf8 ? StringLiteralKind::UTF8 :
+                                 StringLiteralKind::Ordinary;
+  StringLiteral *StrLit = StringLiteral::Create(C, Str, SLK, false, StrLitTy,
+                                                SourceLocation{});
 
   // Create an expression to implicitly cast the literal to 'const char *'.
-  QualType ConstCharPtrTy = C.getPointerType(C.getConstType(C.CharTy));
-  Expr *StrExpr = ImplicitCastExpr::Create(C, ConstCharPtrTy,
-                                           CK_ArrayToPointerDecay, StrLit,
-                                           /*BasePath=*/nullptr, VK_PRValue,
-                                           FPOptionsOverride());
-
-  // Return the evaluated constant expression.
-  return !Evaluator(Result, StrExpr, true);
+  QualType ConstCharPtrTy = C.getPointerType(ConstCharTy);
+  return ImplicitCastExpr::Create(C, ConstCharPtrTy, CK_ArrayToPointerDecay,
+                                  StrLit, /*BasePath=*/nullptr, VK_PRValue,
+                                  FPOptionsOverride());
+  //return !Evaluator(Result, StrExpr, true);
 }
 
 static bool SetAndSucceed(APValue &Out, const APValue &Result) {
@@ -485,61 +496,64 @@ static bool SetAndSucceed(APValue &Out, const APValue &Result) {
   return false;
 }
 
-static APValue getTypeName(ASTContext &C, EvalFn Evaluator, QualType QT,
-                           bool emptyIfUnnamed) {
-  // Determine if this is an unnamed entity.
-  bool renderEmpty = false;
-  if (emptyIfUnnamed) {
-    if (const TagType *TT = dyn_cast<TagType>(QT))
-      renderEmpty = (TT->getDecl()->getName().size() == 0);
-  }
+static void encodeName(std::string &Result, StringRef In, bool BasicOnly) {
+  if (!BasicOnly) {
+    Result = In;
+  } else {
+    Result.reserve(In.size() * 8);  // more than enough for '\u{XYZ}'
+    
+    llvm::raw_string_ostream OS(Result);
+    
+    const char *InCursor = In.begin();
+    while (InCursor < In.end()) {
+      if (isBasicCharacter(*InCursor)) {
+        OS << *(InCursor++);
+      } else {
+        llvm::UTF32 CodePoint;
+        if (llvm::conversionOK != llvm::convertUTF8Sequence(
+                reinterpret_cast<const llvm::UTF8 **>(&InCursor),
+                reinterpret_cast<const llvm::UTF8 *>(In.end()),
+                &CodePoint, llvm::ConversionFlags::strictConversion))
+          llvm_unreachable("failed converting non-basic character to UCN");
 
-  // Set the policy for printing the type.
+        OS << "\\u{" << llvm::format_hex_no_prefix(CodePoint, 4, true) << "}";
+      }
+    }
+    Result.shrink_to_fit();
+  }
+}
+
+static void getTypeName(std::string &Result, ASTContext &C, QualType QT,
+                        bool BasicOnly) {
   PrintingPolicy PP = C.getPrintingPolicy();
   PP.SuppressTagKeyword = true;
 
-  // Return the type name, defaulting to the empty string if it has no name.
-  APValue Result;
-  if (renderEmpty) {
-    if (makeCString(Result, "", C, Evaluator))
-      llvm_unreachable("could not create empty string");
-  } else if (makeCString(Result, QT.getAsString(PP), C, Evaluator))
-    llvm_unreachable("failed to get type name");
-
-  return Result;
+  encodeName(Result, QT.getAsString(PP), BasicOnly);
 }
 
-static APValue getDeclName(ASTContext &C, EvalFn Evaluator, const Decl *D,
-                           bool emptyIfUnnamed) {
+static void getDeclName(std::string &Result, ASTContext &C, Decl *D,
+                         bool BasicOnly) {
+  PrintingPolicy PP = C.getPrintingPolicy();
+
   std::string Name;
   {
     llvm::raw_string_ostream NameOut(Name);
-    if (const auto *ND = dyn_cast<NamedDecl>(D))
-      ND->printName(NameOut, C.getPrintingPolicy());
+    if (auto *ND = dyn_cast<NamedDecl>(D))
+      ND->printName(NameOut, PP);
   }
-
-  // Return the declaration name.
-  APValue Result;
-  if (makeCString(Result, Name, C, Evaluator))
-    llvm_unreachable("could not create string for declaration name");
-
-  return Result;
+  encodeName(Result, Name, BasicOnly);
 }
 
-static APValue getTemplateName(ASTContext &C, EvalFn Evaluator,
-                               TemplateName TName, bool emptyIfUnnamed) {
+static void getTemplateName(std::string &Result, ASTContext &C,
+                            TemplateName TName, bool BasicOnly) {
+  PrintingPolicy PP = C.getPrintingPolicy();
+
   std::string Name;
   {
     llvm::raw_string_ostream NameOut(Name);
-    TName.print(NameOut, C.getPrintingPolicy(), TemplateName::Qualified::None);
+    TName.print(NameOut, PP, TemplateName::Qualified::None);
   }
-
-  // Return the template name.
-  APValue Result;
-  if (makeCString(Result, Name, C, Evaluator))
-    llvm_unreachable("could not create string for template name");
-
-  return Result;
+  encodeName(Result, Name, BasicOnly);
 }
 
 static NamedDecl *findTypeDecl(QualType QT) {
@@ -1312,43 +1326,44 @@ bool map_decl_to_entity(APValue &Result, Sema &S, EvalFn Evaluator,
 bool name_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
              SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy ==
-         S.Context.getPointerType(S.Context.getConstType(S.Context.CharTy)));
 
   APValue R;
-  if (!Evaluator(R, Args[0], true))
+  if (!Evaluator(R, Args[1], true))
     return true;
 
+  bool IsUtf8;
+  {
+    APValue Scratch;
+    if (!Evaluator(Scratch, Args[2], true))
+      return true;
+    IsUtf8 = Scratch.getInt().getBoolValue();
+  }
+
+  std::string Name;
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type: {
-    QualType QT = R.getReflectedType();
-    return SetAndSucceed(Result, getTypeName(S.Context, Evaluator, QT,
-                                             /*emptyIfUnnamed=*/true));
+    getTypeName(Name, S.Context, R.getReflectedType(), !IsUtf8);
+    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_declaration: {
-    ValueDecl *D = R.getReflectedDecl();
-    return SetAndSucceed(Result, getDeclName(S.Context, Evaluator, D,
-                                             /*emptyIfUnnamed=*/true));
+    getDeclName(Name, S.Context, R.getReflectedDecl(), !IsUtf8);
+    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_template: {
-    TemplateName TName = R.getReflectedTemplate();
-    return SetAndSucceed(Result, getTemplateName(S.Context, Evaluator, TName,
-                                                 /*emptyIfUnnamed=*/true));
+    getTemplateName(Name, S.Context, R.getReflectedTemplate(), !IsUtf8);
+    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_expr_result: {
-    if (makeCString(Result, "", S.Context, Evaluator))
-      llvm_unreachable("failed to create empty string");
-    return false;
+    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_namespace: {
-    Decl *D = R.getReflectedNamespace();
-    return SetAndSucceed(Result, getDeclName(S.Context, Evaluator, D,
-                                             /*emptyIfUnnamed=*/true));
+    getDeclName(Name, S.Context, R.getReflectedNamespace(), !IsUtf8);
+    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_base_specifier: {
-    QualType QT = R.getReflectedBaseSpecifier()->getType();
-    return SetAndSucceed(Result, getTypeName(S.Context, Evaluator, QT,
-                                             /*emptyIfUnnamed=*/true));
+    getTypeName(Name, S.Context, R.getReflectedBaseSpecifier()->getType(),
+                !IsUtf8);
+    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_null:
   case ReflectionValue::RK_data_member_spec:
@@ -1361,45 +1376,49 @@ bool display_name_of(APValue &Result, Sema &S, EvalFn Evaluator,
                      QualType ResultTy, SourceRange Range,
                      ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy ==
-         S.Context.getPointerType(S.Context.getConstType(S.Context.CharTy)));
 
   APValue R;
-  if (!Evaluator(R, Args[0], true))
+  if (!Evaluator(R, Args[1], true))
     return true;
 
+  bool IsUtf8;
+  {
+    APValue Scratch;
+    if (!Evaluator(Scratch, Args[2], true))
+      return true;
+    IsUtf8 = Scratch.getInt().getBoolValue();
+  }
+
+  std::string Name;
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type: {
-    QualType QT = R.getReflectedType();
-    return SetAndSucceed(Result, getTypeName(S.Context, Evaluator, QT,
-                         /*emptyIfUnnamed=*/false));
+    getTypeName(Name, S.Context, R.getReflectedType(), false);
+    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_declaration: {
-    const Decl *D = R.getReflectedDecl();
-    return SetAndSucceed(Result, getDeclName(S.Context, Evaluator, D,
-                                             /*emptyIfUnnamed=*/false));
+    getDeclName(Name, S.Context, R.getReflectedDecl(), false);
+    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_template: {
-    TemplateName TName = R.getReflectedTemplate();
-    return SetAndSucceed(Result, getTemplateName(S.Context, Evaluator, TName,
-                                                 /*emptyIfUnnamed=*/false));
+    getTemplateName(Name, S.Context, R.getReflectedTemplate(), false);
+    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_expr_result: {
-    if (makeCString(Result, "", S.Context, Evaluator))
-      llvm_unreachable("failed to create empty string");
-    return false;
+    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_namespace: {
-    Decl *D = R.getReflectedNamespace();
-    return SetAndSucceed(Result, getDeclName(S.Context, Evaluator, D,
-                                             /*emptyIfUnnamed=*/false));
+    getDeclName(Name, S.Context, R.getReflectedNamespace(), false);
+    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_base_specifier: {
-    QualType QT = R.getReflectedBaseSpecifier()->getType();
-    return SetAndSucceed(Result, getTypeName(S.Context, Evaluator, QT,
-                                             /*emptyIfUnnamed=*/false));
+    getTypeName(Name, S.Context, R.getReflectedBaseSpecifier()->getType(),
+                false);
+    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
-  case ReflectionValue::RK_null:
+  case ReflectionValue::RK_null: {
+    Name = "<null-reflection>";
+    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
+  }
   case ReflectionValue::RK_data_member_spec:
     return true;
   }

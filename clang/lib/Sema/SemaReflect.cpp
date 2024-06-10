@@ -487,9 +487,6 @@ ExprResult Sema::BuildCXXMetafunctionExpr(
     case Metafunction::MFRK_bool:
       Result = Context.BoolTy;
       return false;
-    case Metafunction::MFRK_cstring:
-      Result = Context.getPointerType(Context.getConstType(Context.CharTy));
-      return false;
     case Metafunction::MFRK_metaInfo:
       Result = Context.MetaInfoTy;
       return false;

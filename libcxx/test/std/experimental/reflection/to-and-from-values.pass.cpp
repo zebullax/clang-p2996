@@ -276,7 +276,7 @@ int main() {
   // RUN: grep "call-generic-lambda-value: 2 (int)" %t.stdout
   extract<void(*)(int)>(^[](auto id) {
     std::println("call-generic-lambda-value: {} ({})", id,
-                 name_of(type_of(^id)));
+                 name_of<std::string_view>(type_of(^id)));
   })(2);
 
   constexpr auto l = [](int id) {
@@ -285,7 +285,7 @@ int main() {
 
   constexpr auto g = [](auto id) {
     std::println("call-generic-lambda-var: {} ({})", id,
-                 name_of(type_of(^id)));
+                 name_of<std::string_view>(type_of(^id)));
   };
 
   // RUN: grep "call-lambda-var: 1" %t.stdout

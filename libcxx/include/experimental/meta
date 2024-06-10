@@ -31,9 +31,12 @@ template <typename R>
 concept reflection_range = see below;
 
 // name and location
-consteval auto name_of(info) -> string_view;
-consteval auto display_name_of(info) -> string_view;
-consteval auto source_location_of(info r) -> source_location;
+template<typename T = u8string_view>
+  consteval auto name_of(info) -> string_view;
+template<typename T = u8string_view>
+  consteval auto display_name_of(info) -> string_view;
+template<typename T = u8string_view>
+  consteval auto source_location_of(info r) -> source_location;
 
 // type queries
 consteval auto type_of(info) -> info;
@@ -49,9 +52,9 @@ consteval auto template_arguments_of(info r) -> vector<info>;
 
 // member queries
 template <typename... Preds>
-consteval auto members_of(info class_type, Preds... filters) -> vector<info>;
+  consteval auto members_of(info class_type, Preds... filters) -> vector<info>;
 typename <template... Preds>
-consteval auto bases_of(info class_type, Preds... filters) -> vector<info>;
+  consteval auto bases_of(info class_type, Preds... filters) -> vector<info>;
 consteval auto static_data_members_of(info class_type) -> vector<info>;
 consteval auto nonstatic_data_members_of(info class_type) -> vector<info>;
 consteval auto subobjects_of(info class_type) -> vector<info>;
@@ -59,13 +62,13 @@ consteval auto enumerators_of(info enum_type) -> vector<info>;
 
 // substitute
 template <reflection_range R = span<info const>>
-consteval auto can_substitute(info templ, R &&args) -> bool;
+  consteval auto can_substitute(info templ, R &&args) -> bool;
 template <reflection_range R = span<info const>>
-consteval auto substitute(info templ, R &&args) -> info;
+  consteval auto substitute(info templ, R &&args) -> info;
 
 // reflect_invoke
 template <reflection_range R = span<info const>>
-consteval auto reflect_invoke(info target, R &&args) -> info;
+  consteval auto reflect_invoke(info target, R &&args) -> info;
 
 // reflect expression results
 consteval auto reflect_value(auto) -> info;
@@ -79,7 +82,7 @@ template <typename Ty>
 // test_type
 consteval auto test_type(info templ, info type) -> bool;
 template <reflection_range R = span<info const>>
-consteval auto test_types(info templ, span<info const> types) -> bool;
+  consteval auto test_types(info templ, span<info const> types) -> bool;
 
 // other type predicates
 consteval auto is_public(info) -> bool;
@@ -124,7 +127,7 @@ struct data_member_options_t;
 consteval auto data_member_spec(info class_type,
                                 data_member_options = {}) -> info;
 template <reflection_range R = span<info const>>
-consteval auto define_class(info class_type, span<info const>) -> info;
+  consteval auto define_class(info class_type, span<info const>) -> info;
 
 // data layout
 consteval auto offset_of(info) -> size_t;
@@ -464,13 +467,25 @@ struct front_parameter_of_fn {
 // -----------------------------------------------------------------------------
 
 // Returns the name of the reflected entity, or the empty string if it has none.
-consteval auto name_of(info r) -> string_view {
-  return __metafunction(detail::__metafn_name_of, r);
+template<typename T = u8string_view>
+consteval auto name_of(info r) -> T {
+  static_assert(^T == ^u8string_view || ^T == ^string_view,
+                "Name type must be 'string_view' or 'u8string_view'");
+
+  return __metafunction(detail::__metafn_name_of,
+                        ^const typename T::value_type *, r,
+                        ^T == ^std::u8string_view);
 }
 
 // Returns a name for the reflected entity.
-consteval auto display_name_of(info r) -> string_view {
-  return __metafunction(detail::__metafn_display_name_of, r);
+template<typename T = u8string_view>
+consteval auto display_name_of(info r) -> T {
+  static_assert(^T == ^u8string_view || ^T == ^string_view,
+                "Name type must be 'string_view' or 'u8string_view'");
+
+  return __metafunction(detail::__metafn_display_name_of,
+                        ^const typename T::value_type *, r,
+                        ^T == ^std::u8string_view);
 }
 
 // Returns the source location of the reflected entity.
