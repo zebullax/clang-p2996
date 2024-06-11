@@ -2014,6 +2014,9 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   case ReflectionValue::RK_expr_result: {
     Expr *Synthesized = R.getReflectedExprResult();
 
+    if (ReturnsLValue && !Synthesized->isLValue())
+      return true;
+
     if (auto *RD = dyn_cast_or_null<RecordDecl>(
             Synthesized->getType()->getAsCXXRecordDecl());
         RD && RD->isLambda() && ResultTy->isPointerType()) {

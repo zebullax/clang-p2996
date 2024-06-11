@@ -54,7 +54,10 @@ static_assert(!has_template_arguments(^fn));
 static_assert(!has_template_arguments(^Alias));
 static_assert(!has_template_arguments(^Typedef));
 static_assert(!has_template_arguments(^NSAlias));
-static_assert(!has_template_arguments(^Concept<int, 9, std::vector>));
+static_assert(
+    !has_template_arguments(
+        substitute(^Concept,
+                   {^int, std::meta::reflect_value(9), ^std::vector})));
 }  // namespace non_templates
 
                              // ==================
@@ -116,7 +119,8 @@ static_assert(has_template_arguments(^WithDependentArgument<int, 5>));
 static_assert(
       template_arguments_of(^WithDependentArgument<int, 5>).size() == 2);
 static_assert(template_arguments_of(^WithDependentArgument<int, 5>)[0] == ^int);
-static_assert(template_arguments_of(^WithDependentArgument<int, 5>)[1] == ^5);
+static_assert(template_arguments_of(^WithDependentArgument<int, 5>)[1] ==
+              std::meta::reflect_value(5));
 }  // namespace special_cases
 
                                // ===============

@@ -28,7 +28,6 @@ struct S {
 enum Enum { A, B, C };
 enum class EnumCls { A, B, C };
 
-static_assert([:^4:] == 4);
 static_assert(&[:^x:] == &x);
 static_assert([:^fn:] == fn);
 
@@ -56,38 +55,6 @@ consteval int fn() {
 }
 static_assert(fn() == 33);
 }  // namespace with_variables
-
-                            // =====================
-                            // with_lvalues_and_ptrs
-                            // =====================
-
-namespace with_lvalues_and_ptrs {
-struct S { int first, second; };
-
-S s { .first = 10, .second = 12 };
-void nonConstFn() {
-  constexpr auto r1 = ^s.first;
-  constexpr auto r2 = ^&s.second;
-
-  [:r1:] = 11;
-  *[:r2:] = 22;
-}
-}  // namespace with_lvalues_and_ptrs
-
-                            // =====================
-                            // with_reference_values
-                            // =====================
-
-namespace with_reference_values {
-const int k = 42;
-
-consteval const int &fn() { return k; }
-
-void nonConstFn() {
-  constexpr auto r = ^fn();
-  static_assert([:r:] == 42);
-}
-}  // namespace with_reference_values
 
                                // ==============
                                // with_functions
@@ -305,8 +272,9 @@ static_assert(static_cast<Enum>([:rClsB:]) == B);
 
 // Check that parsing correctly handles successions of ':'-characters.
 namespace colon_parsing {
-constexpr auto r4 = ^4;
-static_assert([:r4:] == 4);
+constexpr int x = 4;
+constexpr auto rx = ^x;
+static_assert([:rx:] == 4);
 
 constexpr unsigned Idx = 1;
 constexpr int arr[] = {1, 2, 3};

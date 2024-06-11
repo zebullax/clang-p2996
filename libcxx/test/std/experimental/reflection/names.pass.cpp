@@ -19,10 +19,10 @@
 
 
 static_assert(name_of(^::) == u8"");
-static_assert(name_of(^3) == u8"");
+static_assert(name_of(std::meta::reflect_value(3)) == u8"");
 static_assert(name_of(^int) == u8"int");
 static_assert(display_name_of(^::) == u8"");
-static_assert(display_name_of(^3) == u8"");
+static_assert(display_name_of(std::meta::reflect_value(3)) == u8"");
 static_assert(display_name_of(^int) == u8"int");
 
 

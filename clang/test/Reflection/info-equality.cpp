@@ -138,22 +138,6 @@ static_assert(^:: != ^::myns);
 static_assert(^::myns != ^NsAlias);
 static_assert(^::myns != ^::myns::inner);
 
-// Check that reflections of instantiated concepts are constant values.
-static_assert(^Concept<bool> == ^true);
-static_assert(^Concept<bool> == ^Concept2<void>);
-
-// Check equality semantics of reflections of reflections.
-static_assert(^^:: == ^^::);
-static_assert(^^:: != ^::);
-static_assert(^^TCls == ^^TCls);
-static_assert(^^TCls != ^TCls);
-static_assert(^^tfn == ^^tfn);
-static_assert(^^tfn != ^tfn);
-static_assert(^^int == ^^int);
-static_assert(^^int != ^int);
-static_assert(^^4 == ^^4);
-static_assert(^^4 != ^4);
-
 constexpr int i = 42;
 constexpr auto i_refl = ^i;
 constexpr auto i_refl_copy = i_refl;
@@ -162,21 +146,6 @@ static_assert(i_refl == i_refl_copy);
 
 constexpr int j = 42;
 static_assert(^i != ^j);
-
-// Reflections of equal prvalues compare equally.
-static_assert(^42 == ^42);
-
-// Reflections of lvalues compare equally iff they designate the same entity.
-consteval const int &refOf_i() { return i; }
-consteval const int &refOf_j() { return j; }
-constexpr auto ref1 = ^refOf_i();
-constexpr auto ref2 = ^refOf_i();
-constexpr auto ref3 = ^refOf_j();
-static_assert(ref1 == ref1);
-static_assert(ref1 == ref2);
-static_assert(ref1 != ref3);
-static_assert(ref1 != ^i);
-static_assert(ref1 != ^42);
 
 consteval info local_var_reflection() {
     int i;
