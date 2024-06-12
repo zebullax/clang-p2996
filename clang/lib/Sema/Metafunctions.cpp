@@ -20,6 +20,7 @@
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/Reflection.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Lex/Lexer.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Metafunction.h"
 #include "clang/Sema/ParsedTemplate.h"
@@ -392,7 +393,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_special_member },
   { Metafunction::MFRK_metaInfo, 2, 2, reflect_result },
   { Metafunction::MFRK_metaInfo, 5, 5, reflect_invoke },
-  { Metafunction::MFRK_metaInfo, 9, 9, data_member_spec },
+  { Metafunction::MFRK_metaInfo, 10, 10, data_member_spec },
   { Metafunction::MFRK_metaInfo, 3, 3, define_class },
   { Metafunction::MFRK_sizeT, 1, 1, offset_of },
   { Metafunction::MFRK_sizeT, 1, 1, size_of },
@@ -527,6 +528,7 @@ static void getTypeName(std::string &Result, ASTContext &C, QualType QT,
                         bool BasicOnly) {
   PrintingPolicy PP = C.getPrintingPolicy();
   PP.SuppressTagKeyword = true;
+  PP.SuppressScope = true;
 
   encodeName(Result, QT.getAsString(PP), BasicOnly);
 }
@@ -1779,27 +1781,20 @@ bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
 
     for (uint64_t k = 0; k < nArgs; ++k) {
       llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
-      Expr *IdxExpr = IntegerLiteral::Create(S.Context, Idx,
-                                             S.Context.getSizeType(),
-                                             Args[1]->getExprLoc());
+      Expr *Synthesized = IntegerLiteral::Create(S.Context, Idx,
+                                                 S.Context.getSizeType(),
+                                                 Args[1]->getExprLoc());
 
-      ArraySubscriptExpr *SubscriptExpr =
-            new (S.Context) ArraySubscriptExpr(Args[1], IdxExpr,
-                                               S.Context.MetaInfoTy,
-                                               VK_LValue, OK_Ordinary,
-                                               Range.getBegin());
-
-      ImplicitCastExpr *RVExpr = ImplicitCastExpr::Create(S.Context,
-                                                          S.Context.MetaInfoTy,
-                                                          CK_LValueToRValue,
-                                                          SubscriptExpr,
-                                                          nullptr, VK_PRValue,
-                                                          FPOptionsOverride());
-      if (RVExpr->isValueDependent() || RVExpr->isTypeDependent())
+      Synthesized = new (S.Context) ArraySubscriptExpr(Args[1], Synthesized,
+                                                       S.Context.MetaInfoTy,
+                                                       VK_LValue, OK_Ordinary,
+                                                       Range.getBegin());
+      if (Synthesized->isValueDependent() || Synthesized->isTypeDependent())
         return true;
 
       APValue Unwrapped;
-      if (!Evaluator(Unwrapped, RVExpr, true) || !Unwrapped.isReflection() ||
+      if (!Evaluator(Unwrapped, Synthesized, true) ||
+          !Unwrapped.isReflection() ||
           !CanActAsTemplateArg(Unwrapped.getReflection()))
         return true;
 
@@ -1852,27 +1847,20 @@ bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
 
     for (uint64_t k = 0; k < nArgs; ++k) {
       llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
-      Expr *IdxExpr = IntegerLiteral::Create(S.Context, Idx,
-                                             S.Context.getSizeType(),
-                                             Args[1]->getExprLoc());
+      Expr *Synthesized = IntegerLiteral::Create(S.Context, Idx,
+                                                 S.Context.getSizeType(),
+                                                 Args[1]->getExprLoc());
 
-      ArraySubscriptExpr *SubscriptExpr =
-            new (S.Context) ArraySubscriptExpr(Args[1], IdxExpr,
-                                               S.Context.MetaInfoTy,
-                                               VK_LValue, OK_Ordinary,
-                                               Range.getBegin());
-
-      ImplicitCastExpr *RVExpr = ImplicitCastExpr::Create(S.Context,
-                                                          S.Context.MetaInfoTy,
-                                                          CK_LValueToRValue,
-                                                          SubscriptExpr,
-                                                          nullptr, VK_PRValue,
-                                                          FPOptionsOverride());
-      if (RVExpr->isValueDependent() || RVExpr->isTypeDependent())
+      Synthesized = new (S.Context) ArraySubscriptExpr(Args[1], Synthesized,
+                                                       S.Context.MetaInfoTy,
+                                                       VK_LValue, OK_Ordinary,
+                                                       Range.getBegin());
+      if (Synthesized->isValueDependent() || Synthesized->isTypeDependent())
         return true;
 
       APValue Unwrapped;
-      if (!Evaluator(Unwrapped, RVExpr, true) || !Unwrapped.isReflection() ||
+      if (!Evaluator(Unwrapped, Synthesized, true) ||
+          !Unwrapped.isReflection() ||
           !CanActAsTemplateArg(Unwrapped.getReflection()))
         return true;
 
@@ -3363,34 +3351,41 @@ bool data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
     size_t nameLen = Scratch.getInt().getExtValue();
     Name.emplace(nameLen, '\0');
 
+    // Evaluate the character type.
+    if (!Evaluator(Scratch, Args[ArgIdx++], true))
+      return true;
+    QualType CharTy = Scratch.getReflectedType();
+
+    // Evaluate the data contents.
     for (uint64_t k = 0; k < nameLen; ++k) {
       llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
-      Expr *IdxExpr = IntegerLiteral::Create(S.Context, Idx,
-                                             S.Context.getSizeType(),
-                                             Args[ArgIdx]->getExprLoc());
+      Expr *Synthesized = IntegerLiteral::Create(S.Context, Idx,
+                                                 S.Context.getSizeType(),
+                                                 Args[ArgIdx]->getExprLoc());
 
-      ArraySubscriptExpr *SubscriptExpr =
-            new (S.Context) ArraySubscriptExpr(Args[ArgIdx], IdxExpr,
-                                               S.Context.CharTy,
-                                               VK_LValue, OK_Ordinary,
-                                               Range.getBegin());
-
-      ImplicitCastExpr *RVExpr = ImplicitCastExpr::Create(S.Context,
-                                                          S.Context.CharTy,
-                                                          CK_LValueToRValue,
-                                                          SubscriptExpr,
-                                                          nullptr, VK_PRValue,
-                                                          FPOptionsOverride());
-      if (RVExpr->isValueDependent() || RVExpr->isTypeDependent())
+      Synthesized = new (S.Context) ArraySubscriptExpr(Args[ArgIdx],
+                                                       Synthesized, CharTy,
+                                                       VK_LValue, OK_Ordinary,
+                                                       Range.getBegin());
+      if (Synthesized->isValueDependent() || Synthesized->isTypeDependent())
         return true;
 
-      if (!Evaluator(Scratch, RVExpr, true))
+      if (!Evaluator(Scratch, Synthesized, true))
         return true;
+
       (*Name)[k] = static_cast<char>(Scratch.getInt().getExtValue());
     }
     ArgIdx++;
   } else {
-    ArgIdx += 2;
+    ArgIdx += 3;
+  }
+
+  // Validate the name as an identifier.
+  if (Name) {
+    Lexer Lex(Range.getBegin(), S.getLangOpts(), Name->data(), Name->data(),
+              Name->data() + Name->size(), false);
+    if (!Lex.validateAndRewriteIdentifier(*Name))
+      return true;
   }
 
   // Evaluate whether an alignment was provided.
@@ -3581,28 +3576,20 @@ bool define_class(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   for (size_t k = 0; k < NumMembers; ++k) {
     // Extract the reflection from the list of member specs.
     llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
-    Expr *IdxExpr = IntegerLiteral::Create(S.Context, Idx,
-                                           S.Context.getSizeType(),
-                                           Args[2]->getExprLoc());
+    Expr *Synthesized = IntegerLiteral::Create(S.Context, Idx,
+                                               S.Context.getSizeType(),
+                                               Args[2]->getExprLoc());
 
-    ArraySubscriptExpr *SubscriptExpr =
-          new (S.Context) ArraySubscriptExpr(Args[2], IdxExpr,
-                                             S.Context.MetaInfoTy,
-                                             VK_LValue, OK_Ordinary,
-                                             Range.getBegin());
-
-    ImplicitCastExpr *RVExpr = ImplicitCastExpr::Create(S.Context,
-                                                        S.Context.MetaInfoTy,
-                                                        CK_LValueToRValue,
-                                                        SubscriptExpr,
-                                                        nullptr, VK_PRValue,
-                                                        FPOptionsOverride());
-    if (RVExpr->isValueDependent() || RVExpr->isTypeDependent()) {
+    Synthesized = new (S.Context) ArraySubscriptExpr(Args[2], Synthesized,
+                                                     S.Context.MetaInfoTy,
+                                                     VK_LValue, OK_Ordinary,
+                                                     Range.getBegin());
+    if (Synthesized->isValueDependent() || Synthesized->isTypeDependent()) {
       RestoreDC();
       return true;
     }
 
-    if (!Evaluator(Scratch, RVExpr, true) ||
+    if (!Evaluator(Scratch, Synthesized, true) ||
         Scratch.getReflection().getKind() !=
               ReflectionValue::RK_data_member_spec) {
       RestoreDC();

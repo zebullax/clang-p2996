@@ -158,6 +158,7 @@ consteval auto has_default_argument(info) -> bool;
 #include <span>
 #include <string_view>
 #include <type_traits>
+#include <variant>
 #include <vector>
 
 #if __has_feature(reflection)
@@ -942,7 +943,17 @@ consteval auto reflect_invoke(info target, R1 &&targs, R2 &&args) -> info {
 
 // Representation of a data member which may be passed to 'data_member_spec'.
 struct data_member_options_t {
-  optional<string_view> name = nullopt;
+  struct name_type {
+    std::variant<u8string, string> impl;
+
+    template <typename T> requires constructible_from<u8string, T>
+    consteval name_type(T &&in) : impl(std::in_place_type<u8string>, in) {}
+
+    template <typename T> requires constructible_from<string, T>
+    consteval name_type(T &&in) : impl(std::in_place_type<string>, in) {}
+  };
+
+  optional<name_type> name = nullopt;
   bool is_static = false;
   optional<int> alignment = nullopt;
   optional<int> width = nullopt;
@@ -952,16 +963,26 @@ struct data_member_options_t {
 // be used with 'define_class' to define a record type.
 consteval auto data_member_spec(info member_type,
                                 data_member_options_t options = {}) -> info {
-  string_view name = options.name.value_or("");
+  auto name = options.name.value_or(u8"").impl;
   bool is_static = options.is_static;
   int alignment = options.alignment.value_or(0);
   int width = options.width.value_or(0);
 
-  return __metafunction(detail::__metafn_data_member_spec,
-                        member_type, is_static,
-                        options.name.has_value(), name.size(), name.data(),
-                        options.alignment.has_value(), alignment,
-                        options.width.has_value(), width);
+  if (holds_alternative<u8string>(name)) {
+    const u8string &s = get<u8string>(name);
+    return __metafunction(detail::__metafn_data_member_spec,
+                          member_type, is_static, options.name.has_value(),
+                          s.size(), ^const char8_t *, s.data(),
+                          options.alignment.has_value(), alignment,
+                          options.width.has_value(), width);
+  } else {
+    const string &s = get<string>(name);
+    return __metafunction(detail::__metafn_data_member_spec,
+                          member_type, is_static, options.name.has_value(),
+                          s.size(), ^const char *, s.data(),
+                          options.alignment.has_value(), alignment,
+                          options.width.has_value(), width);
+  }
 }
 
 // Completes the definition of the record type reflected by 'class_type' with
