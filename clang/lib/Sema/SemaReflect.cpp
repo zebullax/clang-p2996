@@ -376,8 +376,17 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc, Expr *E) {
   if (auto *DRE = dyn_cast<DeclRefExpr>(E))
     return BuildCXXReflectExpr(OperatorLoc, DRE->getExprLoc(), DRE->getDecl());
 
-  if (auto *SNTTPE = dyn_cast<SubstNonTypeTemplateParmExpr>(E))
-    return BuildCXXReflectExpr(OperatorLoc, SNTTPE->getReplacement());
+  if (auto *SNTTPE = dyn_cast<SubstNonTypeTemplateParmExpr>(E)) {
+    Expr *Replacement = SNTTPE->getReplacement();
+    if (SNTTPE->isLValue()) {
+      if (auto *CE = dyn_cast<ConstantExpr>(Replacement))
+        return CXXReflectExpr::Create(Context, OperatorLoc, Replacement);
+
+      return BuildCXXReflectExpr(OperatorLoc, Replacement);
+    }
+
+    return CXXReflectExpr::Create(Context, OperatorLoc, Replacement);
+  }
 
   if (auto *ULE = dyn_cast<UnresolvedLookupExpr>(E)) {
     return BuildCXXReflectExpr(OperatorLoc, ULE);

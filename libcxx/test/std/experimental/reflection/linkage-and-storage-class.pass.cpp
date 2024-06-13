@@ -58,6 +58,9 @@ void foo() {
 
 template <auto V> struct TCls {};
 static_assert(!has_static_storage_duration(template_arguments_of(^TCls<5>)[0]));
+
+template <auto K> constexpr auto R = ^K;
+static_assert(has_static_storage_duration(R<S{}>));
 }  // namespace storage_class_and_duration
 
                                    // =======

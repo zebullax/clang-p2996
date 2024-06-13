@@ -540,7 +540,8 @@ static void getDeclName(std::string &Result, ASTContext &C, Decl *D,
   std::string Name;
   {
     llvm::raw_string_ostream NameOut(Name);
-    if (auto *ND = dyn_cast<NamedDecl>(D))
+    if (auto *ND = dyn_cast<NamedDecl>(D);
+        ND && !isa<TemplateParamObjectDecl>(D))
       ND->printName(NameOut, PP);
   }
   encodeName(Result, Name, BasicOnly);
@@ -1627,6 +1628,8 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
       if (!Synthesized->EvaluateAsConstantExpr(ER, S.Context))
         return true;
       Value = ER.Val;
+    } else if (auto *TPOD = dyn_cast<TemplateParamObjectDecl>(Decl)) {
+      Value = TPOD->getValue();
     }
 
     QualType QT = desugarType(Decl->getType(), /*UnwrapAliases=*/true,
@@ -2034,7 +2037,7 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
         isLambda = RD->isLambda();
 
     Expr *Synthesized;
-    if (isa<VarDecl>(Decl) && !isLambda) {
+    if (isa<VarDecl, TemplateParamObjectDecl>(Decl) && !isLambda) {
       if (isa<LValueReferenceType>(Decl->getType().getCanonicalType())) {
         // We have a reflection of an object with reference type.
         // Synthesize a 'DeclRefExpr' designating the object, such that constant
@@ -2538,6 +2541,8 @@ bool has_static_storage_duration(APValue &Result, Sema &S, EvalFn Evaluator,
   if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
     if (const auto *VD = dyn_cast<VarDecl>(R.getReflectedDecl()))
       result = VD->getStorageDuration() == SD_Static;
+    else if (isa<TemplateParamObjectDecl>(R.getReflectedDecl()))
+      result = true;
   }
   return SetAndSucceed(Result, makeBool(S.Context, result));
 }
@@ -2947,7 +2952,7 @@ bool is_object(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   if (R.getReflection().getKind() == ReflectionValue::RK_expr_result)
     IsObject = R.getReflectedExprResult()->isLValue();
   else if (R.getReflection().getKind() == ReflectionValue::RK_declaration)
-    IsObject = isa<VarDecl>(R.getReflectedDecl());
+    IsObject = isa<VarDecl, TemplateParamObjectDecl>(R.getReflectedDecl());
 
   return SetAndSucceed(Result, makeBool(S.Context, IsObject));
 }
@@ -3118,7 +3123,7 @@ bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
 
   // If this is an lvalue to a complete object, promote the result to reflect
   // the declaration.
-  if (!E->getType()->isPointerType() && Arg.getKind() == APValue::LValue &&
+  if (!E->getType()->isPointerType() && Arg.isLValue() &&
       Arg.getLValueOffset().isZero())
     if (!Arg.hasLValuePath() || Arg.getLValuePath().size() == 0)
       if (APValue::LValueBase LVBase = Arg.getLValueBase();
