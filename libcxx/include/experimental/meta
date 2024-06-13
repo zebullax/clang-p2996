@@ -143,7 +143,13 @@ consteval auto alignment_of(info) -> size_t;
 // function parameters (P3096)
 consteval auto parameters_of(info) -> vector<info>;
 consteval auto has_consistent_name(info) -> bool;
+template<typename T = u8string_view>
+  consteval auto any_name_of(info) -> string_view;
+consteval auto has_ellipsis_parameter(info) -> bool;
 consteval auto has_default_argument(info) -> bool;
+consteval auto is_explicit_object_parameter(info) -> bool;
+consteval auto is_function_parameter(info) -> bool;
+consteval auto return_type_of(info) -> info;
 
 } // namespace reflection_v2
 } // namespace meta
@@ -249,7 +255,11 @@ enum : unsigned {
   // P3096 metafunctions
   __metafn_get_ith_parameter_of,
   __metafn_has_consistent_name,
+  __metafn_has_ellipsis_parameter,
   __metafn_has_default_argument,
+  __metafn_is_explicit_object_parameter,
+  __metafn_is_function_parameter,
+  __metafn_return_type_of,
 };
 
 }  // namespace detail
@@ -484,7 +494,8 @@ consteval auto name_of(info r) -> T {
 
   return __metafunction(detail::__metafn_name_of,
                         ^const typename T::value_type *, r,
-                        ^T == dealias(^std::u8string_view));
+                        ^T == dealias(^std::u8string_view),
+                        /*EnforceConsistent=*/true);
 }
 
 // Returns a name for the reflected entity.
@@ -1040,8 +1051,35 @@ consteval auto has_consistent_name(info r) -> bool {
   return __metafunction(detail::__metafn_has_consistent_name, r);
 }
 
+template<typename T = u8string_view>
+consteval auto any_name_of(info r) -> T {
+  static_assert(^T == dealias(^u8string_view) || ^T == dealias(^string_view),
+                "Name type must be 'string_view' or 'u8string_view'");
+
+  return __metafunction(detail::__metafn_name_of,
+                        ^const typename T::value_type *, r,
+                        ^T == dealias(^std::u8string_view),
+                        /*EnforceConsistent=*/false);
+}
+
+consteval auto has_ellipsis_parameter(info r) -> bool {
+  return __metafunction(detail::__metafn_has_ellipsis_parameter, r);
+}
+
 consteval auto has_default_argument(info r) -> bool {
   return __metafunction(detail::__metafn_has_default_argument, r);
+}
+
+consteval auto is_explicit_object_parameter(info r) -> bool {
+  return __metafunction(detail::__metafn_is_explicit_object_parameter, r);
+}
+
+consteval auto is_function_parameter(info r) -> bool {
+  return __metafunction(detail::__metafn_is_function_parameter, r);
+}
+
+consteval auto return_type_of(info r) -> info {
+  return __metafunction(detail::__metafn_return_type_of, r);
 }
 
 #endif  // __has_feature(parameter_reflection)

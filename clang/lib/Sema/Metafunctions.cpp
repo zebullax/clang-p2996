@@ -317,9 +317,26 @@ static bool has_consistent_name(APValue &Result, Sema &S, EvalFn Evaluator,
                                 QualType ResultTy, SourceRange Range,
                                 ArrayRef<Expr *> Args);
 
+static bool has_ellipsis_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
+                                   QualType ResultTy, SourceRange Range,
+                                   ArrayRef<Expr *> Args);
+
 static bool has_default_argument(APValue &Result, Sema &S, EvalFn Evaluator,
                                  QualType ResultTy, SourceRange Range,
                                  ArrayRef<Expr *> Args);
+
+static bool is_explicit_object_parameter(APValue &Result, Sema &S,
+                                         EvalFn Evaluator, QualType ResultTy,
+                                         SourceRange Range,
+                                         ArrayRef<Expr *> Args);
+
+static bool is_function_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
+                                  QualType ResultTy, SourceRange Range,
+                                  ArrayRef<Expr *> Args);
+
+static bool return_type_of(APValue &Result, Sema &S, EvalFn Evaluator,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args);
 
 // -----------------------------------------------------------------------------
 // Metafunction table
@@ -342,7 +359,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_metaInfo, 1, 1, map_decl_to_entity },
 
   // exposed metafunctions
-  { Metafunction::MFRK_spliceFromArg, 3, 3, name_of },
+  { Metafunction::MFRK_spliceFromArg, 4, 4, name_of },
   { Metafunction::MFRK_spliceFromArg, 3, 3, display_name_of },
   { Metafunction::MFRK_sourceLoc, 1, 1, source_location_of },
   { Metafunction::MFRK_metaInfo, 1, 1, type_of },
@@ -404,7 +421,11 @@ static constexpr Metafunction Metafunctions[] = {
   // P3096 metafunction extensions
   { Metafunction::MFRK_metaInfo, 3, 3, get_ith_parameter_of },
   { Metafunction::MFRK_bool, 1, 1, has_consistent_name },
+  { Metafunction::MFRK_bool, 1, 1, has_ellipsis_parameter },
   { Metafunction::MFRK_bool, 1, 1, has_default_argument },
+  { Metafunction::MFRK_bool, 1, 1, is_explicit_object_parameter },
+  { Metafunction::MFRK_bool, 1, 1, is_function_parameter },
+  { Metafunction::MFRK_metaInfo, 1, 1, return_type_of },
 };
 constexpr const unsigned NumMetafunctions = sizeof(Metafunctions) /
                                             sizeof(Metafunction);
@@ -530,6 +551,25 @@ static void getTypeName(std::string &Result, ASTContext &C, QualType QT,
   PP.SuppressScope = true;
 
   encodeName(Result, QT.getAsString(PP), BasicOnly);
+}
+
+static bool parameterHasConsistentName(ParmVarDecl *PVD) {
+  StringRef FirstNameSeen = PVD->getName();
+  unsigned ParamIdx = PVD->getFunctionScopeIndex();
+
+  while (PVD) {
+    FunctionDecl *FD = cast<FunctionDecl>(PVD->getDeclContext());
+    FD = FD->getPreviousDecl();
+    if (!FD)
+      return true;
+
+    PVD = FD->getParamDecl(ParamIdx);
+    assert(PVD);
+    if (StringRef Name = PVD->getName();
+        Name.size() > 0 && Name != FirstNameSeen)
+      return false;
+  }
+  return true;
 }
 
 static void getDeclName(std::string &Result, ASTContext &C, Decl *D,
@@ -1341,6 +1381,14 @@ bool name_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     IsUtf8 = Scratch.getInt().getBoolValue();
   }
 
+  bool EnforceConsistent;
+  {
+    APValue Scratch;
+    if (!Evaluator(Scratch, Args[3], true))
+      return true;
+    EnforceConsistent = Scratch.getInt().getBoolValue();
+  }
+
   std::string Name;
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type: {
@@ -1348,6 +1396,10 @@ bool name_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_declaration: {
+    if (auto *PVD = dyn_cast<ParmVarDecl>(R.getReflectedDecl());
+        EnforceConsistent && PVD && !parameterHasConsistentName(PVD))
+      return true;
+
     getDeclName(Name, S.Context, R.getReflectedDecl(), !IsUtf8);
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
@@ -1486,8 +1538,11 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   }
   case ReflectionValue::RK_declaration: {
     ValueDecl *VD = cast<ValueDecl>(R.getReflectedDecl());
-    QualType QT = desugarType(VD->getType(), /*UnwrapAliases=*/false,
-                              /*DropCV=*/false, /*DropRefs=*/false);
+
+    bool UnwrapAliases = isa<ParmVarDecl>(VD);
+    bool DropCV = isa<ParmVarDecl>(VD);
+    QualType QT = desugarType(VD->getType(), UnwrapAliases, DropCV,
+                              /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
   }
   case ReflectionValue::RK_base_specifier: {
@@ -3947,24 +4002,43 @@ bool has_consistent_name(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
   case ReflectionValue::RK_declaration: {
     if (auto *PVD = dyn_cast<ParmVarDecl>(R.getReflectedDecl())) {
-      StringRef FirstNameSeen = PVD->getName();
-      ParmVarDecl *FirstParmSeen = PVD;
+      bool Consistent = parameterHasConsistentName(PVD);
+      return SetAndSucceed(Result, makeBool(S.Context, Consistent));
+    }
+    return true;
+  }
+  }
+  llvm_unreachable("unknown reflection kind");
+}
 
-      bool Unique = true;
-      while (PVD) {
-        FunctionDecl *FD = cast<FunctionDecl>(PVD->getDeclContext());
-        FD = FD->getPreviousDecl();
-        if (!FD)
-          break;
+bool has_ellipsis_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
+                            QualType ResultTy, SourceRange Range,
+                            ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
 
-        PVD = FD->getParamDecl(FirstParmSeen->getFunctionScopeIndex());
-        assert(PVD);
-        if (PVD->getName() != FirstNameSeen) {
-          Unique = false;
-          break;
-        }
-      }
-      return SetAndSucceed(Result, makeBool(S.Context, Unique));
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  switch (R.getReflection().getKind()) {
+  case ReflectionValue::RK_null:
+  case ReflectionValue::RK_expr_result:
+  case ReflectionValue::RK_template:
+  case ReflectionValue::RK_namespace:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+    return true;
+  case ReflectionValue::RK_type:
+    if (auto *FPT = dyn_cast<FunctionProtoType>(R.getReflectedType())) {
+      bool HasEllipsis = FPT->isVariadic();
+      return SetAndSucceed(Result, makeBool(S.Context, HasEllipsis));
+    }
+    return true;
+  case ReflectionValue::RK_declaration: {
+    if (auto *FD = dyn_cast<FunctionDecl>(R.getReflectedDecl())) {
+      bool HasEllipsis = FD->getEllipsisLoc().isValid();
+      return SetAndSucceed(Result, makeBool(S.Context, HasEllipsis));
     }
     return true;
   }
@@ -4001,5 +4075,73 @@ bool has_default_argument(APValue &Result, Sema &S, EvalFn Evaluator,
   llvm_unreachable("unknown reflection kind");
 }
 
+bool is_explicit_object_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
+                                  QualType ResultTy, SourceRange Range,
+                                  ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool result = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
+    if (auto *PVD = dyn_cast<ParmVarDecl>(R.getReflectedDecl()))
+      result = PVD->isExplicitObjectParameter();
+  }
+  return SetAndSucceed(Result, makeBool(S.Context, result));
+}
+
+bool is_function_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool result = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
+    result = isa<const ParmVarDecl>(R.getReflectedDecl());
+  }
+  return SetAndSucceed(Result, makeBool(S.Context, result));
+}
+
+bool return_type_of(APValue &Result, Sema &S, EvalFn Evaluator,
+                    QualType ResultTy, SourceRange Range,
+                    ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.MetaInfoTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  switch (R.getReflection().getKind()) {
+  case ReflectionValue::RK_null:
+  case ReflectionValue::RK_expr_result:
+  case ReflectionValue::RK_template:
+  case ReflectionValue::RK_namespace:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+    return true;
+  case ReflectionValue::RK_type:
+    if (auto *FPT = dyn_cast<FunctionProtoType>(R.getReflectedType()))
+      return SetAndSucceed(Result, makeReflection(FPT->getReturnType()));
+
+    return true;
+  case ReflectionValue::RK_declaration: {
+    if (auto *FD = dyn_cast<FunctionDecl>(R.getReflectedDecl());
+        FD && !isa<CXXConstructorDecl>(FD) && !isa<CXXDestructorDecl>(FD))
+      return SetAndSucceed(Result, makeReflection(FD->getReturnType()));
+
+    return true;
+  }
+  }
+  llvm_unreachable("unknown reflection kind");
+}
 
 }  // end namespace clang
