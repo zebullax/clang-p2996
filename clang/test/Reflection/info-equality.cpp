@@ -111,6 +111,8 @@ static_assert(^int_alias != ^int);
 static_assert(^int_alias != ^Test::type);
 static_assert(^int_alias != ^myns::Test::type);
 static_assert(^Test::type != ^myns::Test::type);
+static_assert(^decltype(int_alias{}) == ^int);
+static_assert(^decltype(int_alias{}) != ^int_alias);
 
 // Check equality semantics of enumerations and enumerators.
 static_assert(^Enum::A != ^Enum::B);

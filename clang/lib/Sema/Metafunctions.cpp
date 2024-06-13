@@ -489,7 +489,6 @@ static Expr *makeCString(StringRef Str, ASTContext &C, bool Utf8) {
   return ImplicitCastExpr::Create(C, ConstCharPtrTy, CK_ArrayToPointerDecay,
                                   StrLit, /*BasePath=*/nullptr, VK_PRValue,
                                   FPOptionsOverride());
-  //return !Evaluator(Result, StrExpr, true);
 }
 
 static bool SetAndSucceed(APValue &Out, const APValue &Result) {
