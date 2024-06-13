@@ -3298,6 +3298,9 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
   if (ResultExpr->isTypeDependent() || ResultExpr->isValueDependent())
     return true;
 
+  if (!ResultExpr->getType()->isStructuralType())
+    return true;
+
   APValue FnResult;
   if (!Evaluator(FnResult, ResultExpr, !ResultExpr->isLValue()))
     return true;
