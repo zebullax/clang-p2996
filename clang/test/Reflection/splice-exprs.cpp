@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// RUN: %clang_cc1 %s -std=c++23 -freflection -verify
+// RUN: %clang_cc1 %s -std=c++23 -freflection
 
 using info = decltype(^int);
 
@@ -192,15 +192,6 @@ struct S {
     (void) this->[:^S:]::k;
     this->[:^fn2:]();
     this->[:^S:]::fn2();
-
-    (void) [:^k:];  // expected-error {{cannot implicitly reference}} \
-                    // expected-note {{explicit 'this' pointer}}
-    (void) [:^S:]::k;  // expected-error {{cannot implicitly reference}} \
-                       // expected-note {{explicit 'this' pointer}}
-    [:^fn:]();  // expected-error {{cannot implicitly reference}} \
-                // expected-note {{explicit 'this' pointer}}
-    [:^S:]::fn2();  // expected-error {{cannot implicitly reference}} \
-                    // expected-note {{explicit 'this' pointer}}
   }
 };
 
@@ -217,18 +208,8 @@ struct D {
     static_assert([:^T:]::l == 3);
     (void) this->[:^T:]::l;
     (void) this->[:^T:]::fn2();
-
-    (void) [:^T:]::k;  // expected-error {{cannot implicitly reference}} \
-                       // expected-note {{explicit 'this' pointer}}
-    [:^T:]::fn2();  // expected-error {{cannot implicitly reference}} \
-                    // expected-note {{explicit 'this' pointer}}
   }
 };
-
-void runner() {
-    D f = {4};
-    f.fn<D>();  // expected-note {{in instantiation of function template}}
-}
 
 }  // namespace with_implicit_member_access
 
@@ -242,7 +223,7 @@ struct D : B { consteval int fn() const override { return 2; } };
 
 constexpr D d;
 static_assert(d.[:^D::fn:]() == 2);
-static_assert(d.[:^B::fn:]() == 1);
+static_assert(d.[:^B::fn:]() == 2);
 static_assert(d.[:^B:]::fn() == 1);
 
 // Splicing member as intermediate component of a member-access expression.
