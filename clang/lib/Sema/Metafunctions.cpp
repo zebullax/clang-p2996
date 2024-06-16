@@ -2597,6 +2597,8 @@ bool has_static_storage_duration(APValue &Result, Sema &S, EvalFn Evaluator,
       result = VD->getStorageDuration() == SD_Static;
     else if (isa<TemplateParamObjectDecl>(R.getReflectedDecl()))
       result = true;
+  } else if (R.getReflection().getKind() == ReflectionValue::RK_expr_result) {
+    result = R.getReflectedExprResult()->isLValue();
   }
   return SetAndSucceed(Result, makeBool(S.Context, result));
 }
@@ -2615,6 +2617,18 @@ bool has_internal_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
   if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
     if (const auto *ND = dyn_cast<NamedDecl>(R.getReflectedDecl()))
       result = (ND->getFormalLinkage() == Linkage::Internal);
+  } else if (R.getReflection().getKind() == ReflectionValue::RK_expr_result &&
+             R.getReflectedExprResult()->isLValue()) {
+    Expr *CE = R.getReflectedExprResult();
+    if (!Evaluator(R, CE, false))
+      return true;
+
+    if (!CE->getType()->isPointerType() && R.isLValue())
+      if (APValue::LValueBase LVBase = R.getLValueBase();
+          LVBase.is<const ValueDecl *>()) {
+        const ValueDecl *VD = LVBase.get<const ValueDecl *>();
+        result = (VD->getFormalLinkage() == Linkage::Internal);
+      }
   }
   return SetAndSucceed(Result, makeBool(S.Context, result));
 }
@@ -2633,6 +2647,18 @@ bool has_external_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
   if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
     if (const auto *ND = dyn_cast<NamedDecl>(R.getReflectedDecl()))
       result = (ND->getFormalLinkage() == Linkage::External);
+  } else if (R.getReflection().getKind() == ReflectionValue::RK_expr_result &&
+             R.getReflectedExprResult()->isLValue()) {
+    Expr *CE = R.getReflectedExprResult();
+    if (!Evaluator(R, CE, false))
+      return true;
+
+    if (!CE->getType()->isPointerType() && R.isLValue())
+      if (APValue::LValueBase LVBase = R.getLValueBase();
+          LVBase.is<const ValueDecl *>()) {
+        const ValueDecl *VD = LVBase.get<const ValueDecl *>();
+        result = (VD->getFormalLinkage() == Linkage::External);
+      }
   }
   return SetAndSucceed(Result, makeBool(S.Context, result));
 }
@@ -2650,6 +2676,18 @@ bool has_linkage(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
     if (const auto *ND = dyn_cast<NamedDecl>(R.getReflectedDecl()))
       result = ND->hasLinkage();
+  } else if (R.getReflection().getKind() == ReflectionValue::RK_expr_result &&
+             R.getReflectedExprResult()->isLValue()) {
+    Expr *CE = R.getReflectedExprResult();
+    if (!Evaluator(R, CE, false))
+      return true;
+
+    if (!CE->getType()->isPointerType() && R.isLValue())
+      if (APValue::LValueBase LVBase = R.getLValueBase();
+          LVBase.is<const ValueDecl *>()) {
+        const ValueDecl *VD = LVBase.get<const ValueDecl *>();
+        result = (VD->hasLinkage());
+      }
   }
   return SetAndSucceed(Result, makeBool(S.Context, result));
 }
