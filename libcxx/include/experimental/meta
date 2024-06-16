@@ -407,6 +407,9 @@ enum : unsigned {
   __metafn_bit_size_of,
   __metafn_alignment_of,
 
+  // Proposed alternative P2996 accessibility API
+  __metafn_access_context,
+
   // P3096 metafunctions
   __metafn_get_ith_parameter_of,
   __metafn_has_consistent_name,
@@ -874,9 +877,9 @@ consteval auto is_private(info r) -> bool {
 }
 
 // Returns whether the reflected entity can be accessed from the callsite.
-consteval auto is_accessible(info r) -> bool {
+/*consteval auto is_accessible(info r) -> bool {
   return __metafunction(detail::__metafn_is_accessible, r);
-}
+}*/
 
 // Returns whether the reflected entity is a virtual member function or a
 // virtual base class.
@@ -1654,6 +1657,75 @@ consteval auto type_unwrap_reference(info type) -> info {
 
 consteval auto type_unwrap_ref_decay(info type) -> info {
   return dealias(substitute(^unwrap_ref_decay_t, {type}));
+}
+
+// Proposed alternative P2996 accessibility API
+
+consteval auto access_context() -> info {
+  return __metafunction(detail::__metafn_access_context);
+}
+
+struct access_pair {
+  info target;
+  info from;
+
+  consteval access_pair(info target, info from = access_context())
+      : target(target), from(from) {}
+};
+
+consteval auto is_accessible(access_pair p) -> bool {
+  return __metafunction(detail::__metafn_is_accessible, p.target, p.from);
+}
+
+consteval auto is_accessible(info r, info from) -> bool {
+  return is_accessible(access_pair{r, from});
+}
+
+template <typename Pred>
+consteval auto accessible_members_of(access_pair p, Pred pred)
+    -> vector<info> {
+  auto wrapped = [&](info r) {
+    return (is_accessible(r, p.from) && pred(r));
+  };
+
+  using iterator =
+      __range_of_infos::iterator<__range_of_infos::front_member_of_fn,
+                                 __range_of_infos::next_member_of_fn,
+                                 __range_of_infos::map_decl_to_entity_fn,
+                                 decltype(wrapped)>;
+  using range = __range_of_infos::range<iterator>;
+  auto rng = range{p.target, wrapped};
+  return vector<info>{rng.begin(), rng.end()};
+}
+
+template <typename Pred>
+consteval auto accessible_members_of(info target, info from, Pred pred) {
+  return accessible_members_of(access_pair{target, from}, pred);
+}
+
+
+template <typename... Preds>
+consteval auto accessible_members_of(access_pair p, Preds... preds)
+    -> vector<info> {
+  return members_of(p.target, [&](info r) {
+    return is_accessible(r, p.from) && (preds(r) && ...);
+  });
+}
+
+template <typename... Preds>
+consteval auto accessible_members_of(info target, info from, Preds... preds) {
+  return accessible_members_of(access_pair{target, from}, preds...);
+}
+
+consteval auto accessible_members_of(access_pair p)
+    -> vector<info> {
+  return members_of(p.target, [&](info r) {
+    return is_accessible(r, p.from);
+  });
+}
+
+consteval auto accessible_members_of(info target, info from) {
+  return accessible_members_of(access_pair{target, from});
 }
 
 #if __has_feature(parameter_reflection)

@@ -32,6 +32,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/UnicodeCharRanges.h"
 #include "llvm/Support/raw_ostream.h"
+#include <iostream>
 
 
 namespace clang {
@@ -126,6 +127,10 @@ static bool is_protected(APValue &Result, Sema &S, EvalFn Evaluator,
 static bool is_private(APValue &Result, Sema &S, EvalFn Evaluator,
                        QualType ResultTy, SourceRange Range,
                        ArrayRef<Expr *> Args);
+
+static bool access_context(APValue &Result, Sema &S, EvalFn Evaluator,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args);
 
 static bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator,
                           QualType ResultTy, SourceRange Range,
@@ -373,7 +378,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_public },
   { Metafunction::MFRK_bool, 1, 1, is_protected },
   { Metafunction::MFRK_bool, 1, 1, is_private },
-  { Metafunction::MFRK_bool, 1, 1, is_accessible },
+  { Metafunction::MFRK_bool, 1, 2, is_accessible },
   { Metafunction::MFRK_bool, 1, 1, is_virtual },
   { Metafunction::MFRK_bool, 1, 1, is_pure_virtual },
   { Metafunction::MFRK_bool, 1, 1, is_override },
@@ -417,6 +422,9 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_sizeT, 1, 1, bit_offset_of },
   { Metafunction::MFRK_sizeT, 1, 1, bit_size_of },
   { Metafunction::MFRK_sizeT, 1, 1, alignment_of },
+
+  // Proposed alternative P2996 accessibility API
+  { Metafunction::MFRK_metaInfo, 0, 0, access_context },
 
   // P3096 metafunction extensions
   { Metafunction::MFRK_metaInfo, 3, 3, get_ith_parameter_of },
@@ -2314,6 +2322,27 @@ bool is_private(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   llvm_unreachable("invalid reflection type");
 }
 
+static bool findAccessContext(Sema &S, EvalFn Evaluator, APValue &Result) {
+  StackLocationExpr *SLE = StackLocationExpr::Create(S.Context,
+                                                     SourceRange(), 1);
+  if (!Evaluator(Result, SLE, true) || !Result.isReflection())
+    return false;
+
+  if (Result.getReflectedDecl() != nullptr)
+    return true;
+
+  Result = makeReflection(dyn_cast<Decl>(S.CurContext));
+  return true;
+}
+
+bool access_context(APValue &Result, Sema &S, EvalFn Evaluator,
+                    QualType ResultTy, SourceRange Range,
+                    ArrayRef<Expr *> Args) {
+  assert(ResultTy == S.Context.MetaInfoTy);
+
+  return !findAccessContext(S, Evaluator, Result);
+}
+
 bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator,
                    QualType ResultTy, SourceRange Range,
                    ArrayRef<Expr *> Args) {
@@ -2325,19 +2354,22 @@ bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
 
   APValue Scratch;
-  StackLocationExpr *SLE = StackLocationExpr::Create(S.Context,
-                                                     SourceRange(), 1);
-  if (!Evaluator(Scratch, SLE, true) || !R.isReflection())
-    return true;
-  ReflectionValue AccessedFrom = Scratch.getReflection();
-  if (AccessedFrom.getKind() != ReflectionValue::RK_declaration)
-    return true;
+  if (Args.size() < 2) {
+    if (!findAccessContext(S, Evaluator, Scratch))
+      return true;
+  } else {
+    if (!Evaluator(Scratch, Args[1], true) || !Scratch.isReflection())
+      return true;
 
-  DeclContext *AccessDC = dyn_cast_or_null<DeclContext>(
-        AccessedFrom.getAsDecl());
-  if (!AccessDC)
-    AccessDC = S.CurContext;
-  assert(AccessDC);
+    if (Scratch.getReflection().getKind() != ReflectionValue::RK_namespace &&
+        Scratch.getReflection().getKind() != ReflectionValue::RK_declaration)
+      return true;
+  }
+  ReflectionValue AccessedFrom = Scratch.getReflection();
+
+  DeclContext *AccessDC = dyn_cast<DeclContext>(
+      AccessedFrom.getKind() == ReflectionValue::RK_namespace ?
+      AccessedFrom.getAsNamespace() : AccessedFrom.getAsDecl());
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type: {
