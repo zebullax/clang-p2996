@@ -75,9 +75,12 @@ template <reflection_range R1 = span<info const>,
                                 R1 &&tmpl_args, R2 &&args) -> info;
 
 // reflect expression results
-consteval auto reflect_value(auto) -> info;
-consteval auto reflect_object(auto &) -> info;
-consteval auto reflect_function(auto &) -> info;
+template <typename T>
+  consteval auto reflect_value(T) -> info;
+template <typename T>
+  consteval auto reflect_object(T &) -> info;
+template <typename T>
+  consteval auto reflect_function(T &) -> info;
 
 // extract<T>
 template <typename Ty>
@@ -1025,7 +1028,8 @@ consteval auto is_special_member(info r) -> bool {
 }
 
 // Returns a reflection of the value held by the provided argument.
-consteval auto reflect_value(auto r) -> info {
+template <typename T>
+consteval auto reflect_value(T r) -> info {
   static_assert(!is_reference_v<decltype(r)>,
                 "values cannot have reference type");
 
@@ -1036,10 +1040,8 @@ consteval auto reflect_value(auto r) -> info {
 }
 
 // Returns a reflection of the object designated by the provided argument.
-consteval auto reflect_object(auto &r) -> info {
-  static_assert(is_lvalue_reference_v<decltype(r)>,
-                "objects must be designated by lvalue references");
-
+template <typename T>
+consteval auto reflect_object(T &r) -> info {
   constexpr auto Ty = type_of(^r);
 
   static_assert(!is_function_v<remove_reference<typename [:Ty:]>>,
@@ -1048,10 +1050,8 @@ consteval auto reflect_object(auto &r) -> info {
 }
 
 // Returns a reflection of the object designated by the provided argument.
-consteval auto reflect_function(auto &r) -> info {
-  static_assert(is_lvalue_reference_v<decltype(r)>,
-                "functions must be designated by lvalue references");
-
+template <typename T>
+consteval auto reflect_function(T &r) -> info {
   constexpr auto Ty = type_of(^r);
   using UnrefTy = remove_reference_t<[:Ty:]>;
 
