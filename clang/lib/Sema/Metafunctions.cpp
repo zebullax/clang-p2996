@@ -985,6 +985,8 @@ static bool isReflectableDecl(ASTContext &C, const Decl *D) {
   if (auto *Class = dyn_cast<CXXRecordDecl>(D))
     if (Class->isInjectedClassName())
       return false;
+  if (isa<StaticAssertDecl>(D))
+    return false;
 
   return D->getCanonicalDecl() == D;
 }

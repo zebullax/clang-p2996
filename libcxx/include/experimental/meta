@@ -60,6 +60,50 @@ consteval auto nonstatic_data_members_of(info class_type) -> vector<info>;
 consteval auto subobjects_of(info class_type) -> vector<info>;
 consteval auto enumerators_of(info enum_type) -> vector<info>;
 
+// member access queries
+consteval auto access_context() -> info;
+struct access_pair {
+  consteval access_pair(info target, info from = access_context());
+};
+
+consteval auto is_accessible(access_pair p) -> bool;
+consteval auto is_accessible(info r, info from);
+
+template <typename Pred>
+  consteval auto accessible_members_of(access_pair p, Pred pred);
+template <typename Pred>
+  consteval auto accessible_members_of(info target, info from, Pred pred);
+template <typename... Preds>
+  consteval auto accessible_members_of(access_pair p,
+                                       Preds... preds) -> vector<info>;
+template <typename... Preds>
+  consteval auto accessible_members_of(info target, info from,
+                                       Preds... preds) -> vector<info>;
+consteval auto accessible_members_of(access_pair p) -> vector<info>;
+consteval auto accessible_members_of(info target, info from) -> vector<info>;
+consteval auto accessible_nonstatic_data_members_of(access_pair p)
+    -> vector<info>;
+consteval auto accessible_nonstatic_data_members_of(info target,
+                                                    info from) -> vector<info>;
+consteval auto accessible_static_data_members_of(access_pair p) -> vector<info>;
+consteval auto accessible_static_data_members_of(info target,
+                                                 info from) -> vector<info>;
+template <typename Pred>
+  consteval auto accessible_bases_of(access_pair p, Pred pred);
+template <typename Pred>
+  consteval auto accessible_bases_of(info target, info from, Pred pred);
+template <typename... Preds>
+  consteval auto accessible_bases_of(access_pair p,
+                                       Preds... preds) -> vector<info>;
+template <typename... Preds>
+  consteval auto accessible_bases_of(info target, info from,
+                                       Preds... preds) -> vector<info>;
+consteval auto accessible_bases_of(access_pair p) -> vector<info>;
+consteval auto accessible_bases_of(info target, info from) -> vector<info>;
+consteval auto accessible_subobjects_of(acess_pair p) -> vector<info>;
+consteval auto accessible_subobject_of(info target,
+                                       info from) -> vector<info>;
+
 // substitute
 template <reflection_range R = span<info const>>
   consteval auto can_substitute(info templ, R &&args) -> bool;
@@ -95,7 +139,6 @@ template <reflection_range R = span<info const>>
 consteval auto is_public(info) -> bool;
 consteval auto is_protected(info) -> bool;
 consteval auto is_private(info) -> bool;
-consteval auto is_accessible(info) -> bool;
 consteval auto is_virtual(info) -> bool;
 consteval auto is_pure_virtual(info) -> bool;
 consteval auto is_override(info) -> bool;
@@ -1684,6 +1727,9 @@ consteval auto is_accessible(info r, info from) -> bool {
 template <typename Pred>
 consteval auto accessible_members_of(access_pair p, Pred pred)
     -> vector<info> {
+  if (is_namespace(p.target))
+    throw "Cannot query the accessible members of a namespace";
+
   auto wrapped = [&](info r) {
     return (is_accessible(r, p.from) && pred(r));
   };
@@ -1699,34 +1745,127 @@ consteval auto accessible_members_of(access_pair p, Pred pred)
 }
 
 template <typename Pred>
-consteval auto accessible_members_of(info target, info from, Pred pred) {
+consteval auto accessible_members_of(info target, info from,
+                                     Pred pred) -> vector<info> {
   return accessible_members_of(access_pair{target, from}, pred);
 }
 
 
 template <typename... Preds>
-consteval auto accessible_members_of(access_pair p, Preds... preds)
-    -> vector<info> {
+consteval auto accessible_members_of(access_pair p,
+                                     Preds... preds) -> vector<info> {
+  if (is_namespace(p.target))
+    throw "Cannot query the accessible members of a namespace";
+
   return members_of(p.target, [&](info r) {
     return is_accessible(r, p.from) && (preds(r) && ...);
   });
 }
 
 template <typename... Preds>
-consteval auto accessible_members_of(info target, info from, Preds... preds) {
+consteval auto accessible_members_of(info target, info from,
+                                     Preds... preds) -> vector<info> {
   return accessible_members_of(access_pair{target, from}, preds...);
 }
 
-consteval auto accessible_members_of(access_pair p)
-    -> vector<info> {
+consteval auto accessible_members_of(access_pair p) -> vector<info> {
+  if (is_namespace(p.target))
+    throw "Cannot query the accessible members of a namespace";
+
   return members_of(p.target, [&](info r) {
     return is_accessible(r, p.from);
   });
 }
 
-consteval auto accessible_members_of(info target, info from) {
+consteval auto accessible_members_of(info target, info from) -> vector<info> {
   return accessible_members_of(access_pair{target, from});
 }
+
+template <typename Pred>
+consteval auto accessible_bases_of(access_pair p, Pred pred)
+    -> vector<info> {
+  if (is_namespace(p.target))
+    throw "Namespaces cannot have base classes";
+
+  auto wrapped = [&](info r) {
+    return (is_accessible(r, p.from) && pred(r));
+  };
+
+  using iterator =
+    __range_of_infos::iterator<__range_of_infos::front_base_of_fn,
+                                __range_of_infos::next_base_of_fn,
+                                __range_of_infos::map_identity_fn, Pred>;
+  using range = __range_of_infos::range<iterator>;
+  auto rng = range{p.target, wrapped};
+  return vector<info>{rng.begin(), rng.end()};
+}
+
+template <typename Pred>
+consteval auto accessible_bases_of(info target, info from,
+                                   Pred pred) -> vector<info> {
+  return accessible_bases_of(access_pair{target, from}, pred);
+}
+
+
+template <typename... Preds>
+consteval auto accessible_bases_of(access_pair p,
+                                   Preds... preds) -> vector<info> {
+  if (is_namespace(p.target))
+    throw "Namespaces cannot have base classes";
+
+  return bases_of(p.target, [&](info r) {
+    return is_accessible(r, p.from) && (preds(r) && ...);
+  });
+}
+
+template <typename... Preds>
+consteval auto accessible_bases_of(info target, info from,
+                                   Preds... preds) -> vector<info> {
+  return accessible_bases_of(access_pair{target, from}, preds...);
+}
+
+consteval auto accessible_bases_of(access_pair p) -> vector<info> {
+  if (is_namespace(p.target))
+    throw "Namespaces cannot have base classes";
+
+  return bases_of(p.target, [&](info r) {
+    return is_accessible(r, p.from);
+  });
+}
+
+consteval auto accessible_bases_of(info target, info from) -> vector<info> {
+  return accessible_bases_of(access_pair{target, from});
+}
+
+consteval auto accessible_nonstatic_data_members_of(access_pair p)
+    -> vector<info> {
+  return accessible_members_of(p, std::meta::is_nonstatic_data_member);
+}
+
+consteval auto accessible_nonstatic_data_members_of(info target,
+                                                    info from) -> vector<info> {
+  return accessible_nonstatic_data_members_of(access_pair{target, from});
+}
+
+consteval auto accessible_static_data_members_of(access_pair p)
+    -> vector<info> {
+  return accessible_members_of(p, std::meta::is_variable);
+}
+
+consteval auto accessible_static_data_members_of(info target,
+                                                 info from) -> vector<info> {
+  return accessible_static_data_members_of(access_pair{target, from});
+}
+
+consteval auto accessible_subobjects_of(access_pair p) -> vector<info> {
+  if (is_namespace(p.target))
+    throw "Namespaces cannot have subobjects";
+
+  auto subobjects = accessible_bases_of(p);
+  subobjects.append_range(accessible_nonstatic_data_members_of(p));
+  return subobjects;
+}
+
 
 #if __has_feature(parameter_reflection)
 
