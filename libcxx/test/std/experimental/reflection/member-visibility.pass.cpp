@@ -191,6 +191,8 @@ void fn() {
 static_assert(!is_accessible(members_of(^Access, std::meta::is_private)[0]));
 static_assert(is_accessible(members_of(^Access, std::meta::is_private)[0],
                             ^FriendFnOfAccess));
+static_assert(is_accessible(members_of(^Access, std::meta::is_private)[0],
+                            ^Access));
 
 }  // namespace alt_accessibility_api
 

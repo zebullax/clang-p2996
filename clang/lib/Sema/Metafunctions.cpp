@@ -2354,6 +2354,7 @@ bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
 
   APValue Scratch;
+  DeclContext *AccessDC = nullptr;
   if (Args.size() < 2) {
     if (!findAccessContext(S, Evaluator, Scratch))
       return true;
@@ -2361,15 +2362,23 @@ bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator,
     if (!Evaluator(Scratch, Args[1], true) || !Scratch.isReflection())
       return true;
 
-    if (Scratch.getReflection().getKind() != ReflectionValue::RK_namespace &&
-        Scratch.getReflection().getKind() != ReflectionValue::RK_declaration)
+    switch (Scratch.getReflection().getKind()) {
+    case ReflectionValue::RK_type:
+      AccessDC =
+          dyn_cast<DeclContext>(findTypeDecl(Scratch.getReflectedType()));
+      if (!AccessDC)
+        return true;
+      break;
+    case ReflectionValue::RK_namespace:
+      AccessDC = dyn_cast<DeclContext>(Scratch.getReflectedNamespace());
+      break;
+    case ReflectionValue::RK_declaration:
+      AccessDC = dyn_cast<DeclContext>(Scratch.getReflectedDecl());
+      break;
+    default:
       return true;
+    }
   }
-  ReflectionValue AccessedFrom = Scratch.getReflection();
-
-  DeclContext *AccessDC = dyn_cast<DeclContext>(
-      AccessedFrom.getKind() == ReflectionValue::RK_namespace ?
-      AccessedFrom.getAsNamespace() : AccessedFrom.getAsDecl());
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type: {
