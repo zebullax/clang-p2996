@@ -265,6 +265,19 @@ void instantiations() {
 }
 }  // namespace properties_of_non_types
 
+                       // ==============================
+                       // subobject_reflection_arguments
+                       // ==============================
+
+namespace subobject_reflection_arguments {
+template <int &> void fn();
+
+int p[2];
+static_assert(template_arguments_of(^fn<p[1]>)[0] ==
+              std::meta::reflect_object(p[1]));
+
+}  // namespace subobject_reflection_arguments
+
                    // =======================================
                    // bb_clang_p2996_issue_41_regression_test
                    // =======================================
@@ -293,6 +306,5 @@ void fn() {
     fn<members_of(^S, std::meta::is_destructor)[0]>();
 }
 }  // namespace bb_clang_p2996_issue_54_regression_test
-
 
 int main() { }

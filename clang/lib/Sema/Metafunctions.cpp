@@ -1783,7 +1783,7 @@ static TemplateArgument TArgFromReflection(Sema &S, EvalFn Evaluator,
     return RV.getAsType().getCanonicalType();
   case ReflectionValue::RK_expr_result: {
     ConstantExpr *E = RV.getAsExprResult();
-    if (E->getType()->isIntegralOrEnumerationType()) {
+    if (E->getType()->isIntegralOrEnumerationType() && E->isPRValue()) {
       llvm::APSInt UnwrappedIntegral = E->EvaluateKnownConstInt(S.Context);
       return TemplateArgument(S.Context, UnwrappedIntegral,
                               E->getType().getCanonicalType());

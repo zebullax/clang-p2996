@@ -412,6 +412,19 @@ static_assert(test_types(^std::is_same_v, std::vector {^int, ^void, ^int} |
                                           })));
 }  // namespace with_non_contiguous_ranges
 
+                             // ===================
+                             // with_reflect_object
+                             // ===================
+
+namespace with_reflect_object {
+template <int &> void fn();
+
+int p[2];
+static_assert(&[:substitute(^fn, {std::meta::reflect_object(p[1])}):] ==
+              &fn<p[1]>);
+
+}  // namespace with_reflect_object
+
                             // ====================
                             // invalid_template_ids
                             // ====================
