@@ -102,6 +102,7 @@ static_assert(!is_concept(^func));
 static_assert(!is_base(^func));
 static_assert(!is_value(^func));
 static_assert(!is_object(^func));
+static_assert(is_user_provided(^func));
 
 static_assert(is_type(^alias));
 static_assert(!is_incomplete_type(^alias));
@@ -214,6 +215,7 @@ static_assert(!is_concept(^TFn<int>));
 static_assert(!is_base(^TFn<int>));
 static_assert(!is_value(^TFn<int>));
 static_assert(!is_object(^TFn<int>));
+static_assert(is_user_provided(^TFn<int>));
 
 static_assert(!is_type(^TConcept));
 static_assert(!is_incomplete_type(^TConcept));
@@ -443,6 +445,22 @@ struct Derived : Base {};
 static_assert(!is_base(^Base));
 static_assert(!is_type(bases_of(^Derived)[0]));
 static_assert(is_base(bases_of(^Derived)[0]));
+
+                            // =====================
+                            // test_is_user_provided
+                            // =====================
+
+namespace test_is_user_provided {
+struct S1 {};
+struct S2 { S2() = default; };
+struct S3 { S3(); };
+S3::S3() {}
+
+static_assert(!is_user_provided(members_of(^S1, std::meta::is_constructor)[0]));
+static_assert(!is_user_provided(members_of(^S2, std::meta::is_constructor)[0]));
+static_assert(is_user_provided(members_of(^S3, std::meta::is_constructor)[0]));
+
+}  // namespace test_is_user_provided
 
 
 int main() { }

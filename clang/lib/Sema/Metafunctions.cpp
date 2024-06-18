@@ -32,7 +32,6 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/UnicodeCharRanges.h"
 #include "llvm/Support/raw_ostream.h"
-#include <iostream>
 
 
 namespace clang {
@@ -274,6 +273,10 @@ static bool is_special_member(APValue &Result, Sema &S, EvalFn Evaluator,
                               QualType ResultTy, SourceRange Range,
                               ArrayRef<Expr *> Args);
 
+static bool is_user_provided(APValue &Result, Sema &S, EvalFn Evaluator,
+                             QualType ResultTy, SourceRange Range,
+                             ArrayRef<Expr *> Args);
+
 static bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
                            QualType ResultTy, SourceRange Range,
                            ArrayRef<Expr *> Args);
@@ -413,6 +416,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_constructor },
   { Metafunction::MFRK_bool, 1, 1, is_destructor },
   { Metafunction::MFRK_bool, 1, 1, is_special_member },
+  { Metafunction::MFRK_bool, 1, 1, is_user_provided },
   { Metafunction::MFRK_metaInfo, 2, 2, reflect_result },
   { Metafunction::MFRK_metaInfo, 5, 5, reflect_invoke },
   { Metafunction::MFRK_metaInfo, 10, 10, data_member_spec },
@@ -3224,6 +3228,29 @@ bool is_special_member(APValue &Result, Sema &S, EvalFn Evaluator,
   }
   }
   llvm_unreachable("invalid reflection type");
+}
+
+bool is_user_provided(APValue &Result, Sema &S, EvalFn Evaluator,
+                      QualType ResultTy, SourceRange Range,
+                      ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true) || !R.isReflection())
+    return true;
+  if (R.getReflection().getKind() != ReflectionValue::RK_declaration)
+    return true;
+
+  auto *FD = dyn_cast<FunctionDecl>(R.getReflectedDecl());
+  if (!FD)
+    return true;
+
+  bool IsUserProvided = false;
+  FD = cast<FunctionDecl>(FD->getFirstDecl());
+  IsUserProvided = !(FD->isImplicit() || FD->isDeleted() || FD->isDefaulted());
+
+  return SetAndSucceed(Result, makeBool(S.Context, IsUserProvided));
 }
 
 bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
