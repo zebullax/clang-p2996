@@ -556,8 +556,55 @@ static void encodeName(std::string &Result, StringRef In, bool BasicOnly) {
   }
 }
 
+static TemplateName findTemplateOfDecl(const Decl *D) {
+  TemplateDecl *TDecl = nullptr;
+  if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
+    if (FunctionTemplateSpecializationInfo *Info =
+        FD->getTemplateSpecializationInfo())
+      TDecl = Info->getTemplate();
+  } else if (const auto *VD = dyn_cast<VarDecl>(D)) {
+    if (const auto *P = VD->getTemplateInstantiationPattern())
+      VD = P;
+    TDecl = VD->getDescribedVarTemplate();
+  }
+  assert(!isa<ClassTemplateSpecializationDecl>(D) &&
+         "use findTemplateOfType instead");
+  return TDecl ? TemplateName(TDecl) : TemplateName();
+}
+
+static TemplateName findTemplateOfType(QualType QT) {
+  // If it's an ElaboratedType, get the underlying NamedType.
+  if (const ElaboratedType *ET = dyn_cast<ElaboratedType>(QT))
+    QT = ET->getNamedType();
+
+  if (auto *TST = dyn_cast<TemplateSpecializationType>(QT))
+    return TST->getTemplateName();
+
+  if (auto *CXXRD = QT->getAsCXXRecordDecl())
+    if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(CXXRD))
+      return TemplateName(CTSD->getSpecializedTemplate());
+
+  return TemplateName();
+}
+
+static void getTemplateName(std::string &Result, ASTContext &C,
+                            TemplateName TName, bool BasicOnly) {
+  PrintingPolicy PP = C.getPrintingPolicy();
+
+  std::string Name;
+  {
+    llvm::raw_string_ostream NameOut(Name);
+    TName.print(NameOut, PP, TemplateName::Qualified::None);
+  }
+  encodeName(Result, Name, BasicOnly);
+}
+
 static void getTypeName(std::string &Result, ASTContext &C, QualType QT,
                         bool BasicOnly) {
+  if (TemplateName TName = findTemplateOfType(QT); !TName.isNull()) {
+    return getTemplateName(Result, C, TName, BasicOnly);
+  }
+
   PrintingPolicy PP = C.getPrintingPolicy();
   PP.SuppressTagKeyword = true;
   PP.SuppressScope = true;
@@ -586,6 +633,9 @@ static bool parameterHasConsistentName(ParmVarDecl *PVD) {
 
 static void getDeclName(std::string &Result, ASTContext &C, Decl *D,
                          bool BasicOnly) {
+  if (TemplateName TName = findTemplateOfDecl(D); !TName.isNull())
+    return getTemplateName(Result, C, TName, BasicOnly);
+
   PrintingPolicy PP = C.getPrintingPolicy();
 
   std::string Name;
@@ -594,18 +644,6 @@ static void getDeclName(std::string &Result, ASTContext &C, Decl *D,
     if (auto *ND = dyn_cast<NamedDecl>(D);
         ND && !isa<TemplateParamObjectDecl>(D))
       ND->printName(NameOut, PP);
-  }
-  encodeName(Result, Name, BasicOnly);
-}
-
-static void getTemplateName(std::string &Result, ASTContext &C,
-                            TemplateName TName, bool BasicOnly) {
-  PrintingPolicy PP = C.getPrintingPolicy();
-
-  std::string Name;
-  {
-    llvm::raw_string_ostream NameOut(Name);
-    TName.print(NameOut, PP, TemplateName::Qualified::None);
   }
   encodeName(Result, Name, BasicOnly);
 }
@@ -715,31 +753,6 @@ static QualType desugarType(QualType QT, bool UnwrapAliases, bool DropCV,
       QT = QT.withVolatile();
   }
   return QT;
-}
-
-static TemplateName findTemplateOfType(QualType QT) {
-  // If it's an ElaboratedType, get the underlying NamedType.
-  if (const ElaboratedType *ET = dyn_cast<ElaboratedType>(QT))
-    QT = ET->getNamedType();
-
-  if (!isa<TemplateSpecializationType>(QT))
-    return TemplateName();
-
-  return dyn_cast<TemplateSpecializationType>(QT)->getTemplateName();
-}
-
-static TemplateName findTemplateOfDecl(const Decl *D) {
-  TemplateDecl *TDecl = nullptr;
-  if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
-    if (FunctionTemplateSpecializationInfo *Info =
-        FD->getTemplateSpecializationInfo())
-      TDecl = Info->getTemplate();
-  } else if (const auto *VD = dyn_cast<VarDecl>(D)) {
-    if (const auto *P = VD->getTemplateInstantiationPattern())
-      VD = P;
-    TDecl = VD->getDescribedVarTemplate();
-  }
-  return TDecl ? TemplateName(TDecl) : TemplateName();
 }
 
 static bool isTypeAlias(QualType QT) {
