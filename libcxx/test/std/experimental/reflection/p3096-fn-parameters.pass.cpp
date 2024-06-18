@@ -261,4 +261,16 @@ static_assert(!is_function_parameter(std::meta::reflect_value(3)));
 static_assert(has_ellipsis_parameter(type_of(^fn)));
 }  // namespace identify_function_parameters
 
+                   // =======================================
+                   // mangle_reflection_of_function_parameter
+                   // =======================================
+
+namespace mangle_reflection_of_function_parameter {
+template <auto R> void fn() {}
+
+void user(int) {
+  fn<parameters_of(^user)[0]>();
+}
+}  // namespace mangle_reflection_of_function_parameter
+
 int main() { }
