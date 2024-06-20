@@ -172,6 +172,10 @@ static bool has_internal_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
                                  QualType ResultTy, SourceRange Range,
                                  ArrayRef<Expr *> Args);
 
+static bool has_module_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
+                               QualType ResultTy, SourceRange Range,
+                               ArrayRef<Expr *> Args);
+
 static bool has_external_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
                                  QualType ResultTy, SourceRange Range,
                                  ArrayRef<Expr *> Args);
@@ -391,6 +395,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_bit_field },
   { Metafunction::MFRK_bool, 1, 1, has_static_storage_duration },
   { Metafunction::MFRK_bool, 1, 1, has_internal_linkage },
+  { Metafunction::MFRK_bool, 1, 1, has_module_linkage },
   { Metafunction::MFRK_bool, 1, 1, has_external_linkage },
   { Metafunction::MFRK_bool, 1, 1, has_linkage },
   { Metafunction::MFRK_bool, 1, 1, is_class_member },
@@ -2693,6 +2698,36 @@ bool has_internal_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
   return SetAndSucceed(Result, makeBool(S.Context, result));
 }
 
+bool has_module_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
+                        QualType ResultTy, SourceRange Range,
+                        ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool result = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
+    if (const auto *ND = dyn_cast<NamedDecl>(R.getReflectedDecl()))
+      result = (ND->getFormalLinkage() == Linkage::Module);
+  } else if (R.getReflection().getKind() == ReflectionValue::RK_expr_result &&
+             R.getReflectedExprResult()->isLValue()) {
+    Expr *CE = R.getReflectedExprResult();
+    if (!Evaluator(R, CE, false))
+      return true;
+
+    if (!CE->getType()->isPointerType() && R.isLValue())
+      if (APValue::LValueBase LVBase = R.getLValueBase();
+          LVBase.is<const ValueDecl *>()) {
+        const ValueDecl *VD = LVBase.get<const ValueDecl *>();
+        result = (VD->getFormalLinkage() == Linkage::Module);
+      }
+  }
+  return SetAndSucceed(Result, makeBool(S.Context, result));
+}
+
 bool has_external_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
                           QualType ResultTy, SourceRange Range,
                           ArrayRef<Expr *> Args) {
@@ -2706,7 +2741,8 @@ bool has_external_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
   bool result = false;
   if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
     if (const auto *ND = dyn_cast<NamedDecl>(R.getReflectedDecl()))
-      result = (ND->getFormalLinkage() == Linkage::External);
+      result = (ND->getFormalLinkage() == Linkage::External ||
+                ND->getFormalLinkage() == Linkage::UniqueExternal);
   } else if (R.getReflection().getKind() == ReflectionValue::RK_expr_result &&
              R.getReflectedExprResult()->isLValue()) {
     Expr *CE = R.getReflectedExprResult();
@@ -2717,7 +2753,8 @@ bool has_external_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
       if (APValue::LValueBase LVBase = R.getLValueBase();
           LVBase.is<const ValueDecl *>()) {
         const ValueDecl *VD = LVBase.get<const ValueDecl *>();
-        result = (VD->getFormalLinkage() == Linkage::External);
+        result = (VD->getFormalLinkage() == Linkage::External ||
+                  VD->getFormalLinkage() == Linkage::UniqueExternal);
       }
   }
   return SetAndSucceed(Result, makeBool(S.Context, result));

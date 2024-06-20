@@ -130,10 +130,10 @@ template <typename T>
 template <typename Ty>
   consteval auto extract(info) -> T;
 
-// test_type
-consteval auto test_type(info templ, info type) -> bool;
+// test_trait
+consteval auto test_trait(info templ, info argument) -> bool;
 template <reflection_range R = span<info const>>
-  consteval auto test_types(info templ, R &&types) -> bool;
+  consteval auto test_trait(info templ, R &&arguments) -> bool;
 
 // other type predicates
 consteval auto is_public(info) -> bool;
@@ -148,6 +148,7 @@ consteval auto is_explicit(info) -> bool;
 consteval auto is_bit_field(info) -> bool;
 consteval auto has_static_storage_duration(info) -> bool;
 consteval auto has_internal_linkage(info) -> bool;
+consteval auto has_module_linkage(info) -> bool;
 consteval auto has_external_linkage(info) -> bool;
 consteval auto has_linkage(info) -> bool;
 consteval auto is_class_member(info) -> bool;
@@ -419,6 +420,7 @@ enum : unsigned {
   __metafn_is_bit_field,
   __metafn_has_static_storage_duration,
   __metafn_has_internal_linkage,
+  __metafn_has_module_linkage,
   __metafn_has_external_linkage,
   __metafn_has_linkage,
   __metafn_is_class_member,
@@ -900,13 +902,13 @@ consteval auto extract(info r) -> Ty {
 }
 
 template <reflection_range R = span<info const>>
-consteval auto test_types(info templ, R &&args) -> bool {
+consteval auto test_trait(info templ, R &&args) -> bool {
   return extract<bool>(substitute(templ, args));
 }
 
-consteval auto test_type(info templ, info type) -> bool {
+consteval auto test_trait(info templ, info type) -> bool {
   info args[1] = {type};
-  return test_types(templ, args);
+  return extract<bool>(substitute(templ, args));
 }
 
 // Returns whether the reflected entity is a public class member.
@@ -970,6 +972,11 @@ consteval auto has_static_storage_duration(info r) -> bool {
 // Returns whether the reflected entity has internal linkage.
 consteval auto has_internal_linkage(info r) -> bool {
   return __metafunction(detail::__metafn_has_internal_linkage, r);
+}
+
+// Returns whether the reflected entity has module linkage.
+consteval auto has_module_linkage(info r) -> bool {
+  return __metafunction(detail::__metafn_has_module_linkage, r);
 }
 
 // Returns whether the reflected entity has external linkage.
@@ -1241,147 +1248,147 @@ consteval auto alignment_of(info r) -> size_t {
 // Type trait wrappers
 
 consteval auto type_is_void(info r) -> bool {
-  return test_type(^is_void_v, r);
+  return test_trait(^is_void_v, r);
 }
 
 consteval auto type_is_null_pointer(info r) -> bool {
-  return test_type(^is_null_pointer_v, r);
+  return test_trait(^is_null_pointer_v, r);
 }
 
 consteval auto type_is_integral(info r) -> bool {
-  return test_type(^is_integral_v, r);
+  return test_trait(^is_integral_v, r);
 }
 
 consteval auto type_is_floating_point(info r) -> bool {
-  return test_type(^is_floating_point_v, r);
+  return test_trait(^is_floating_point_v, r);
 }
 
 consteval auto type_is_array(info r) -> bool {
-  return test_type(^is_array_v, r);
+  return test_trait(^is_array_v, r);
 }
 
 consteval auto type_is_pointer(info r) -> bool {
-  return test_type(^is_pointer_v, r);
+  return test_trait(^is_pointer_v, r);
 }
 
 consteval auto type_is_lvalue_reference(info r) -> bool {
-  return test_type(^is_lvalue_reference_v, r);
+  return test_trait(^is_lvalue_reference_v, r);
 }
 
 consteval auto type_is_rvalue_reference(info r) -> bool {
-  return test_type(^is_rvalue_reference_v, r);
+  return test_trait(^is_rvalue_reference_v, r);
 }
 
 consteval auto type_is_member_object_pointer(info r) -> bool {
-  return test_type(^is_member_object_pointer_v, r);
+  return test_trait(^is_member_object_pointer_v, r);
 }
 
 consteval auto type_is_member_function_pointer(info r) -> bool {
-  return test_type(^is_member_function_pointer_v, r);
+  return test_trait(^is_member_function_pointer_v, r);
 }
 
 consteval auto type_is_enum(info r) -> bool {
-  return test_type(^is_enum_v, r);
+  return test_trait(^is_enum_v, r);
 }
 
 consteval auto type_is_union(info r) -> bool {
-  return test_type(^is_union_v, r);
+  return test_trait(^is_union_v, r);
 }
 
 consteval auto type_is_class(info r) -> bool {
-  return test_type(^is_class_v, r);
+  return test_trait(^is_class_v, r);
 }
 
 consteval auto type_is_function(info r) -> bool {
-  return test_type(^is_function_v, r);
+  return test_trait(^is_function_v, r);
 }
 
 consteval auto type_is_reference(info r) -> bool {
-  return test_type(^is_reference_v, r);
+  return test_trait(^is_reference_v, r);
 }
 
 consteval auto type_is_arithmetic(info r) -> bool {
-  return test_type(^is_arithmetic_v, r);
+  return test_trait(^is_arithmetic_v, r);
 }
 
 consteval auto type_is_fundamental(info r) -> bool {
-  return test_type(^is_fundamental_v, r);
+  return test_trait(^is_fundamental_v, r);
 }
 
 consteval auto type_is_object(info r) -> bool {
-  return test_type(^is_object_v, r);
+  return test_trait(^is_object_v, r);
 }
 
 consteval auto type_is_scalar(info r) -> bool {
-  return test_type(^is_scalar_v, r);
+  return test_trait(^is_scalar_v, r);
 }
 
 consteval auto type_is_compound(info r) -> bool {
-  return test_type(^is_compound_v, r);
+  return test_trait(^is_compound_v, r);
 }
 
 consteval auto type_is_member_pointer(info r) -> bool {
-  return test_type(^is_member_pointer_v, r);
+  return test_trait(^is_member_pointer_v, r);
 }
 
 consteval auto type_is_const(info r) -> bool {
-  return test_type(^is_const_v, r);
+  return test_trait(^is_const_v, r);
 }
 
 consteval auto type_is_volatile(info r) -> bool {
-  return test_type(^is_volatile_v, r);
+  return test_trait(^is_volatile_v, r);
 }
 
 consteval auto type_is_trivial(info r) -> bool {
-  return test_type(^is_trivial_v, r);
+  return test_trait(^is_trivial_v, r);
 }
 
 consteval auto type_is_trivially_copyable(info r) -> bool {
-  return test_type(^is_trivially_copyable_v, r);
+  return test_trait(^is_trivially_copyable_v, r);
 }
 
 consteval auto type_is_standard_layout(info r) -> bool {
-  return test_type(^is_standard_layout_v, r);
+  return test_trait(^is_standard_layout_v, r);
 }
 
 consteval auto type_is_empty(info r) -> bool {
-  return test_type(^is_empty_v, r);
+  return test_trait(^is_empty_v, r);
 }
 
 consteval auto type_is_polymorphic(info r) -> bool {
-  return test_type(^is_polymorphic_v, r);
+  return test_trait(^is_polymorphic_v, r);
 }
 
 consteval auto type_is_abstract(info r) -> bool {
-  return test_type(^is_abstract_v, r);
+  return test_trait(^is_abstract_v, r);
 }
 
 consteval auto type_is_final(info r) -> bool {
-  return test_type(^is_final_v, r);
+  return test_trait(^is_final_v, r);
 }
 
 consteval auto type_is_aggregate(info r) -> bool {
-  return test_type(^is_aggregate_v, r);
+  return test_trait(^is_aggregate_v, r);
 }
 
 consteval auto type_is_signed(info r) -> bool {
-  return test_type(^is_signed_v, r);
+  return test_trait(^is_signed_v, r);
 }
 
 consteval auto type_is_unsigned(info r) -> bool {
-  return test_type(^is_unsigned_v, r);
+  return test_trait(^is_unsigned_v, r);
 }
 
 consteval auto type_is_bounded_array(info r) -> bool {
-  return test_type(^is_bounded_array_v, r);
+  return test_trait(^is_bounded_array_v, r);
 }
 
 consteval auto type_is_unbounded_array(info r) -> bool {
-  return test_type(^is_unbounded_array_v, r);
+  return test_trait(^is_unbounded_array_v, r);
 }
 
 consteval auto type_is_scoped_enum(info r) -> bool {
-  return test_type(^is_scoped_enum_v, r);
+  return test_trait(^is_scoped_enum_v, r);
 }
 
 template <reflection_range R = span<info const>>
@@ -1389,43 +1396,43 @@ consteval auto type_is_constructible(info type, R &&type_args) {
   std::vector<info> args(from_range, type_args);
   args.insert(args.begin(), type);
 
-  return test_types(^is_constructible_v, args);
+  return test_trait(^is_constructible_v, args);
 }
 
 consteval auto type_is_default_constructible(info r) -> bool {
-  return test_type(^is_default_constructible_v, r);
+  return test_trait(^is_default_constructible_v, r);
 }
 
 consteval auto type_is_copy_constructible(info r) -> bool {
-  return test_type(^is_copy_constructible_v, r);
+  return test_trait(^is_copy_constructible_v, r);
 }
 
 consteval auto type_is_move_constructible(info r) -> bool {
-  return test_type(^is_move_constructible_v, r);
+  return test_trait(^is_move_constructible_v, r);
 }
 
 consteval auto type_is_assignable(info dst, info src) -> bool {
-  return test_types(^is_assignable_v, {dst, src});
+  return test_trait(^is_assignable_v, {dst, src});
 }
 
 consteval auto type_is_copy_assignable(info r) -> bool {
-  return test_type(^is_copy_assignable_v, r);
+  return test_trait(^is_copy_assignable_v, r);
 }
 
 consteval auto type_is_move_assignable(info r) -> bool {
-  return test_type(^is_move_assignable_v, r);
+  return test_trait(^is_move_assignable_v, r);
 }
 
 consteval auto type_is_swappable_with(info dst, info src) -> bool {
-  return test_types(^is_swappable_with_v, {dst, src});
+  return test_trait(^is_swappable_with_v, {dst, src});
 }
 
 consteval auto type_is_swappable(info r) -> bool {
-  return test_type(^is_swappable_v, r);
+  return test_trait(^is_swappable_v, r);
 }
 
 consteval auto type_is_destructible(info r) -> bool {
-  return test_type(^is_destructible_v, r);
+  return test_trait(^is_destructible_v, r);
 }
 
 template <reflection_range R = span<info const>>
@@ -1433,35 +1440,35 @@ consteval auto type_is_trivially_constructible(info type, R &&type_args) {
   std::vector<info> args(from_range, type_args);
   args.insert(args.begin(), type);
 
-  return test_types(^is_trivially_constructible_v, args);
+  return test_trait(^is_trivially_constructible_v, args);
 }
 
 consteval auto type_is_trivially_default_constructible(info r) -> bool {
-  return test_type(^is_trivially_default_constructible_v, r);
+  return test_trait(^is_trivially_default_constructible_v, r);
 }
 
 consteval auto type_is_trivially_copy_constructible(info r) -> bool {
-  return test_type(^is_trivially_copy_constructible_v, r);
+  return test_trait(^is_trivially_copy_constructible_v, r);
 }
 
 consteval auto type_is_trivially_move_constructible(info r) -> bool {
-  return test_type(^is_trivially_move_constructible_v, r);
+  return test_trait(^is_trivially_move_constructible_v, r);
 }
 
 consteval auto type_is_trivially_assignable(info dst, info src) -> bool {
-  return test_types(^is_trivially_assignable_v, {dst, src});
+  return test_trait(^is_trivially_assignable_v, {dst, src});
 }
 
 consteval auto type_is_trivially_copy_assignable(info r) -> bool {
-  return test_type(^is_trivially_copy_assignable_v, r);
+  return test_trait(^is_trivially_copy_assignable_v, r);
 }
 
 consteval auto type_is_trivially_move_assignable(info r) -> bool {
-  return test_type(^is_trivially_move_assignable_v, r);
+  return test_trait(^is_trivially_move_assignable_v, r);
 }
 
 consteval auto type_is_trivially_destructible(info r) -> bool {
-  return test_type(^is_trivially_destructible_v, r);
+  return test_trait(^is_trivially_destructible_v, r);
 }
 
 template <reflection_range R = span<info const>>
@@ -1469,66 +1476,66 @@ consteval auto type_is_nothrow_constructible(info type, R &&type_args) {
   std::vector<info> args(from_range, type_args);
   args.insert(args.begin(), type);
 
-  return test_types(^is_nothrow_constructible_v, args);
+  return test_trait(^is_nothrow_constructible_v, args);
 }
 
 consteval auto type_is_nothrow_default_constructible(info r) -> bool {
-  return test_type(^is_nothrow_default_constructible_v, r);
+  return test_trait(^is_nothrow_default_constructible_v, r);
 }
 
 consteval auto type_is_nothrow_copy_constructible(info r) -> bool {
-  return test_type(^is_nothrow_copy_constructible_v, r);
+  return test_trait(^is_nothrow_copy_constructible_v, r);
 }
 
 consteval auto type_is_nothrow_move_constructible(info r) -> bool {
-  return test_type(^is_nothrow_move_constructible_v, r);
+  return test_trait(^is_nothrow_move_constructible_v, r);
 }
 
 consteval auto type_is_nothrow_assignable(info dst, info src) -> bool {
-  return test_types(^is_nothrow_assignable_v, {dst, src});
+  return test_trait(^is_nothrow_assignable_v, {dst, src});
 }
 
 consteval auto type_is_nothrow_copy_assignable(info r) -> bool {
-  return test_type(^is_nothrow_copy_assignable_v, r);
+  return test_trait(^is_nothrow_copy_assignable_v, r);
 }
 
 consteval auto type_is_nothrow_move_assignable(info r) -> bool {
-  return test_type(^is_nothrow_move_assignable_v, r);
+  return test_trait(^is_nothrow_move_assignable_v, r);
 }
 
 consteval auto type_is_nothrow_swappable_with(info dst, info src) -> bool {
-  return test_types(^is_nothrow_swappable_with_v, {dst, src});
+  return test_trait(^is_nothrow_swappable_with_v, {dst, src});
 }
 
 consteval auto type_is_nothrow_swappable(info r) -> bool {
-  return test_type(^is_nothrow_swappable_v, r);
+  return test_trait(^is_nothrow_swappable_v, r);
 }
 
 consteval auto type_is_nothrow_destructible(info r) -> bool {
-  return test_type(^is_nothrow_destructible_v, r);
+  return test_trait(^is_nothrow_destructible_v, r);
 }
 
 // TODO(P2996): Not yet implemented in libc++.
 /*consteval auto type_is_implicit_lifetime(info r) -> bool {
-  return test_type(^is_implicit_lifetime_v, r);
+  return test_trait(^is_implicit_lifetime_v, r);
 }*/
 
 consteval auto type_has_virtual_destructor(info r) -> bool {
-  return test_type(^has_virtual_destructor_v, r);
+  return test_trait(^has_virtual_destructor_v, r);
 }
 
 consteval auto type_has_unique_object_representations(info r) -> bool {
-  return test_type(^has_unique_object_representations_v, r);
+  return test_trait(^has_unique_object_representations_v, r);
 }
 
 // TODO(P2996): Not yet implemented in libc++.
 /*consteval auto type_reference_constructs_from_temporary(info r) -> bool {
-  return test_type(^reference_constructs_from_temporary_v, r);
+  return test_trait(^reference_constructs_from_temporary_v, r);
 }*/
 
 // TODO({2996): Not yet implemented in libc++.
 /*consteval auto type_reference_converts_from_temporary(info r) -> bool {
-  return test_type(^reference_converts_from_temporary_v, r);
+  return test_trait(^reference_converts_from_temporary_v, r);
 }*/
 
 consteval auto type_alignment_of(info r) -> size_t {
@@ -1545,30 +1552,30 @@ consteval auto type_extent(info r, unsigned i = 0) -> size_t {
 }
 
 consteval auto type_is_same(info r, info s) -> bool {
-  return test_types(^is_same_v, {r, s});
+  return test_trait(^is_same_v, {r, s});
 }
 
 consteval auto type_is_base_of(info r, info s) -> bool {
-  return test_types(^is_base_of_v, {r, s});
+  return test_trait(^is_base_of_v, {r, s});
 }
 
 consteval auto type_is_convertible(info r, info s) -> bool {
-  return test_types(^is_convertible_v, {r, s});
+  return test_trait(^is_convertible_v, {r, s});
 }
 
 consteval auto type_is_nothrow_convertible(info r, info s) -> bool {
-  return test_types(^is_nothrow_convertible_v, {r, s});
+  return test_trait(^is_nothrow_convertible_v, {r, s});
 }
 
 // TODO(P2996): Not yet implemented in libc++.
 /*consteval auto type_is_layout_compatible(info r, info s) -> bool {
-  return test_types(^is_layout_compatible_v, {r, s});
+  return test_trait(^is_layout_compatible_v, {r, s});
 }*/
 
 // TODO(P2996): Not yet implemented in libc++.
 /*consteval auto type_is_pointer_interconvertible_base_of(info r,
                                                         info s) -> bool {
-  return test_types(^is_pointer_interconvertible_base_of_v, {r, s});
+  return test_trait(^is_pointer_interconvertible_base_of_v, {r, s});
 }*/
 
 template <reflection_range R = span<info const>>
@@ -1576,7 +1583,7 @@ consteval auto type_is_invocable(info type, R &&args) {
   std::vector<info> targs(from_range, args);
   targs.insert(targs.begin(), type);
 
-  return test_types(^is_invocable_v, targs);
+  return test_trait(^is_invocable_v, targs);
 }
 
 template <reflection_range R = span<info const>>
@@ -1585,7 +1592,7 @@ consteval auto type_is_invocable_r(info type_result, info type, R &&args) {
   targs.insert(targs.begin(), type);
   targs.insert(targs.begin(), type_result);
 
-  return test_types(^is_invocable_r_v, targs);
+  return test_trait(^is_invocable_r_v, targs);
 }
 
 template <reflection_range R = span<info const>>
@@ -1593,7 +1600,7 @@ consteval auto type_is_nothrow_invocable(info type, R &&args) {
   std::vector<info> targs(from_range, args);
   targs.insert(targs.begin(), type);
 
-  return test_types(^is_nothrow_invocable_v, targs);
+  return test_trait(^is_nothrow_invocable_v, targs);
 }
 
 template <reflection_range R = span<info const>>
@@ -1603,7 +1610,7 @@ consteval auto type_is_nothrow_invocable_r(info type_result, info type,
   targs.insert(targs.begin(), type);
   targs.insert(targs.begin(), type_result);
 
-  return test_types(^is_nothrow_invocable_r_v, targs);
+  return test_trait(^is_nothrow_invocable_r_v, targs);
 }
 
 consteval auto type_remove_const(info type) -> info {
@@ -1928,6 +1935,20 @@ consteval auto reflect_result(Ty r) -> info {
 
   return __metafunction(detail::__metafn_reflect_result, dealias(RTy),
                         static_cast<typename [:DTy:]>(r));
+}
+
+template <reflection_range R = span<info const>>
+[[deprecated("merged 'test_type' and 'test_types' into 'test_trait' in "
+             "P2996R4")]]
+consteval auto test_types(info templ, R &&args) -> bool {
+  return extract<bool>(substitute(templ, args));
+}
+
+[[deprecated("merged 'test_type' and 'test_types' into 'test_trait' in "
+             "P2996R4")]]
+consteval auto test_type(info templ, info type) -> bool {
+  info args[1] = {type};
+  return test_types(templ, args);
 }
 
 _LIBCPP_END_NAMESPACE_META_V2

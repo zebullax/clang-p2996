@@ -16,6 +16,8 @@
 //
 // [reflection]
 
+module;
+
 #include <experimental/meta>
 
 
@@ -85,28 +87,34 @@ void fn();
 
 static_assert(has_linkage(^global));
 static_assert(!has_internal_linkage(^global));
+static_assert(!has_module_linkage(^global));
 static_assert(has_external_linkage(^global));
 
 static_assert(has_linkage(^s_global));
 static_assert(has_internal_linkage(^s_global));
+static_assert(!has_module_linkage(^s_global));
 static_assert(!has_external_linkage(^s_global));
 
 static_assert(has_linkage(^fn));
 static_assert(!has_internal_linkage(^fn));
+static_assert(!has_module_linkage(^fn));
 static_assert(has_external_linkage(^fn));
 
 static_assert(has_linkage(std::meta::reflect_object(p1.first)));
 static_assert(!has_internal_linkage(std::meta::reflect_object(p1.first)));
+static_assert(!has_module_linkage(std::meta::reflect_object(p1.first)));
 static_assert(has_external_linkage(std::meta::reflect_object(p1.first)));
 
 static_assert(has_linkage(std::meta::reflect_object(p1.first)));
 static_assert(has_internal_linkage(std::meta::reflect_object(p2.first)));
+static_assert(!has_module_linkage(std::meta::reflect_object(p2.first)));
 static_assert(!has_external_linkage(std::meta::reflect_object(p2.first)));
 
 void fn() {
   struct S { static void fn(); };
   static_assert(!has_linkage(^S::fn));
   static_assert(!has_internal_linkage(^S::fn));
+  static_assert(!has_module_linkage(^S::fn));
   static_assert(!has_external_linkage(^S::fn));
 }
 
@@ -128,6 +136,13 @@ static_assert(!has_internal_linkage(^int));
 static_assert(!has_internal_linkage(^TCls));
 static_assert(!has_internal_linkage(^TFn));
 static_assert(!has_internal_linkage(^TVar));
+static_assert(!has_module_linkage(^::));
+static_assert(!has_module_linkage(^::linkage));
+static_assert(!has_module_linkage(std::meta::reflect_value(3)));
+static_assert(!has_module_linkage(^int));
+static_assert(!has_module_linkage(^TCls));
+static_assert(!has_module_linkage(^TFn));
+static_assert(!has_module_linkage(^TVar));
 static_assert(!has_external_linkage(^::));
 static_assert(!has_external_linkage(^::linkage));
 static_assert(!has_external_linkage(std::meta::reflect_value(3)));
@@ -137,5 +152,20 @@ static_assert(!has_external_linkage(^TFn));
 static_assert(!has_external_linkage(^TVar));
 }  // namespace linkage
 
+export module test_module;
+namespace linkage {
+int module_global;
+void module_fn();
+
+static_assert(has_linkage(^module_global));
+static_assert(!has_internal_linkage(^module_global));
+static_assert(has_module_linkage(^module_global));
+static_assert(!has_external_linkage(^module_global));
+
+static_assert(has_linkage(^module_fn));
+static_assert(!has_internal_linkage(^module_fn));
+static_assert(has_module_linkage(^module_fn));
+static_assert(!has_external_linkage(^module_fn));
+}  // namespace linkage
 
 int main() {}
