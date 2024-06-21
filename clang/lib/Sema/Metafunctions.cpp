@@ -3532,7 +3532,7 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
             ConstantExpr::CreateEmpty(S.Context,
                                       ConstantResultStorageKind::APValue);
   CE->setType(ResultExpr->getType());
-  CE->setValueKind(VK_PRValue);
+  CE->setValueKind(ResultExpr->isLValue() ? VK_LValue : VK_PRValue);
   CE->SetResult(FnResult, S.Context);
 
   APValue Value(ReflectionValue::RK_expr_result, CE);

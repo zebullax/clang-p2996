@@ -213,6 +213,13 @@ static_assert(type_of(v) == ^int);
 static_assert(!is_variable(v));
 static_assert(v == std::meta::reflect_value(0));
 
+consteval int &second(std::pair<int, int> &p) {
+  return p.second;
+}
+
+std::pair<int, int> p;
+static_assert(&[:reflect_invoke(^second, {^p}):] == &p.second);
+
 }  // namespace returning_references
 
                          // ==========================
