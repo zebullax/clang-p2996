@@ -5538,6 +5538,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
     if (IsQualifiedFunction &&
         // Check for non-static member function and not and
         // explicit-object-parameter-declaration
+        !S.isReflectionContext() &&
         (Kind != Member || D.isExplicitObjectMemberFunction() ||
          D.getDeclSpec().getStorageClassSpec() == DeclSpec::SCS_static ||
          (D.getContext() == clang::DeclaratorContext::Member &&
