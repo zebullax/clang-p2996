@@ -3138,10 +3138,15 @@ bool is_object(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
 
   bool IsObject = false;
-  if (R.getReflection().getKind() == ReflectionValue::RK_expr_result)
+  if (R.getReflection().getKind() == ReflectionValue::RK_expr_result) {
     IsObject = R.getReflectedExprResult()->isLValue();
-  else if (R.getReflection().getKind() == ReflectionValue::RK_declaration)
-    IsObject = isa<VarDecl, TemplateParamObjectDecl>(R.getReflectedDecl());
+  } else if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
+    Decl *D = R.getReflectedDecl();
+    if (isa<TemplateParamObjectDecl>(D))
+      IsObject = true;
+    else if (auto *VD = dyn_cast<VarDecl>(D))
+      IsObject = !VD->getType()->isReferenceType();
+  }
 
   return SetAndSucceed(Result, makeBool(S.Context, IsObject));
 }

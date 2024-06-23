@@ -23,6 +23,7 @@ struct type {};
 using alias = type;
 
 int var;
+int &ref = var;
 void func();
 
 template <typename T> struct IncompleteTCls;
@@ -135,6 +136,22 @@ static_assert(!is_concept(^var));
 static_assert(!is_base(^var));
 static_assert(!is_value(^var));
 static_assert(is_object(^var));
+
+static_assert(!is_type(^ref));
+static_assert(!is_incomplete_type(^ref));
+static_assert(!is_alias(^ref));
+static_assert(!is_function(^ref));
+static_assert(is_variable(^ref));
+static_assert(!is_template(^ref));
+static_assert(!is_namespace(^ref));
+static_assert(!is_function_template(^ref));
+static_assert(!is_variable_template(^ref));
+static_assert(!is_class_template(^ref));
+static_assert(!is_alias_template(^ref));
+static_assert(!is_concept(^ref));
+static_assert(!is_base(^ref));
+static_assert(!is_value(^ref));
+static_assert(!is_object(^ref));
 
 static_assert(!is_type(^TCls));
 static_assert(!is_incomplete_type(^TCls));
