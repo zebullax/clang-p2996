@@ -253,6 +253,10 @@ static bool is_concept(APValue &Result, Sema &S, EvalFn Evaluator,
                        QualType ResultTy, SourceRange Range,
                        ArrayRef<Expr *> Args);
 
+static bool is_structured_binding(APValue &Result, Sema &S, EvalFn Evaluator,
+                                  QualType ResultTy, SourceRange Range,
+                                  ArrayRef<Expr *> Args);
+
 static bool is_value(APValue &Result, Sema &S, EvalFn Evaluator,
                      QualType ResultTy, SourceRange Range,
                      ArrayRef<Expr *> Args);
@@ -415,6 +419,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_class_template },
   { Metafunction::MFRK_bool, 1, 1, is_alias_template },
   { Metafunction::MFRK_bool, 1, 1, is_concept },
+  { Metafunction::MFRK_bool, 1, 1, is_structured_binding },
   { Metafunction::MFRK_bool, 1, 1, is_value },
   { Metafunction::MFRK_bool, 1, 1, is_object },
   { Metafunction::MFRK_bool, 1, 1, has_template_arguments },
@@ -1571,7 +1576,7 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   case ReflectionValue::RK_declaration: {
     ValueDecl *VD = cast<ValueDecl>(R.getReflectedDecl());
 
-    bool UnwrapAliases = isa<ParmVarDecl>(VD);
+    bool UnwrapAliases = isa<ParmVarDecl>(VD) || isa<BindingDecl>(VD);
     bool DropCV = isa<ParmVarDecl>(VD);
     QualType QT = desugarType(VD->getType(), UnwrapAliases, DropCV,
                               /*DropRefs=*/false);
@@ -2158,12 +2163,12 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
         Synthesized = ExtractLValueExpr::Create(S.Context, Range, ResultTy,
                                                 Decl);
       }
-    } else if (ReturnsLValue) {
-      // Only variables may be returned as LValues.
+    } else if (ReturnsLValue && !isa<BindingDecl>(Decl)) {
+      // Only variables and structured binding may be returned as LValues.
       return true;
     } else {
       // We have a reflection of a non-variable entity (either a field,
-      // function, enumerator, or lambda).
+      // function, enumerator, structured binding, or lambda).
       NestedNameSpecifierLocBuilder NNSLocBuilder;
       if (auto *ParentClsDecl = dyn_cast_or_null<CXXRecordDecl>(
               Decl->getDeclContext())) {
@@ -2198,6 +2203,7 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
                                               Range.getEnd(), Synthesized);
         if (ER.isInvalid())
           return true;
+
         Synthesized = ER.get();
       }
     }
@@ -3110,6 +3116,24 @@ bool is_concept(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     IsConcept = isa<ConceptDecl>(R.getReflectedTemplate().getAsTemplateDecl());
 
   return SetAndSucceed(Result, makeBool(S.Context, IsConcept));
+}
+
+bool is_structured_binding(APValue &Result, Sema &S, EvalFn Evaluator,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool result = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
+    result = isa<const BindingDecl>(R.getReflectedDecl());
+  }
+
+  return SetAndSucceed(Result, makeBool(S.Context, result));
 }
 
 bool is_value(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
