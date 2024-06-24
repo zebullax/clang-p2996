@@ -1704,9 +1704,17 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
       if (!VD->isUsableInConstantExpressions(S.Context))
         return true;
 
-      if (APValue *VarValue = VD->evaluateValue())
-        Value = *VarValue;
-      else
+      QualType QT = VD->getType();
+      if (auto *LVRT = dyn_cast<LValueReferenceType>(QT)) {
+        QT = LVRT->getPointeeType();
+      }
+
+      Expr *Synthesized = DeclRefExpr::Create(S.Context,
+                                              NestedNameSpecifierLoc(),
+                                              SourceLocation(), VD, false,
+                                              Range.getBegin(), QT,
+                                              VK_LValue, Decl, nullptr);
+      if (!Evaluator(Value, Synthesized, true))
         return true;
     } else if (isa<EnumConstantDecl>(Decl)) {
       Expr *Synthesized = DeclRefExpr::Create(S.Context,

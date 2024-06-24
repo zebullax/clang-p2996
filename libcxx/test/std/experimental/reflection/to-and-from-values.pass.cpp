@@ -221,6 +221,14 @@ static_assert(type_of(value_of(^ref)) == ^int);
 constexpr std::pair<std::pair<int, bool>, int> p = {{1, true}, 2};
 static_assert(type_of(value_of(std::meta::reflect_object(p.first))) ==
               ^const std::pair<int, bool>);
+
+constexpr int g = 3;
+consteval std::meta::info fn() {
+    const int &r = g;
+    static_assert([:value_of(^r):] == 3);
+    return value_of(^r);
+}
+static_assert([:fn():] == 3);
 }  // namespace value_of_types
 
                              // ===================
