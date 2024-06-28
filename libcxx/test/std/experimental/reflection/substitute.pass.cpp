@@ -333,22 +333,6 @@ static_assert(!dependentAtLeastThree<std::vector, std::queue>());
 static_assert(dependentAtLeastThree<std::vector, std::queue, std::vector>());
 } // namespace concepts
 
-                                // =============
-                                // test_trait_fn
-                                // =============
-
-namespace test_trait_fn {
-// Single argument overload.
-struct Cls {};
-static_assert(!test_trait(^std::is_class_v, ^int));
-static_assert(test_trait(^std::is_class_v, ^Cls));
-
-// Multiple argument overload.
-using Alias = int;
-static_assert(!test_trait(^std::is_same_v, {^int, ^bool}));
-static_assert(test_trait(^std::is_same_v, {^int, ^Alias}));
-}  // namespace test_trait_fn
-
                 // ============================================
                 // equality_respects_default_template_arguments
                 // ============================================
@@ -405,11 +389,6 @@ static_assert(
 
 static_assert(!can_substitute(^join, std::vector {^int, ^std::array, ^bool} |
                                      std::views::filter(std::meta::is_type)));
-
-static_assert(test_trait(^std::is_same_v, std::vector {^int, ^void, ^int} |
-                                          std::views::filter([](auto R) {
-                                            return R != ^void;
-                                          })));
 }  // namespace with_non_contiguous_ranges
 
                              // ===================

@@ -51,10 +51,8 @@ consteval auto template_of(info r) -> info;
 consteval auto template_arguments_of(info r) -> vector<info>;
 
 // member queries
-template <typename... Preds>
-  consteval auto members_of(info class_type, Preds... filters) -> vector<info>;
-typename <template... Preds>
-  consteval auto bases_of(info class_type, Preds... filters) -> vector<info>;
+consteval auto members_of(info class_type) -> vector<info>;
+consteval auto bases_of(info class_type) -> vector<info>;
 consteval auto static_data_members_of(info class_type) -> vector<info>;
 consteval auto nonstatic_data_members_of(info class_type) -> vector<info>;
 consteval auto subobjects_of(info class_type) -> vector<info>;
@@ -62,47 +60,24 @@ consteval auto enumerators_of(info enum_type) -> vector<info>;
 
 // member access queries
 consteval auto access_context() -> info;
-struct access_pair {
-  consteval access_pair(info target, info from = access_context());
-};
 
-consteval auto is_accessible(access_pair p) -> bool;
-consteval auto is_accessible(info r, info from);
+consteval auto is_accessible(info r, info from = access_context());
 
-template <typename Pred>
-  consteval auto accessible_members_of(access_pair p, Pred pred);
-template <typename Pred>
-  consteval auto accessible_members_of(info target, info from, Pred pred);
-template <typename... Preds>
-  consteval auto accessible_members_of(access_pair p,
-                                       Preds... preds) -> vector<info>;
-template <typename... Preds>
-  consteval auto accessible_members_of(info target, info from,
-                                       Preds... preds) -> vector<info>;
-consteval auto accessible_members_of(access_pair p) -> vector<info>;
-consteval auto accessible_members_of(info target, info from) -> vector<info>;
-consteval auto accessible_nonstatic_data_members_of(access_pair p)
-    -> vector<info>;
-consteval auto accessible_nonstatic_data_members_of(info target,
-                                                    info from) -> vector<info>;
-consteval auto accessible_static_data_members_of(access_pair p) -> vector<info>;
-consteval auto accessible_static_data_members_of(info target,
-                                                 info from) -> vector<info>;
-template <typename Pred>
-  consteval auto accessible_bases_of(access_pair p, Pred pred);
-template <typename Pred>
-  consteval auto accessible_bases_of(info target, info from, Pred pred);
-template <typename... Preds>
-  consteval auto accessible_bases_of(access_pair p,
-                                       Preds... preds) -> vector<info>;
-template <typename... Preds>
-  consteval auto accessible_bases_of(info target, info from,
-                                       Preds... preds) -> vector<info>;
-consteval auto accessible_bases_of(access_pair p) -> vector<info>;
-consteval auto accessible_bases_of(info target, info from) -> vector<info>;
-consteval auto accessible_subobjects_of(acess_pair p) -> vector<info>;
-consteval auto accessible_subobject_of(info target,
-                                       info from) -> vector<info>;
+consteval auto accessible_members_of(
+                                  info target,
+                                  info from = access_context()) -> vector<info>;
+consteval auto accessible_nonstatic_data_members_of(
+                                  info target,
+                                  info from = access_context()) -> vector<info>;
+consteval auto accessible_static_data_members_of(
+                                  info target,
+                                  info from = access_context()) -> vector<info>;
+consteval auto accessible_bases_of(
+                                  info target,
+                                  info from = access_context()) -> vector<info>;
+consteval auto accessible_subobjects_of(
+                                  info target,
+                                  info from = access_context()) -> vector<info>;
 
 // substitute
 template <reflection_range R = span<info const>>
@@ -129,11 +104,6 @@ template <typename T>
 // extract<T>
 template <typename Ty>
   consteval auto extract(info) -> T;
-
-// test_trait
-consteval auto test_trait(info templ, info argument) -> bool;
-template <reflection_range R = span<info const>>
-  consteval auto test_trait(info templ, R &&arguments) -> bool;
 
 // other type predicates
 consteval auto is_public(info) -> bool;
@@ -903,16 +873,6 @@ consteval auto extract(info r) -> Ty {
   return __metafunction(detail::__metafn_extract, ^Ty, r);
 }
 
-template <reflection_range R = span<info const>>
-consteval auto test_trait(info templ, R &&args) -> bool {
-  return extract<bool>(substitute(templ, args));
-}
-
-consteval auto test_trait(info templ, info type) -> bool {
-  info args[1] = {type};
-  return extract<bool>(substitute(templ, args));
-}
-
 // Returns whether the reflected entity is a public class member.
 consteval auto is_public(info r) -> bool {
   return __metafunction(detail::__metafn_is_public, r);
@@ -1255,147 +1215,147 @@ consteval auto alignment_of(info r) -> size_t {
 // Type trait wrappers
 
 consteval auto type_is_void(info r) -> bool {
-  return test_trait(^is_void_v, r);
+  return extract<bool>(substitute(^is_void_v, {r}));
 }
 
 consteval auto type_is_null_pointer(info r) -> bool {
-  return test_trait(^is_null_pointer_v, r);
+  return extract<bool>(substitute(^is_null_pointer_v, {r}));
 }
 
 consteval auto type_is_integral(info r) -> bool {
-  return test_trait(^is_integral_v, r);
+  return extract<bool>(substitute(^is_integral_v, {r}));
 }
 
 consteval auto type_is_floating_point(info r) -> bool {
-  return test_trait(^is_floating_point_v, r);
+  return extract<bool>(substitute(^is_floating_point_v, {r}));
 }
 
 consteval auto type_is_array(info r) -> bool {
-  return test_trait(^is_array_v, r);
+  return extract<bool>(substitute(^is_array_v, {r}));
 }
 
 consteval auto type_is_pointer(info r) -> bool {
-  return test_trait(^is_pointer_v, r);
+  return extract<bool>(substitute(^is_pointer_v, {r}));
 }
 
 consteval auto type_is_lvalue_reference(info r) -> bool {
-  return test_trait(^is_lvalue_reference_v, r);
+  return extract<bool>(substitute(^is_lvalue_reference_v, {r}));
 }
 
 consteval auto type_is_rvalue_reference(info r) -> bool {
-  return test_trait(^is_rvalue_reference_v, r);
+  return extract<bool>(substitute(^is_rvalue_reference_v, {r}));
 }
 
 consteval auto type_is_member_object_pointer(info r) -> bool {
-  return test_trait(^is_member_object_pointer_v, r);
+  return extract<bool>(substitute(^is_member_object_pointer_v, {r}));
 }
 
 consteval auto type_is_member_function_pointer(info r) -> bool {
-  return test_trait(^is_member_function_pointer_v, r);
+  return extract<bool>(substitute(^is_member_function_pointer_v, {r}));
 }
 
 consteval auto type_is_enum(info r) -> bool {
-  return test_trait(^is_enum_v, r);
+  return extract<bool>(substitute(^is_enum_v, {r}));
 }
 
 consteval auto type_is_union(info r) -> bool {
-  return test_trait(^is_union_v, r);
+  return extract<bool>(substitute(^is_union_v, {r}));
 }
 
 consteval auto type_is_class(info r) -> bool {
-  return test_trait(^is_class_v, r);
+  return extract<bool>(substitute(^is_class_v, {r}));
 }
 
 consteval auto type_is_function(info r) -> bool {
-  return test_trait(^is_function_v, r);
+  return extract<bool>(substitute(^is_function_v, {r}));
 }
 
 consteval auto type_is_reference(info r) -> bool {
-  return test_trait(^is_reference_v, r);
+  return extract<bool>(substitute(^is_reference_v, {r}));
 }
 
 consteval auto type_is_arithmetic(info r) -> bool {
-  return test_trait(^is_arithmetic_v, r);
+  return extract<bool>(substitute(^is_arithmetic_v, {r}));
 }
 
 consteval auto type_is_fundamental(info r) -> bool {
-  return test_trait(^is_fundamental_v, r);
+  return extract<bool>(substitute(^is_fundamental_v, {r}));
 }
 
 consteval auto type_is_object(info r) -> bool {
-  return test_trait(^is_object_v, r);
+  return extract<bool>(substitute(^is_object_v, {r}));
 }
 
 consteval auto type_is_scalar(info r) -> bool {
-  return test_trait(^is_scalar_v, r);
+  return extract<bool>(substitute(^is_scalar_v, {r}));
 }
 
 consteval auto type_is_compound(info r) -> bool {
-  return test_trait(^is_compound_v, r);
+  return extract<bool>(substitute(^is_compound_v, {r}));
 }
 
 consteval auto type_is_member_pointer(info r) -> bool {
-  return test_trait(^is_member_pointer_v, r);
+  return extract<bool>(substitute(^is_member_pointer_v, {r}));
 }
 
 consteval auto type_is_const(info r) -> bool {
-  return test_trait(^is_const_v, r);
+  return extract<bool>(substitute(^is_const_v, {r}));
 }
 
 consteval auto type_is_volatile(info r) -> bool {
-  return test_trait(^is_volatile_v, r);
+  return extract<bool>(substitute(^is_volatile_v, {r}));
 }
 
 consteval auto type_is_trivial(info r) -> bool {
-  return test_trait(^is_trivial_v, r);
+  return extract<bool>(substitute(^is_trivial_v, {r}));
 }
 
 consteval auto type_is_trivially_copyable(info r) -> bool {
-  return test_trait(^is_trivially_copyable_v, r);
+  return extract<bool>(substitute(^is_trivially_copyable_v, {r}));
 }
 
 consteval auto type_is_standard_layout(info r) -> bool {
-  return test_trait(^is_standard_layout_v, r);
+  return extract<bool>(substitute(^is_standard_layout_v, {r}));
 }
 
 consteval auto type_is_empty(info r) -> bool {
-  return test_trait(^is_empty_v, r);
+  return extract<bool>(substitute(^is_empty_v, {r}));
 }
 
 consteval auto type_is_polymorphic(info r) -> bool {
-  return test_trait(^is_polymorphic_v, r);
+  return extract<bool>(substitute(^is_polymorphic_v, {r}));
 }
 
 consteval auto type_is_abstract(info r) -> bool {
-  return test_trait(^is_abstract_v, r);
+  return extract<bool>(substitute(^is_abstract_v, {r}));
 }
 
 consteval auto type_is_final(info r) -> bool {
-  return test_trait(^is_final_v, r);
+  return extract<bool>(substitute(^is_final_v, {r}));
 }
 
 consteval auto type_is_aggregate(info r) -> bool {
-  return test_trait(^is_aggregate_v, r);
+  return extract<bool>(substitute(^is_aggregate_v, {r}));
 }
 
 consteval auto type_is_signed(info r) -> bool {
-  return test_trait(^is_signed_v, r);
+  return extract<bool>(substitute(^is_signed_v, {r}));
 }
 
 consteval auto type_is_unsigned(info r) -> bool {
-  return test_trait(^is_unsigned_v, r);
+  return extract<bool>(substitute(^is_unsigned_v, {r}));
 }
 
 consteval auto type_is_bounded_array(info r) -> bool {
-  return test_trait(^is_bounded_array_v, r);
+  return extract<bool>(substitute(^is_bounded_array_v, {r}));
 }
 
 consteval auto type_is_unbounded_array(info r) -> bool {
-  return test_trait(^is_unbounded_array_v, r);
+  return extract<bool>(substitute(^is_unbounded_array_v, {r}));
 }
 
 consteval auto type_is_scoped_enum(info r) -> bool {
-  return test_trait(^is_scoped_enum_v, r);
+  return extract<bool>(substitute(^is_scoped_enum_v, {r}));
 }
 
 template <reflection_range R = span<info const>>
@@ -1403,43 +1363,43 @@ consteval auto type_is_constructible(info type, R &&type_args) {
   std::vector<info> args(from_range, type_args);
   args.insert(args.begin(), type);
 
-  return test_trait(^is_constructible_v, args);
+  return extract<bool>(substitute(^is_constructible_v, args));
 }
 
 consteval auto type_is_default_constructible(info r) -> bool {
-  return test_trait(^is_default_constructible_v, r);
+  return extract<bool>(substitute(^is_default_constructible_v, {r}));
 }
 
 consteval auto type_is_copy_constructible(info r) -> bool {
-  return test_trait(^is_copy_constructible_v, r);
+  return extract<bool>(substitute(^is_copy_constructible_v, {r}));
 }
 
 consteval auto type_is_move_constructible(info r) -> bool {
-  return test_trait(^is_move_constructible_v, r);
+  return extract<bool>(substitute(^is_move_constructible_v, {r}));
 }
 
 consteval auto type_is_assignable(info dst, info src) -> bool {
-  return test_trait(^is_assignable_v, {dst, src});
+  return extract<bool>(substitute(^is_assignable_v, {dst, src}));
 }
 
 consteval auto type_is_copy_assignable(info r) -> bool {
-  return test_trait(^is_copy_assignable_v, r);
+  return extract<bool>(substitute(^is_copy_assignable_v, {r}));
 }
 
 consteval auto type_is_move_assignable(info r) -> bool {
-  return test_trait(^is_move_assignable_v, r);
+  return extract<bool>(substitute(^is_move_assignable_v, {r}));
 }
 
 consteval auto type_is_swappable_with(info dst, info src) -> bool {
-  return test_trait(^is_swappable_with_v, {dst, src});
+  return extract<bool>(substitute(^is_swappable_with_v, {dst, src}));
 }
 
 consteval auto type_is_swappable(info r) -> bool {
-  return test_trait(^is_swappable_v, r);
+  return extract<bool>(substitute(^is_swappable_v, {r}));
 }
 
 consteval auto type_is_destructible(info r) -> bool {
-  return test_trait(^is_destructible_v, r);
+  return extract<bool>(substitute(^is_destructible_v, {r}));
 }
 
 template <reflection_range R = span<info const>>
@@ -1447,35 +1407,35 @@ consteval auto type_is_trivially_constructible(info type, R &&type_args) {
   std::vector<info> args(from_range, type_args);
   args.insert(args.begin(), type);
 
-  return test_trait(^is_trivially_constructible_v, args);
+  return extract<bool>(substitute(^is_trivially_constructible_v, args));
 }
 
 consteval auto type_is_trivially_default_constructible(info r) -> bool {
-  return test_trait(^is_trivially_default_constructible_v, r);
+  return extract<bool>(substitute(^is_trivially_default_constructible_v, {r}));
 }
 
 consteval auto type_is_trivially_copy_constructible(info r) -> bool {
-  return test_trait(^is_trivially_copy_constructible_v, r);
+  return extract<bool>(substitute(^is_trivially_copy_constructible_v, {r}));
 }
 
 consteval auto type_is_trivially_move_constructible(info r) -> bool {
-  return test_trait(^is_trivially_move_constructible_v, r);
+  return extract<bool>(substitute(^is_trivially_move_constructible_v, {r}));
 }
 
 consteval auto type_is_trivially_assignable(info dst, info src) -> bool {
-  return test_trait(^is_trivially_assignable_v, {dst, src});
+  return extract<bool>(substitute(^is_trivially_assignable_v, {dst, src}));
 }
 
 consteval auto type_is_trivially_copy_assignable(info r) -> bool {
-  return test_trait(^is_trivially_copy_assignable_v, r);
+  return extract<bool>(substitute(^is_trivially_copy_assignable_v, {r}));
 }
 
 consteval auto type_is_trivially_move_assignable(info r) -> bool {
-  return test_trait(^is_trivially_move_assignable_v, r);
+  return extract<bool>(substitute(^is_trivially_move_assignable_v, {r}));
 }
 
 consteval auto type_is_trivially_destructible(info r) -> bool {
-  return test_trait(^is_trivially_destructible_v, r);
+  return extract<bool>(substitute(^is_trivially_destructible_v, {r}));
 }
 
 template <reflection_range R = span<info const>>
@@ -1483,66 +1443,66 @@ consteval auto type_is_nothrow_constructible(info type, R &&type_args) {
   std::vector<info> args(from_range, type_args);
   args.insert(args.begin(), type);
 
-  return test_trait(^is_nothrow_constructible_v, args);
+  return extract<bool>(substitute(^is_nothrow_constructible_v, args));
 }
 
 consteval auto type_is_nothrow_default_constructible(info r) -> bool {
-  return test_trait(^is_nothrow_default_constructible_v, r);
+  return extract<bool>(substitute(^is_nothrow_default_constructible_v, {r}));
 }
 
 consteval auto type_is_nothrow_copy_constructible(info r) -> bool {
-  return test_trait(^is_nothrow_copy_constructible_v, r);
+  return extract<bool>(substitute(^is_nothrow_copy_constructible_v, {r}));
 }
 
 consteval auto type_is_nothrow_move_constructible(info r) -> bool {
-  return test_trait(^is_nothrow_move_constructible_v, r);
+  return extract<bool>(substitute(^is_nothrow_move_constructible_v, {r}));
 }
 
 consteval auto type_is_nothrow_assignable(info dst, info src) -> bool {
-  return test_trait(^is_nothrow_assignable_v, {dst, src});
+  return extract<bool>(substitute(^is_nothrow_assignable_v, {dst, src}));
 }
 
 consteval auto type_is_nothrow_copy_assignable(info r) -> bool {
-  return test_trait(^is_nothrow_copy_assignable_v, r);
+  return extract<bool>(substitute(^is_nothrow_copy_assignable_v, {r}));
 }
 
 consteval auto type_is_nothrow_move_assignable(info r) -> bool {
-  return test_trait(^is_nothrow_move_assignable_v, r);
+  return extract<bool>(substitute(^is_nothrow_move_assignable_v, {r}));
 }
 
 consteval auto type_is_nothrow_swappable_with(info dst, info src) -> bool {
-  return test_trait(^is_nothrow_swappable_with_v, {dst, src});
+  return extract<bool>(substitute(^is_nothrow_swappable_with_v, {dst, src}));
 }
 
 consteval auto type_is_nothrow_swappable(info r) -> bool {
-  return test_trait(^is_nothrow_swappable_v, r);
+  return extract<bool>(substitute(^is_nothrow_swappable_v, {r}));
 }
 
 consteval auto type_is_nothrow_destructible(info r) -> bool {
-  return test_trait(^is_nothrow_destructible_v, r);
+  return extract<bool>(substitute(^is_nothrow_destructible_v, {r}));
 }
 
 // TODO(P2996): Not yet implemented in libc++.
 /*consteval auto type_is_implicit_lifetime(info r) -> bool {
-  return test_trait(^is_implicit_lifetime_v, r);
+  return extract<bool>(substitute(^is_implicit_lifetime_v, {r}));
 }*/
 
 consteval auto type_has_virtual_destructor(info r) -> bool {
-  return test_trait(^has_virtual_destructor_v, r);
+  return extract<bool>(substitute(^has_virtual_destructor_v, {r}));
 }
 
 consteval auto type_has_unique_object_representations(info r) -> bool {
-  return test_trait(^has_unique_object_representations_v, r);
+  return extract<bool>(substitute(^has_unique_object_representations_v, {r}));
 }
 
 // TODO(P2996): Not yet implemented in libc++.
 /*consteval auto type_reference_constructs_from_temporary(info r) -> bool {
-  return test_trait(^reference_constructs_from_temporary_v, r);
+  return extract<bool>(substitute(^reference_constructs_from_temporary_v, {r}));
 }*/
 
 // TODO({2996): Not yet implemented in libc++.
 /*consteval auto type_reference_converts_from_temporary(info r) -> bool {
-  return test_trait(^reference_converts_from_temporary_v, r);
+  return extract<bool>(substitute(^reference_converts_from_temporary_v, {r}));
 }*/
 
 consteval auto type_alignment_of(info r) -> size_t {
@@ -1559,30 +1519,31 @@ consteval auto type_extent(info r, unsigned i = 0) -> size_t {
 }
 
 consteval auto type_is_same(info r, info s) -> bool {
-  return test_trait(^is_same_v, {r, s});
+  return extract<bool>(substitute(^is_same_v, {r, s}));
 }
 
 consteval auto type_is_base_of(info r, info s) -> bool {
-  return test_trait(^is_base_of_v, {r, s});
+  return extract<bool>(substitute(^is_base_of_v, {r, s}));
 }
 
 consteval auto type_is_convertible(info r, info s) -> bool {
-  return test_trait(^is_convertible_v, {r, s});
+  return extract<bool>(substitute(^is_convertible_v, {r, s}));
 }
 
 consteval auto type_is_nothrow_convertible(info r, info s) -> bool {
-  return test_trait(^is_nothrow_convertible_v, {r, s});
+  return extract<bool>(substitute(^is_nothrow_convertible_v, {r, s}));
 }
 
 // TODO(P2996): Not yet implemented in libc++.
 /*consteval auto type_is_layout_compatible(info r, info s) -> bool {
-  return test_trait(^is_layout_compatible_v, {r, s});
+  return extract<bool>(substitute(^is_layout_compatible_v, {r, s}));
 }*/
 
 // TODO(P2996): Not yet implemented in libc++.
 /*consteval auto type_is_pointer_interconvertible_base_of(info r,
                                                         info s) -> bool {
-  return test_trait(^is_pointer_interconvertible_base_of_v, {r, s});
+  return extract<bool>(substitute(^is_pointer_interconvertible_base_of_v,
+                                  {r, s}));
 }*/
 
 template <reflection_range R = span<info const>>
@@ -1590,7 +1551,7 @@ consteval auto type_is_invocable(info type, R &&args) {
   std::vector<info> targs(from_range, args);
   targs.insert(targs.begin(), type);
 
-  return test_trait(^is_invocable_v, targs);
+  return extract<bool>(substitute(^is_invocable_v, targs));
 }
 
 template <reflection_range R = span<info const>>
@@ -1599,7 +1560,7 @@ consteval auto type_is_invocable_r(info type_result, info type, R &&args) {
   targs.insert(targs.begin(), type);
   targs.insert(targs.begin(), type_result);
 
-  return test_trait(^is_invocable_r_v, targs);
+  return extract<bool>(substitute(^is_invocable_r_v, targs));
 }
 
 template <reflection_range R = span<info const>>
@@ -1607,7 +1568,7 @@ consteval auto type_is_nothrow_invocable(info type, R &&args) {
   std::vector<info> targs(from_range, args);
   targs.insert(targs.begin(), type);
 
-  return test_trait(^is_nothrow_invocable_v, targs);
+  return extract<bool>(substitute(^is_nothrow_invocable_v, targs));
 }
 
 template <reflection_range R = span<info const>>
@@ -1617,7 +1578,7 @@ consteval auto type_is_nothrow_invocable_r(info type_result, info type,
   targs.insert(targs.begin(), type);
   targs.insert(targs.begin(), type_result);
 
-  return test_trait(^is_nothrow_invocable_r_v, targs);
+  return extract<bool>(substitute(^is_nothrow_invocable_r_v, targs));
 }
 
 consteval auto type_remove_const(info type) -> info {
@@ -1724,161 +1685,61 @@ consteval auto access_context() -> info {
   return __metafunction(detail::__metafn_access_context);
 }
 
-struct access_pair {
-  info target;
-  info from;
-
-  consteval access_pair(info target, info from = access_context())
-      : target(target), from(from) {}
-};
-
-consteval auto is_accessible(access_pair p) -> bool {
-  return __metafunction(detail::__metafn_is_accessible, p.target, p.from);
+consteval auto is_accessible(info target,
+                             info from = access_context()) -> bool {
+  return __metafunction(detail::__metafn_is_accessible, target, from);
 }
 
-consteval auto is_accessible(info r, info from) -> bool {
-  return is_accessible(access_pair{r, from});
-}
-
-template <typename Pred>
-consteval auto accessible_members_of(access_pair p, Pred pred)
+consteval auto accessible_members_of(info target, info from = access_context())
     -> vector<info> {
-  if (is_namespace(p.target))
+  if (is_namespace(target))
     throw "Cannot query the accessible members of a namespace";
 
-  auto wrapped = [&](info r) {
-    return (is_accessible(r, p.from) && pred(r));
-  };
-
-  using iterator =
-      __range_of_infos::iterator<__range_of_infos::front_member_of_fn,
-                                 __range_of_infos::next_member_of_fn,
-                                 __range_of_infos::map_decl_to_entity_fn,
-                                 decltype(wrapped)>;
-  using range = __range_of_infos::range<iterator>;
-  auto rng = range{p.target, wrapped};
-  return vector<info>{rng.begin(), rng.end()};
+  return members_of(target) |
+         views::filter([&](info r) { return is_accessible(r, from); }) |
+         ranges::to<vector>();
 }
 
-template <typename Pred>
-consteval auto accessible_members_of(info target, info from,
-                                     Pred pred) -> vector<info> {
-  return accessible_members_of(access_pair{target, from}, pred);
-}
-
-
-template <typename... Preds>
-consteval auto accessible_members_of(access_pair p,
-                                     Preds... preds) -> vector<info> {
-  if (is_namespace(p.target))
-    throw "Cannot query the accessible members of a namespace";
-
-  return members_of(p.target, [&](info r) {
-    return is_accessible(r, p.from) && (preds(r) && ...);
-  });
-}
-
-template <typename... Preds>
-consteval auto accessible_members_of(info target, info from,
-                                     Preds... preds) -> vector<info> {
-  return accessible_members_of(access_pair{target, from}, preds...);
-}
-
-consteval auto accessible_members_of(access_pair p) -> vector<info> {
-  if (is_namespace(p.target))
-    throw "Cannot query the accessible members of a namespace";
-
-  return members_of(p.target, [&](info r) {
-    return is_accessible(r, p.from);
-  });
-}
-
-consteval auto accessible_members_of(info target, info from) -> vector<info> {
-  return accessible_members_of(access_pair{target, from});
-}
-
-template <typename Pred>
-consteval auto accessible_bases_of(access_pair p, Pred pred)
+consteval auto accessible_bases_of(info target, info from = access_context())
     -> vector<info> {
-  if (is_namespace(p.target))
+  if (is_namespace(target))
     throw "Namespaces cannot have base classes";
 
-  auto wrapped = [&](info r) {
-    return (is_accessible(r, p.from) && pred(r));
-  };
-
-  using iterator =
-    __range_of_infos::iterator<__range_of_infos::front_base_of_fn,
-                                __range_of_infos::next_base_of_fn,
-                                __range_of_infos::map_identity_fn, Pred>;
-  using range = __range_of_infos::range<iterator>;
-  auto rng = range{p.target, wrapped};
-  return vector<info>{rng.begin(), rng.end()};
+  return bases_of(target) |
+         views::filter([&](info r) { return is_accessible(r, from); }) |
+         ranges::to<vector>();
 }
 
-template <typename Pred>
-consteval auto accessible_bases_of(info target, info from,
-                                   Pred pred) -> vector<info> {
-  return accessible_bases_of(access_pair{target, from}, pred);
+consteval auto accessible_nonstatic_data_members_of(
+                                 info target,
+                                 info from = access_context()) -> vector<info> {
+  if (is_namespace(target))
+    throw "Namespaces cannot have nonstatic members";
+
+  return accessible_members_of(target, from) |
+         views::filter([&](info r) { return is_nonstatic_data_member(r); }) |
+         ranges::to<vector>();
 }
 
+consteval auto accessible_static_members_of(
+                                 info target,
+                                 info from = access_context()) -> vector<info> {
+  if (is_namespace(target))
+    throw "Namespaces cannot have static members";
 
-template <typename... Preds>
-consteval auto accessible_bases_of(access_pair p,
-                                   Preds... preds) -> vector<info> {
-  if (is_namespace(p.target))
-    throw "Namespaces cannot have base classes";
-
-  return bases_of(p.target, [&](info r) {
-    return is_accessible(r, p.from) && (preds(r) && ...);
-  });
+  return accessible_members_of(target, from) |
+         views::filter([&](info r) { return is_variable(r); }) |
+         ranges::to<vector>();
 }
 
-template <typename... Preds>
-consteval auto accessible_bases_of(info target, info from,
-                                   Preds... preds) -> vector<info> {
-  return accessible_bases_of(access_pair{target, from}, preds...);
-}
-
-consteval auto accessible_bases_of(access_pair p) -> vector<info> {
-  if (is_namespace(p.target))
-    throw "Namespaces cannot have base classes";
-
-  return bases_of(p.target, [&](info r) {
-    return is_accessible(r, p.from);
-  });
-}
-
-consteval auto accessible_bases_of(info target, info from) -> vector<info> {
-  return accessible_bases_of(access_pair{target, from});
-}
-
-consteval auto accessible_nonstatic_data_members_of(access_pair p)
-    -> vector<info> {
-  return accessible_members_of(p, std::meta::is_nonstatic_data_member);
-}
-
-consteval auto accessible_nonstatic_data_members_of(info target,
-                                                    info from) -> vector<info> {
-  return accessible_nonstatic_data_members_of(access_pair{target, from});
-}
-
-consteval auto accessible_static_data_members_of(access_pair p)
-    -> vector<info> {
-  return accessible_members_of(p, std::meta::is_variable);
-}
-
-consteval auto accessible_static_data_members_of(info target,
-                                                 info from) -> vector<info> {
-  return accessible_static_data_members_of(access_pair{target, from});
-}
-
-consteval auto accessible_subobjects_of(access_pair p) -> vector<info> {
-  if (is_namespace(p.target))
+consteval auto accessible_subobjects_of(
+                                 info target,
+                                 info from = access_context()) -> vector<info> {
+  if (is_namespace(target))
     throw "Namespaces cannot have subobjects";
 
-  auto subobjects = accessible_bases_of(p);
-  subobjects.append_range(accessible_nonstatic_data_members_of(p));
+  auto subobjects = accessible_bases_of(target, from);
+  subobjects.append_range(accessible_nonstatic_data_members_of(target, from));
   return subobjects;
 }
 
@@ -1945,17 +1806,27 @@ consteval auto reflect_result(Ty r) -> info {
 }
 
 template <reflection_range R = span<info const>>
-[[deprecated("merged 'test_type' and 'test_types' into 'test_trait' in "
-             "P2996R4")]]
+[[deprecated("removed 'test_type' and 'test_types' in P2996R4")]]
 consteval auto test_types(info templ, R &&args) -> bool {
   return extract<bool>(substitute(templ, args));
 }
 
-[[deprecated("merged 'test_type' and 'test_types' into 'test_trait' in "
-             "P2996R4")]]
+[[deprecated("removed 'test_type' and 'test_types' in P2996R4")]]
 consteval auto test_type(info templ, info type) -> bool {
   info args[1] = {type};
-  return test_types(templ, args);
+  return extract<bool>(substitute(templ, args));
+}
+
+[[deprecated("removed 'test_trait' in P2996R5")]]
+consteval auto test_trait(info templ, info type) -> bool {
+  info args[1] = {type};
+  return extract<bool>(substitute(templ, args));
+}
+
+template <reflection_range R = span<info const>>
+[[deprecated("removed 'test_trait' in P2996R5")]]
+consteval auto test_trait(info templ, R &&args) -> bool {
+  return extract<bool>(substitute(templ, args));
 }
 
 _LIBCPP_END_NAMESPACE_META_V2

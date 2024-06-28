@@ -54,6 +54,7 @@ static_assert(!is_concept(null_reflection));
 static_assert(!is_base(null_reflection));
 static_assert(!is_value(null_reflection));
 static_assert(!is_object(null_reflection));
+static_assert(!is_user_provided(null_reflection));
 
 static_assert(!is_type(std::meta::reflect_value(3)));
 static_assert(!is_incomplete_type(std::meta::reflect_value(3)));
