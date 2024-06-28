@@ -2248,11 +2248,10 @@ bool is_public(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type: {
-    const Decl *D = findTypeDecl(R.getReflectedType());
-    if (!D)
-      return true;
+    bool IsPublic = false;
+    if (const Decl *D = findTypeDecl(R.getReflectedType()))
+      IsPublic = (D->getAccess() == AS_public);
 
-    bool IsPublic = (D->getAccess() == AS_public);
     return SetAndSucceed(Result, makeBool(S.Context, IsPublic));
   }
   case ReflectionValue::RK_declaration: {
@@ -2290,11 +2289,10 @@ bool is_protected(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type: {
-    const Decl *D = findTypeDecl(R.getReflectedType());
-    if (!D)
-      return true;
+    bool IsProtected = false;
+    if (const Decl *D = findTypeDecl(R.getReflectedType()))
+      IsProtected = (D->getAccess() == AS_protected);
 
-    bool IsProtected = (D->getAccess() == AS_protected);
     return SetAndSucceed(Result, makeBool(S.Context, IsProtected));
   }
   case ReflectionValue::RK_declaration: {
@@ -2332,11 +2330,10 @@ bool is_private(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type: {
-    const Decl *D = findTypeDecl(R.getReflectedType());
-    if (!D)
-      return true;
+    bool IsPrivate = false;
+    if (const Decl *D = findTypeDecl(R.getReflectedType()))
+      IsPrivate = (D->getAccess() == AS_private);
 
-    bool IsPrivate = (D->getAccess() == AS_private);
     return SetAndSucceed(Result, makeBool(S.Context, IsPrivate));
   }
   case ReflectionValue::RK_declaration: {
@@ -2390,36 +2387,30 @@ bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator,
   assert(Args[0]->getType()->isReflectionType());
   assert(ResultTy == S.Context.BoolTy);
 
+  APValue Scratch;
+  if (!Evaluator(Scratch, Args[1], true) || !Scratch.isReflection())
+    return true;
+
+  DeclContext *AccessDC = nullptr;
+  switch (Scratch.getReflection().getKind()) {
+  case ReflectionValue::RK_type:
+    AccessDC = dyn_cast<DeclContext>(findTypeDecl(Scratch.getReflectedType()));
+    if (!AccessDC)
+      return true;
+    break;
+  case ReflectionValue::RK_namespace:
+    AccessDC = dyn_cast<DeclContext>(Scratch.getReflectedNamespace());
+    break;
+  case ReflectionValue::RK_declaration:
+    AccessDC = dyn_cast<DeclContext>(Scratch.getReflectedDecl());
+    break;
+  default:
+    return true;
+  }
+
   APValue R;
   if (!Evaluator(R, Args[0], true))
     return true;
-
-  APValue Scratch;
-  DeclContext *AccessDC = nullptr;
-  if (Args.size() < 2) {
-    if (!findAccessContext(S, Evaluator, Scratch))
-      return true;
-  } else {
-    if (!Evaluator(Scratch, Args[1], true) || !Scratch.isReflection())
-      return true;
-
-    switch (Scratch.getReflection().getKind()) {
-    case ReflectionValue::RK_type:
-      AccessDC =
-          dyn_cast<DeclContext>(findTypeDecl(Scratch.getReflectedType()));
-      if (!AccessDC)
-        return true;
-      break;
-    case ReflectionValue::RK_namespace:
-      AccessDC = dyn_cast<DeclContext>(Scratch.getReflectedNamespace());
-      break;
-    case ReflectionValue::RK_declaration:
-      AccessDC = dyn_cast<DeclContext>(Scratch.getReflectedDecl());
-      break;
-    default:
-      return true;
-    }
-  }
 
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type: {
@@ -2524,9 +2515,11 @@ bool is_pure_virtual(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionValue::RK_data_member_spec:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionValue::RK_declaration: {
+    bool IsPureVirtual = false;
     if (const auto *FD = dyn_cast<FunctionDecl>(R.getReflectedDecl()))
-      return SetAndSucceed(Result, makeBool(S.Context, FD->isPureVirtual()));
-    return true;
+      IsPureVirtual = FD->isPureVirtual();
+
+    return SetAndSucceed(Result, makeBool(S.Context, IsPureVirtual));
   }
   }
   llvm_unreachable("invalid reflection type");
@@ -2579,9 +2572,10 @@ bool is_deleted(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   case ReflectionValue::RK_data_member_spec:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionValue::RK_declaration: {
+    bool IsDeleted = false;
     if (const auto *FD = dyn_cast<FunctionDecl>(R.getReflectedDecl()))
-      return SetAndSucceed(Result, makeBool(S.Context, FD->isDeleted()));
-    return true;
+      IsDeleted = FD->isDeleted();
+    return SetAndSucceed(Result, makeBool(S.Context, IsDeleted));
   }
   }
   llvm_unreachable("invalid reflection type");
@@ -2606,9 +2600,11 @@ bool is_defaulted(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   case ReflectionValue::RK_data_member_spec:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionValue::RK_declaration: {
+    bool IsDefaulted = false;
     if (const auto *FD = dyn_cast<FunctionDecl>(R.getReflectedDecl()))
-      return SetAndSucceed(Result, makeBool(S.Context, FD->isDefaulted()));
-    return true;
+      IsDefaulted = FD->isDefaulted();
+
+    return SetAndSucceed(Result, makeBool(S.Context, IsDefaulted));
   }
   }
   llvm_unreachable("invalid reflection type");

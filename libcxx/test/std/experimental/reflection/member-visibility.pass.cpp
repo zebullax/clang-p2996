@@ -198,4 +198,17 @@ static_assert(is_accessible(members_of(^Access, std::meta::is_private)[0],
 
 }  // namespace alt_accessibility_api
 
+                              // ================
+                              // nonsense_queries
+                              // ================
+
+namespace nonsense_queries {
+static_assert(!is_public(std::meta::info{}));
+static_assert(!is_public(^int));
+static_assert(!is_protected(std::meta::info{}));
+static_assert(!is_protected(^int));
+static_assert(!is_private(std::meta::info{}));
+static_assert(!is_private(^int));
+}  // namespace queries
+
 int main() { }

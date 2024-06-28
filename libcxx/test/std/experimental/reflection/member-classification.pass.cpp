@@ -179,6 +179,8 @@ static_assert(!is_pure_virtual(^TFn));
 static_assert(!is_pure_virtual(^TFn<int>));
 static_assert(!is_pure_virtual(^::));
 static_assert(!is_pure_virtual(^inner));
+static_assert(!is_pure_virtual(std::meta::info{}));
+static_assert(!is_pure_virtual(^int));
 
 static_assert(!is_override(^Base::nonvirt));
 static_assert(!is_override(^Base::virt_no_override));
@@ -310,6 +312,11 @@ static_assert(!is_defaulted(^TFn));
 static_assert(!is_defaulted(^TFn<int>));
 static_assert(!is_defaulted(^::));
 static_assert(!is_defaulted(^inner));
+
+static_assert(!is_deleted(std::meta::info{}));
+static_assert(!is_deleted(^int));
+static_assert(!is_defaulted(std::meta::info{}));
+static_assert(!is_defaulted(^int));
 }  // namespace defaulted_and_deleted_members
 
                              // ==================
