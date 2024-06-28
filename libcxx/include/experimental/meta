@@ -80,16 +80,16 @@ consteval auto accessible_subobjects_of(
                                   info from = access_context()) -> vector<info>;
 
 // substitute
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
   consteval auto can_substitute(info templ, R &&args) -> bool;
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
   consteval auto substitute(info templ, R &&args) -> info;
 
 // reflect_invoke
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
   consteval auto reflect_invoke(info target, R &&args) -> info;
-template <reflection_range R1 = span<info const>,
-          reflection_range R2 = span<info const>>
+template <reflection_range R1 = initializer_list<info>,
+          reflection_range R2 = initializer_list<info>>
   consteval auto reflect_invoke(info target,
                                 R1 &&tmpl_args, R2 &&args) -> info;
 
@@ -149,7 +149,7 @@ consteval auto is_user_provided(info) -> bool;
 struct data_member_options_t;
 consteval auto data_member_spec(info class_type,
                                 data_member_options = {}) -> info;
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
   consteval auto define_class(info class_type, R &&members) -> info;
 
 // data layout
@@ -201,7 +201,7 @@ consteval auto type_is_bounded_array(info) -> bool;
 consteval auto type_is_unbounded_array(info) -> bool;
 consteval auto type_is_scoped_enum(info) -> bool;
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
   consteval auto type_is_constructible(info, R &&type_args) -> bool;
 consteval auto type_is_default_constructible(info) -> bool;
 consteval auto type_is_copy_constructible(info) -> bool;
@@ -216,7 +216,7 @@ consteval auto type_is_swappable(info) -> bool;
 
 consteval auto type_is_destructible(info) -> bool;
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
   consteval auto type_is_trivially_constructible(info, R &&type_args) -> bool;
 consteval auto type_is_trivially_default_constructible(info) -> bool;
 consteval auto type_is_trivially_copy_constructible(info) -> bool;
@@ -227,7 +227,7 @@ consteval auto type_is_trivially_copy_assignable(info) -> bool;
 consteval auto type_is_trivially_move_assignable(info) -> bool;
 consteval auto type_is_trivially_destructible(info) -> bool;
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
   consteval auto type_is_nothrow_constructible(info, R &&type_args) -> bool;
 consteval auto type_is_nothrow_default_constructible(info) -> bool;
 consteval auto type_is_nothrow_copy_constructible(info) -> bool;
@@ -264,15 +264,15 @@ consteval auto type_is_nothrow_convertible(info, info) -> bool;
 consteval auto type_is_layout_compatible(info, info) -> bool;
 consteval auto type_is_pointer_interconvertible_base_of(info, info) -> bool;
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
   consteval auto type_is_invocable(info type, R &&args) -> bool;
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
   consteval auto type_is_invocable_r(info type_result, info type,
                                      R &&args) -> bool;
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
   consteval auto type_is_nothrow_invocable(info type, R &&args) -> bool;
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
   consteval auto type_is_nothrow_invocable_r(info type_result, info type,
                                              R &&args) -> bool;
 
@@ -304,12 +304,12 @@ consteval auto type_add_pointer(info) -> info;
 // other transformations
 consteval auto type_remove_cvref(info) -> info;
 consteval auto type_decay(info) -> info;
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
   consteval auto type_common_type(R &&type_args) -> info;
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
   consteval auto type_common_reference(R &&type_args) -> info;
 consteval auto type_underlying_type(info) -> info;
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
   consteval auto type_invoke_result(info type, R &&type_args) -> info;
 consteval auto type_unwrap_reference(info) -> info;
 consteval auto type_unwrap_ref_decay(info) -> info;
@@ -332,10 +332,10 @@ consteval auto return_type_of(info) -> info;
  */
 
 #include <experimental/__config>
+#include <initializer_list>
 #include <optional>
 #include <ranges>
 #include <source_location>
-#include <span>
 #include <string_view>
 #include <type_traits>
 #include <variant>
@@ -840,7 +840,7 @@ consteval auto enumerators_of(info r) -> vector<info> {
 }
 
 // Returns whether 'templ' substituted with 'args' forms a valid template-id.
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 consteval auto can_substitute(info templ, R &&args) -> bool {
   if constexpr (ranges::contiguous_range<R>) {
     return __metafunction(detail::__metafn_can_substitute, templ,
@@ -854,7 +854,7 @@ consteval auto can_substitute(info templ, R &&args) -> bool {
 
 // Returns a reflection representing the template instantiation of the entity
 // reflected by 'templ' with the entities reflected by 'args'.
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 consteval auto substitute(info templ, R &&args) -> info {
   if constexpr (ranges::contiguous_range<R>) {
     return __metafunction(detail::__metafn_substitute, templ,
@@ -1086,7 +1086,7 @@ consteval auto reflect_function(T &r) -> info {
 
 // Returns a reflection of the constant value obtained from calling
 //   target(args...)
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 consteval auto reflect_invoke(info target, R &&args) -> info {
   if constexpr (ranges::contiguous_range<R>) {
     return __metafunction(detail::__metafn_reflect_invoke, target,
@@ -1100,8 +1100,8 @@ consteval auto reflect_invoke(info target, R &&args) -> info {
   }
 }
 
-template <reflection_range R1 = span<info const>,
-          reflection_range R2 = span<info const>>
+template <reflection_range R1 = initializer_list<info>,
+          reflection_range R2 = initializer_list<info>>
 consteval auto reflect_invoke(info target, R1 &&targs, R2 &&args) -> info {
   if constexpr (ranges::contiguous_range<R1>) {
     if constexpr (ranges::contiguous_range<R2>) {
@@ -1174,8 +1174,8 @@ consteval auto data_member_spec(info member_type,
 }
 
 // Completes the definition of the record type reflected by 'class_type' with
-// the members described by the reflections in the provided span.
-template <reflection_range R = span<info const>>
+// the members described by the reflections in the provided range.
+template <reflection_range R = initializer_list<info>>
 consteval auto define_class(info class_type, R &&members) -> info {
   if constexpr (ranges::contiguous_range<R>) {
     return __metafunction(detail::__metafn_define_class, class_type,
@@ -1358,7 +1358,7 @@ consteval auto type_is_scoped_enum(info r) -> bool {
   return extract<bool>(substitute(^is_scoped_enum_v, {r}));
 }
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 consteval auto type_is_constructible(info type, R &&type_args) {
   std::vector<info> args(from_range, type_args);
   args.insert(args.begin(), type);
@@ -1402,7 +1402,7 @@ consteval auto type_is_destructible(info r) -> bool {
   return extract<bool>(substitute(^is_destructible_v, {r}));
 }
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 consteval auto type_is_trivially_constructible(info type, R &&type_args) {
   std::vector<info> args(from_range, type_args);
   args.insert(args.begin(), type);
@@ -1438,7 +1438,7 @@ consteval auto type_is_trivially_destructible(info r) -> bool {
   return extract<bool>(substitute(^is_trivially_destructible_v, {r}));
 }
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 consteval auto type_is_nothrow_constructible(info type, R &&type_args) {
   std::vector<info> args(from_range, type_args);
   args.insert(args.begin(), type);
@@ -1546,7 +1546,7 @@ consteval auto type_is_nothrow_convertible(info r, info s) -> bool {
                                   {r, s}));
 }*/
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 consteval auto type_is_invocable(info type, R &&args) {
   std::vector<info> targs(from_range, args);
   targs.insert(targs.begin(), type);
@@ -1554,7 +1554,7 @@ consteval auto type_is_invocable(info type, R &&args) {
   return extract<bool>(substitute(^is_invocable_v, targs));
 }
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 consteval auto type_is_invocable_r(info type_result, info type, R &&args) {
   std::vector<info> targs(from_range, args);
   targs.insert(targs.begin(), type);
@@ -1563,7 +1563,7 @@ consteval auto type_is_invocable_r(info type_result, info type, R &&args) {
   return extract<bool>(substitute(^is_invocable_r_v, targs));
 }
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 consteval auto type_is_nothrow_invocable(info type, R &&args) {
   std::vector<info> targs(from_range, args);
   targs.insert(targs.begin(), type);
@@ -1571,7 +1571,7 @@ consteval auto type_is_nothrow_invocable(info type, R &&args) {
   return extract<bool>(substitute(^is_nothrow_invocable_v, targs));
 }
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 consteval auto type_is_nothrow_invocable_r(info type_result, info type,
                                            R &&args) {
   std::vector<info> targs(from_range, args);
@@ -1649,12 +1649,12 @@ consteval auto type_decay(info type) -> info {
   return dealias(substitute(^decay_t, {type}));
 }
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 consteval auto type_common_type(R &&type_args) -> info {
   return dealias(substitute(^common_type_t, type_args));
 }
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 consteval auto type_common_reference(R &&type_args) -> info {
   return dealias(substitute(^common_reference_t, type_args));
 }
@@ -1663,7 +1663,7 @@ consteval auto type_underlying_type(info type) -> info {
   return dealias(substitute(^underlying_type_t, {type}));
 }
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 consteval auto type_invoke_result(info type, R &&type_args) -> info {
   std::vector<info> targs(from_range, type_args);
   targs.insert(targs.begin(), type);
@@ -1805,7 +1805,7 @@ consteval auto reflect_result(Ty r) -> info {
                         static_cast<typename [:DTy:]>(r));
 }
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 [[deprecated("removed 'test_type' and 'test_types' in P2996R4")]]
 consteval auto test_types(info templ, R &&args) -> bool {
   return extract<bool>(substitute(templ, args));
@@ -1823,7 +1823,7 @@ consteval auto test_trait(info templ, info type) -> bool {
   return extract<bool>(substitute(templ, args));
 }
 
-template <reflection_range R = span<info const>>
+template <reflection_range R = initializer_list<info>>
 [[deprecated("removed 'test_trait' in P2996R5")]]
 consteval auto test_trait(info templ, R &&args) -> bool {
   return extract<bool>(substitute(templ, args));
