@@ -1210,6 +1210,8 @@ bool get_ith_base_of(APValue &Result, Sema &S, EvalFn Evaluator,
 
     if (auto cxxRecordDecl = dyn_cast_or_null<CXXRecordDecl>(typeDecl)) {
       ensureInstantiated(S, typeDecl, Range);
+      if (R.getReflectedType()->isIncompleteType())
+        return true;
 
       auto numBases = cxxRecordDecl->getNumBases();
       if (idx >= numBases)
@@ -1315,6 +1317,9 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
       return true;
 
     if (!ensureInstantiated(S, typeDecl, Range))
+      return true;
+
+    if (QT->isIncompleteType())
       return true;
 
     if (auto *CXXRD = dyn_cast<CXXRecordDecl>(typeDecl))

@@ -37,66 +37,68 @@ private:
     struct PrivateCls {};
     template <typename T> void PrivateTFn();
 
-    // Public members.
-    static_assert(is_public(^pub));
-    static_assert(is_public(^PublicCls));
-    static_assert(is_public(^PublicTFn));
-    static_assert(is_public(bases_of(^Access)[0]));
-    
-    // Not public members.
-    static_assert(!is_public(^prot));
-    static_assert(!is_public(^priv));
-    static_assert(!is_public(^ProtectedCls));
-    static_assert(!is_public(^PrivateCls));
-    static_assert(!is_public(^ProtectedTFn));
-    static_assert(!is_public(^PrivateTFn));
-    static_assert(!is_public(bases_of(^Access)[1]));
-    static_assert(!is_public(bases_of(^Access)[2]));
+    void complete_class_context() {
+        // Public members.
+        static_assert(is_public(^pub));
+        static_assert(is_public(^PublicCls));
+        static_assert(is_public(^PublicTFn));
+        static_assert(is_public(bases_of(^Access)[0]));
+        
+        // Not public members.
+        static_assert(!is_public(^prot));
+        static_assert(!is_public(^priv));
+        static_assert(!is_public(^ProtectedCls));
+        static_assert(!is_public(^PrivateCls));
+        static_assert(!is_public(^ProtectedTFn));
+        static_assert(!is_public(^PrivateTFn));
+        static_assert(!is_public(bases_of(^Access)[1]));
+        static_assert(!is_public(bases_of(^Access)[2]));
 
-    // Protected members.
-    static_assert(is_protected(^prot));
-    static_assert(is_protected(^ProtectedCls));
-    static_assert(is_protected(^ProtectedTFn));
-    static_assert(is_protected(bases_of(^Access)[1]));
+        // Protected members.
+        static_assert(is_protected(^prot));
+        static_assert(is_protected(^ProtectedCls));
+        static_assert(is_protected(^ProtectedTFn));
+        static_assert(is_protected(bases_of(^Access)[1]));
 
-    // Not protected members.
-    static_assert(!is_protected(^pub));
-    static_assert(!is_protected(^priv));
-    static_assert(!is_protected(^PublicCls));
-    static_assert(!is_protected(^PrivateCls));
-    static_assert(!is_protected(^PublicTFn));
-    static_assert(!is_protected(^PrivateTFn));
-    static_assert(!is_protected(bases_of(^Access)[0]));
-    static_assert(!is_protected(bases_of(^Access)[2]));
+        // Not protected members.
+        static_assert(!is_protected(^pub));
+        static_assert(!is_protected(^priv));
+        static_assert(!is_protected(^PublicCls));
+        static_assert(!is_protected(^PrivateCls));
+        static_assert(!is_protected(^PublicTFn));
+        static_assert(!is_protected(^PrivateTFn));
+        static_assert(!is_protected(bases_of(^Access)[0]));
+        static_assert(!is_protected(bases_of(^Access)[2]));
 
-    // Private members.
-    static_assert(is_private(^priv));
-    static_assert(is_private(^PrivateCls));
-    static_assert(is_private(^PrivateTFn));
-    static_assert(is_private(bases_of(^Access)[2]));
+        // Private members.
+        static_assert(is_private(^priv));
+        static_assert(is_private(^PrivateCls));
+        static_assert(is_private(^PrivateTFn));
+        static_assert(is_private(bases_of(^Access)[2]));
 
-    // Not private members.
-    static_assert(!is_private(^pub));
-    static_assert(!is_private(^prot));
-    static_assert(!is_private(^PublicCls));
-    static_assert(!is_private(^ProtectedCls));
-    static_assert(!is_private(^PublicTFn));
-    static_assert(!is_private(^ProtectedTFn));
-    static_assert(!is_private(bases_of(^Access)[0]));
-    static_assert(!is_private(bases_of(^Access)[1]));
+        // Not private members.
+        static_assert(!is_private(^pub));
+        static_assert(!is_private(^prot));
+        static_assert(!is_private(^PublicCls));
+        static_assert(!is_private(^ProtectedCls));
+        static_assert(!is_private(^PublicTFn));
+        static_assert(!is_private(^ProtectedTFn));
+        static_assert(!is_private(bases_of(^Access)[0]));
+        static_assert(!is_private(bases_of(^Access)[1]));
 
-    // Everything in this class is accessible.
-    static_assert(is_accessible(^pub));
-    static_assert(is_accessible(^prot));
-    static_assert(is_accessible(^priv));
-    static_assert(is_accessible(^PublicCls));
-    static_assert(is_accessible(^ProtectedCls));
-    static_assert(is_accessible(^PublicTFn));
-    static_assert(is_accessible(^ProtectedTFn));
-    static_assert(is_accessible(^PrivateCls));
-    static_assert(is_accessible(bases_of(^Access)[0]));
-    static_assert(is_accessible(bases_of(^Access)[1]));
-    static_assert(is_accessible(bases_of(^Access)[2]));
+        // Everything in this class is accessible.
+        static_assert(is_accessible(^pub));
+        static_assert(is_accessible(^prot));
+        static_assert(is_accessible(^priv));
+        static_assert(is_accessible(^PublicCls));
+        static_assert(is_accessible(^ProtectedCls));
+        static_assert(is_accessible(^PublicTFn));
+        static_assert(is_accessible(^ProtectedTFn));
+        static_assert(is_accessible(^PrivateCls));
+        static_assert(is_accessible(bases_of(^Access)[0]));
+        static_assert(is_accessible(bases_of(^Access)[1]));
+        static_assert(is_accessible(bases_of(^Access)[2]));
+    }
 
     friend struct FriendClsOfAccess;
     friend void FriendFnOfAccess();
