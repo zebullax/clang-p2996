@@ -2692,7 +2692,11 @@ bool has_internal_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
 
   bool result = false;
-  if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
+  if (R.getReflection().getKind() == ReflectionValue::RK_type) {
+    if (NamedDecl *typeDecl =
+            dyn_cast_or_null<NamedDecl>(findTypeDecl(R.getReflectedType())))
+      result = (typeDecl->getFormalLinkage() == Linkage::Internal);
+  } else if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
     if (const auto *ND = dyn_cast<NamedDecl>(R.getReflectedDecl()))
       result = (ND->getFormalLinkage() == Linkage::Internal);
   } else if (R.getReflection().getKind() == ReflectionValue::RK_expr_result &&
@@ -2722,7 +2726,11 @@ bool has_module_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
 
   bool result = false;
-  if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
+  if (R.getReflection().getKind() == ReflectionValue::RK_type) {
+    if (NamedDecl *typeDecl =
+            dyn_cast_or_null<NamedDecl>(findTypeDecl(R.getReflectedType())))
+      result = (typeDecl->getFormalLinkage() == Linkage::Module);
+  } else  if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
     if (const auto *ND = dyn_cast<NamedDecl>(R.getReflectedDecl()))
       result = (ND->getFormalLinkage() == Linkage::Module);
   } else if (R.getReflection().getKind() == ReflectionValue::RK_expr_result &&
@@ -2752,7 +2760,12 @@ bool has_external_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
 
   bool result = false;
-  if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
+  if (R.getReflection().getKind() == ReflectionValue::RK_type) {
+    if (NamedDecl *typeDecl =
+            dyn_cast_or_null<NamedDecl>(findTypeDecl(R.getReflectedType())))
+      result = (typeDecl->getFormalLinkage() == Linkage::External ||
+                typeDecl->getFormalLinkage() == Linkage::UniqueExternal);
+  } else if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
     if (const auto *ND = dyn_cast<NamedDecl>(R.getReflectedDecl()))
       result = (ND->getFormalLinkage() == Linkage::External ||
                 ND->getFormalLinkage() == Linkage::UniqueExternal);
@@ -2783,7 +2796,11 @@ bool has_linkage(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
 
   bool result = false;
-  if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
+  if (R.getReflection().getKind() == ReflectionValue::RK_type) {
+    if (NamedDecl *typeDecl =
+            dyn_cast_or_null<NamedDecl>(findTypeDecl(R.getReflectedType())))
+      result = typeDecl->hasLinkage();
+  } else if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
     if (const auto *ND = dyn_cast<NamedDecl>(R.getReflectedDecl()))
       result = ND->hasLinkage();
   } else if (R.getReflection().getKind() == ReflectionValue::RK_expr_result &&
