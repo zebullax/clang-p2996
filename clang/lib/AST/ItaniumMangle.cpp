@@ -1952,15 +1952,6 @@ void CXXNameMangler::mangleLocalName(GlobalDecl GD,
 
     assert(!AdditionalAbiTags && "Block cannot have additional abi tags");
     mangleUnqualifiedBlock(BD);
-  } else if (const ParmVarDecl *Parm = dyn_cast<ParmVarDecl>(D)) {
-    if (const FunctionDecl *Func
-            = dyn_cast<FunctionDecl>(Parm->getDeclContext())) {
-      Out << 'd';
-      unsigned Num = Func->getNumParams() - Parm->getFunctionScopeIndex();
-      if (Num > 1)
-        mangleNumber(Num - 2);
-      Out << '_';
-    }
   } else {
     mangleUnqualifiedName(GD, DC, AdditionalAbiTags);
   }
@@ -4717,6 +4708,15 @@ void CXXNameMangler::mangleReflection(const ReflectionValue &R) {
     } else if (auto *DD = dyn_cast<CXXDestructorDecl>(D)) {
       GlobalDecl GD(DD, Dtor_Complete);
       mangle(GD);
+    } else if (auto *PVD = dyn_cast<ParmVarDecl>(D)) {
+      if (const FunctionDecl *Func
+            = dyn_cast<FunctionDecl>(PVD->getDeclContext())) {
+        Out << 'p';
+        unsigned Num = Func->getNumParams() - PVD->getFunctionScopeIndex();
+        if (Num > 1)
+          mangleNumber(Num - 2);
+        Out << '_';
+      }
     } else {
       mangle(cast<NamedDecl>(D));
     }
