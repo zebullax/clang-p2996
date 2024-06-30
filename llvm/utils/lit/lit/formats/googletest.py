@@ -33,8 +33,7 @@ class GoogleTest(TestFormat):
             [path, "--gtest_list_tests", "--gtest_filter=-*DISABLED_*"]
         )
         try:
-            env = {k:v for (k,v) in localConfig.environment.items() if k != 'DYLD_LIBRARY_PATH'}
-            out = subprocess.check_output(list_test_cmd, env=env)
+            out = subprocess.check_output(list_test_cmd, env=localConfig.environment)
         except subprocess.CalledProcessError as exc:
             litConfig.warning(
                 "unable to discover google-tests in %r: %s. Process output: %s"
@@ -187,10 +186,9 @@ class GoogleTest(TestFormat):
         shard_header = get_shard_header(shard_env)
 
         try:
-            env = {k:v for (k,v) in test.config.environment.items() if k != 'DYLD_LIBRARY_PATH'}
             out, _, exitCode = lit.util.executeCommand(
                 cmd,
-                env=env,
+                env=test.config.environment,
                 timeout=litConfig.maxIndividualTestTime,
                 redirect_stderr=True,
             )
