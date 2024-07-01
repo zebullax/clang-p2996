@@ -208,7 +208,7 @@ constexpr auto r = reflect_invoke(^fn, {});
 static_assert(is_object(r) && !is_value(r));
 static_assert(type_of(r) == ^const int);
 static_assert(is_variable(r));
-static_assert(name_of(r) == u8"K");
+static_assert(name_of(r) == "K");
 static_assert(r != std::meta::reflect_value(0));
 
 constexpr auto v = value_of(r);

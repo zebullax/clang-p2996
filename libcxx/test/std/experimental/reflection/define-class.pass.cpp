@@ -258,17 +258,17 @@ class Kühl { };
 
 class Cls1;
 static_assert(
-    is_type(define_class(^Cls1, {data_member_spec(^int,
-                                                  {.name=name_of(^Kühl)})})));
-static_assert(name_of(nonstatic_data_members_of(^Cls1)[0]) == u8"Kühl");
+    is_type(define_class(^Cls1,
+                         {data_member_spec(^int, {.name=u8name_of(^Kühl)})})));
+static_assert(u8name_of(nonstatic_data_members_of(^Cls1)[0]) == u8"Kühl");
 
 class Cls2;
 
-constexpr std::string_view sv = name_of<std::string_view>(^Kühl);
+constexpr std::string_view sv = name_of(^Kühl);
 static_assert(sv == "K\\u{00FC}hl");
 static_assert(is_type(define_class(^Cls2,
                                    {data_member_spec(^int, {.name=sv})})));
-static_assert(name_of(nonstatic_data_members_of(^Cls2)[0]) == u8"Kühl");
+static_assert(u8name_of(nonstatic_data_members_of(^Cls2)[0]) == u8"Kühl");
 
 }  // namespace utf8_name_of_roundtrip
 
