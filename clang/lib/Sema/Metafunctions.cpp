@@ -167,6 +167,16 @@ static bool is_bit_field(APValue &Result, Sema &S, EvalFn Evaluator,
                          QualType ResultTy, SourceRange Range,
                          ArrayRef<Expr *> Args);
 
+static bool is_lvalue_reference_qualified(APValue &Result, Sema &S,
+                                          EvalFn Evaluator, QualType ResultTy,
+                                          SourceRange Range,
+                                          ArrayRef<Expr *> Args);
+
+static bool is_rvalue_reference_qualified(APValue &Result, Sema &S,
+                                          EvalFn Evaluator, QualType ResultTy,
+                                          SourceRange Range,
+                                          ArrayRef<Expr *> Args);
+
 static bool has_static_storage_duration(APValue &Result, Sema &S,
                                         EvalFn Evaluator, QualType ResultTy,
                                         SourceRange Range,
@@ -402,6 +412,8 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_explicit },
   { Metafunction::MFRK_bool, 1, 1, is_noexcept },
   { Metafunction::MFRK_bool, 1, 1, is_bit_field },
+  { Metafunction::MFRK_bool, 1, 1, is_lvalue_reference_qualified },
+  { Metafunction::MFRK_bool, 1, 1, is_rvalue_reference_qualified },
   { Metafunction::MFRK_bool, 1, 1, has_static_storage_duration },
   { Metafunction::MFRK_bool, 1, 1, has_internal_linkage },
   { Metafunction::MFRK_bool, 1, 1, has_module_linkage },
@@ -2715,6 +2727,50 @@ bool is_bit_field(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
     if (const auto *FD = dyn_cast<FieldDecl>(R.getReflectedDecl()))
       result = FD->isBitField();
+  }
+  return SetAndSucceed(Result, makeBool(S.Context, result));
+}
+
+bool is_lvalue_reference_qualified(APValue &Result, Sema &S, EvalFn Evaluator,
+                                   QualType ResultTy, SourceRange Range,
+                                   ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool result = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_type) {
+    if (auto FT = dyn_cast<FunctionProtoType>(R.getReflectedType()))
+      result = (FT->getRefQualifier() == RQ_LValue);
+  } else if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
+    if (const auto *FD = dyn_cast<FunctionDecl>(R.getReflectedDecl()))
+      if (auto FT = dyn_cast<FunctionProtoType>(FD->getType()))
+        result = (FT->getRefQualifier() == RQ_LValue);
+  }
+  return SetAndSucceed(Result, makeBool(S.Context, result));
+}
+
+bool is_rvalue_reference_qualified(APValue &Result, Sema &S, EvalFn Evaluator,
+                                   QualType ResultTy, SourceRange Range,
+                                   ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool result = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_type) {
+    if (auto FT = dyn_cast<FunctionProtoType>(R.getReflectedType()))
+      result = (FT->getRefQualifier() == RQ_RValue);
+  } else if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
+    if (const auto *FD = dyn_cast<FunctionDecl>(R.getReflectedDecl()))
+      if (auto FT = dyn_cast<FunctionProtoType>(FD->getType()))
+        result = (FT->getRefQualifier() == RQ_RValue);
   }
   return SetAndSucceed(Result, makeBool(S.Context, result));
 }

@@ -684,7 +684,7 @@ static_assert(!is_noexcept(type_of(^E_Something)));
 } // namespace noexcept_functions
 
                               // ================
-                              // bitfield members
+                              // bitfield_members
                               // ================
 
 namespace bitfield_members {
@@ -703,5 +703,39 @@ static_assert(!is_bit_field(^int));
 static_assert(!is_bit_field(std::meta::reflect_value(4)));
 static_assert(!is_bit_field(^std::meta::extract));
 }  // namespace bitfield_members
+
+// =======================
+// ref_qualified_functions
+// =======================
+
+namespace ref_qualified_functions {
+struct S {
+    void fn1();
+    void fn2() &;
+    void fn3() &&;
+};
+
+static_assert(!is_lvalue_reference_qualified(^S::fn1));
+static_assert(!is_rvalue_reference_qualified(^S::fn1));
+
+static_assert(is_lvalue_reference_qualified(^S::fn2));
+static_assert(!is_rvalue_reference_qualified(^S::fn2));
+
+static_assert(!is_lvalue_reference_qualified(^S::fn3));
+static_assert(is_rvalue_reference_qualified(^S::fn3));
+
+static_assert(!is_lvalue_reference_qualified(^void(int)));
+static_assert(!is_rvalue_reference_qualified(^void(int)));
+
+static_assert(is_lvalue_reference_qualified(^void(int) &));
+static_assert(!is_rvalue_reference_qualified(^void(int) &));
+
+static_assert(!is_lvalue_reference_qualified(^void(int) &&));
+static_assert(is_rvalue_reference_qualified(^void(int) &&));
+
+static_assert(!is_lvalue_reference_qualified(std::meta::info{}));
+static_assert(!is_lvalue_reference_qualified(^int));
+static_assert(!is_lvalue_reference_qualified(^::));
+}  // namespace ref_qualified_functions
 
 int main() { }

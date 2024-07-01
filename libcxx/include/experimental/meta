@@ -122,6 +122,8 @@ consteval auto is_defaulted(info) -> bool;
 consteval auto is_explicit(info) -> bool;
 consteval bool is_noexcept(info) -> bool;
 consteval auto is_bit_field(info) -> bool;
+consteval auto is_lvalue_reference_qualified(info) -> bool;
+consteval auto is_rvalue_reference_qualified(info) -> bool;
 consteval auto has_static_storage_duration(info) -> bool;
 consteval auto has_internal_linkage(info) -> bool;
 consteval auto has_module_linkage(info) -> bool;
@@ -397,6 +399,8 @@ enum : unsigned {
   __metafn_is_explicit,
   __metafn_is_noexcept,
   __metafn_is_bit_field,
+  __metafn_is_lvalue_reference_qualified,
+  __metafn_is_rvalue_reference_qualified,
   __metafn_has_static_storage_duration,
   __metafn_has_internal_linkage,
   __metafn_has_module_linkage,
@@ -918,6 +922,18 @@ consteval auto is_noexcept(info r) -> bool {
 // Returns whether the reflected class data member is a bit field.
 consteval auto is_bit_field(info r) -> bool {
   return __metafunction(detail::__metafn_is_bit_field, r);
+}
+
+// Returns whether the reflected member function or function type is
+// lvalue-reference qualified.
+consteval auto is_lvalue_reference_qualified(info r) -> bool {
+  return __metafunction(detail::__metafn_is_lvalue_reference_qualified, r);
+}
+
+// Returns whether the reflected member function or function type is
+// rvalue-reference qualified.
+consteval auto is_rvalue_reference_qualified(info r) -> bool {
+  return __metafunction(detail::__metafn_is_rvalue_reference_qualified, r);
 }
 
 // Returns whether the reflected entity is a variable having static storage
