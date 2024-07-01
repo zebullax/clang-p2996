@@ -704,15 +704,15 @@ static_assert(!is_bit_field(std::meta::reflect_value(4)));
 static_assert(!is_bit_field(^std::meta::extract));
 }  // namespace bitfield_members
 
-// =======================
-// ref_qualified_functions
-// =======================
+                           // =======================
+                           // ref_qualified_functions
+                           // =======================
 
 namespace ref_qualified_functions {
 struct S {
-    void fn1();
-    void fn2() &;
-    void fn3() &&;
+  void fn1();
+  void fn2() &;
+  void fn3() &&;
 };
 
 static_assert(!is_lvalue_reference_qualified(^S::fn1));
@@ -737,5 +737,58 @@ static_assert(!is_lvalue_reference_qualified(std::meta::info{}));
 static_assert(!is_lvalue_reference_qualified(^int));
 static_assert(!is_lvalue_reference_qualified(^::));
 }  // namespace ref_qualified_functions
+
+                            // ====================
+                            // special_constructors
+                            // ====================
+
+namespace special_constructors {
+
+struct S {
+  S() {}
+  S(int = 0) {}
+
+  S(S&) {}
+  S(const S&) {}
+  S(volatile S&) {}
+  S(const volatile S&) {}
+  S(const S&, int = 0) {}
+
+  S(S&&) {}
+  S(const S&&) {}
+  S(volatile S&&) {}
+  S(const volatile S&&) {}
+  S(const S&&, int = 0) {}
+
+  void fn1() {}
+};
+
+static_assert(
+    (members_of(^S) | std::views::filter(std::meta::is_user_provided) |
+                      std::views::transform(std::meta::is_default_constructor) |
+                      std::ranges::to<std::vector>()) ==
+    std::vector {true, true,
+                 false, false, false, false, false,
+                 false, false, false, false, false,
+                 false});
+
+static_assert(
+    (members_of(^S) | std::views::filter(std::meta::is_user_provided) |
+                      std::views::transform(std::meta::is_copy_constructor) |
+                      std::ranges::to<std::vector>()) ==
+    std::vector {false, false,
+                 true, true, true, true, true,
+                 false, false, false, false, false,
+                 false});
+
+static_assert(
+    (members_of(^S) | std::views::filter(std::meta::is_user_provided) |
+                      std::views::transform(std::meta::is_move_constructor) |
+                      std::ranges::to<std::vector>()) ==
+    std::vector {false, false,
+                 false, false, false, false, false,
+                 true, true, true, true, true,
+                 false});
+}  // namespace special_constructors
 
 int main() { }
