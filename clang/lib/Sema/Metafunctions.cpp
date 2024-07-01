@@ -1943,6 +1943,8 @@ bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
       Template.getReflection().getKind() != ReflectionValue::RK_template)
     return true;
   TemplateDecl *TDecl = Template.getReflectedTemplate().getAsTemplateDecl();
+  if (TDecl->isInvalidDecl())
+    return true;
 
   SmallVector<TemplateArgument, 4> TArgs;
   {
@@ -2009,6 +2011,8 @@ bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
       Template.getReflection().getKind() != ReflectionValue::RK_template)
     return true;
   TemplateDecl *TDecl = Template.getReflectedTemplate().getAsTemplateDecl();
+  if (TDecl->isInvalidDecl())
+    return true;
 
   SmallVector<TemplateArgument, 4> TArgs;
   {
