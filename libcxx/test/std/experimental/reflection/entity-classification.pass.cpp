@@ -548,9 +548,19 @@ struct S2 { S2() = default; };
 struct S3 { S3(); };
 S3::S3() {}
 
-static_assert(!is_user_provided(members_of(^S1, std::meta::is_constructor)[0]));
-static_assert(!is_user_provided(members_of(^S2, std::meta::is_constructor)[0]));
-static_assert(is_user_provided(members_of(^S3, std::meta::is_constructor)[0]));
+static_assert(
+    (members_of(^S1) | std::views::filter(std::meta::is_constructor) |
+                       std::views::filter(std::meta::is_user_provided) |
+                       std::ranges::to<std::vector>()).size() == 0);
+static_assert(
+    (members_of(^S2) | std::views::filter(std::meta::is_constructor) |
+                       std::views::filter(std::meta::is_user_provided) |
+                       std::ranges::to<std::vector>()).size() == 0);
+static_assert(
+    (members_of(^S3) | std::views::filter(std::meta::is_constructor) |
+                       std::views::filter(std::meta::is_user_provided) |
+                       std::ranges::to<std::vector>()).size() == 1);
+
 
 }  // namespace test_is_user_provided
 

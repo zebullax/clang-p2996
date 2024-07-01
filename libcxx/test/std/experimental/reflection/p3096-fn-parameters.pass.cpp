@@ -83,7 +83,8 @@ struct Cls {
   static Cls &sfn(int a, ...);
 };
 
-constexpr auto ctor = members_of(^Cls, std::meta::is_constructor)[0];
+constexpr auto ctor =
+    (members_of(^Cls) | std::views::filter(std::meta::is_constructor)).front();
 static_assert(parameters_of(ctor).size() == 1);
 static_assert(type_of(parameters_of(ctor)[0]) == ^int);
 static_assert(name_of(parameters_of(ctor)[0]) == u8"a");
@@ -92,7 +93,8 @@ static_assert(!has_default_argument(parameters_of(ctor)[0]));
 static_assert(!is_explicit_object_parameter(parameters_of(ctor)[0]));
 static_assert(!has_ellipsis_parameter(ctor));
 
-constexpr auto dtor = members_of(^Cls, std::meta::is_destructor)[0];
+constexpr auto dtor =
+    (members_of(^Cls) | std::views::filter(std::meta::is_destructor)).front();
 static_assert(parameters_of(dtor).size() == 0);
 static_assert(!has_ellipsis_parameter(dtor));
 

@@ -1321,6 +1321,9 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
 
     if (QT->isIncompleteType())
       return true;
+      // NOTE(P2996): Uncomment to allow 'members_of' within member specification.
+      /*if (auto *TD = dyn_cast<TagDecl>(typeDecl); !TD || !TD->isBeingDefined())
+        return true;*/
 
     if (auto *CXXRD = dyn_cast<CXXRecordDecl>(typeDecl))
       S.ForceDeclarationOfImplicitMembers(CXXRD);

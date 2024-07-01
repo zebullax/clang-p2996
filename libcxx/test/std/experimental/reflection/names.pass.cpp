@@ -101,7 +101,7 @@ struct Cls : Base {
   static void sfn();
   struct Inner { int inner_mem; };
 
-  Cls();
+  Cls() {}
   template <typename T> Cls();
   ~Cls();
 
@@ -123,15 +123,32 @@ static_assert(name_of(^Cls::mem) == u8"mem");
 static_assert(name_of(^Cls::memfn) == u8"memfn");
 static_assert(name_of(^Cls::sfn) == u8"sfn");
 static_assert(name_of(^Cls::Inner) == u8"Inner");
-static_assert(name_of(members_of(^Cls, std::meta::is_constructor)[0]) ==
-              u8"Cls");
-static_assert(name_of(members_of(^Cls, std::meta::is_constructor)[1]) ==
-              u8"Cls");
-static_assert(name_of(members_of(^Cls, std::meta::is_destructor)[0]) ==
-              u8"~Cls");
+static_assert(
+    (members_of(^Cls) |
+         std::views::filter(std::meta::is_constructor) |
+         std::views::filter(std::meta::is_user_provided) |
+         std::views::transform(std::meta::name_of<std::u8string_view>) |
+         std::ranges::to<std::vector>()) ==
+    std::vector<std::u8string_view>{u8"Cls"});
+static_assert(
+    (members_of(^Cls) |
+         std::views::filter(std::meta::is_constructor) |
+         std::views::filter(std::meta::is_template) |
+         std::views::transform(std::meta::name_of<std::u8string_view>) |
+         std::ranges::to<std::vector>()) ==
+    std::vector<std::u8string_view>{u8"Cls"});
+static_assert(
+    (members_of(^Cls) |
+         std::views::filter(std::meta::is_destructor) |
+         std::views::transform(std::meta::name_of<std::u8string_view>) |
+         std::ranges::to<std::vector>()) ==
+    std::vector<std::u8string_view>{u8"~Cls"});
 static_assert(name_of(^Cls::operator bool) == u8"operator bool");
-static_assert(name_of(members_of(^Cls, std::meta::is_template)[5]) ==
-              u8"operator int");
+static_assert(
+    (members_of(^Cls) |
+         std::views::filter(std::meta::is_template) |
+         std::views::transform(std::meta::name_of<std::u8string_view>) |
+         std::ranges::to<std::vector>())[5] == u8"operator int");
 static_assert(name_of(^Cls::TInner) == u8"TInner");
 static_assert(name_of(^Cls::TMemFn) == u8"TMemFn");
 static_assert(name_of(^Cls::TAlias) == u8"TAlias");
@@ -147,15 +164,32 @@ static_assert(display_name_of(^Cls::mem) == u8"mem");
 static_assert(display_name_of(^Cls::memfn) == u8"memfn");
 static_assert(display_name_of(^Cls::sfn) == u8"sfn");
 static_assert(display_name_of(^Cls::Inner) == u8"Inner");
-static_assert(display_name_of(members_of(^Cls,
-                              std::meta::is_constructor)[0]) == u8"Cls");
-static_assert(display_name_of(members_of(^Cls,
-                              std::meta::is_constructor)[1]) == u8"Cls");
-static_assert(display_name_of(members_of(^Cls,
-                              std::meta::is_destructor)[0]) == u8"~Cls");
+static_assert(
+    (members_of(^Cls) |
+         std::views::filter(std::meta::is_constructor) |
+         std::views::filter(std::meta::is_user_provided) |
+         std::views::transform(std::meta::display_name_of<std::u8string_view>) |
+         std::ranges::to<std::vector>()) ==
+    std::vector<std::u8string_view>{u8"Cls"});
+static_assert(
+    (members_of(^Cls) |
+         std::views::filter(std::meta::is_constructor) |
+         std::views::filter(std::meta::is_template) |
+         std::views::transform(std::meta::display_name_of<std::u8string_view>) |
+         std::ranges::to<std::vector>()) ==
+    std::vector<std::u8string_view>{u8"Cls"});
+static_assert(
+    (members_of(^Cls) |
+         std::views::filter(std::meta::is_destructor) |
+         std::views::transform(std::meta::display_name_of<std::u8string_view>) |
+         std::ranges::to<std::vector>()) ==
+    std::vector<std::u8string_view>{u8"~Cls"});
 static_assert(display_name_of(^Cls::operator bool) == u8"operator bool");
-static_assert(display_name_of(members_of(^Cls, std::meta::is_template)[5]) ==
-              u8"operator int");
+static_assert(
+    (members_of(^Cls) |
+         std::views::filter(std::meta::is_template) |
+         std::views::transform(std::meta::display_name_of<std::u8string_view>) |
+         std::ranges::to<std::vector>())[5] == u8"operator int");
 static_assert(display_name_of(^Cls::TInner) == u8"TInner");
 static_assert(display_name_of(^Cls::TMemFn) == u8"TMemFn");
 static_assert(display_name_of(^Cls::TAlias) == u8"TAlias");

@@ -241,9 +241,14 @@ struct S {
   template <typename T> void TMemFn();
   struct Inner {};
 };
-static_assert(members_of(^S, std::meta::is_constructor).size() == 4);
-static_assert(members_of(^S, std::meta::is_destructor).size() == 1);
-static_assert(members_of(^S, std::meta::is_special_member).size() == 6);
+static_assert((members_of(^S) | std::views::filter(std::meta::is_constructor) |
+                                std::ranges::to<std::vector>()).size() == 4);
+static_assert((members_of(^S) | std::views::filter(std::meta::is_destructor) |
+                                std::ranges::to<std::vector>()).size() == 1);
+static_assert(
+    (members_of(^S) | std::views::filter(std::meta::is_special_member) |
+                      std::ranges::to<std::vector>()).size() == 6);
+
 static_assert(!is_special_member(^S::mem));
 static_assert(!is_special_member(^S::memfn));
 static_assert(!is_special_member(^S::TMemFn));
@@ -343,16 +348,35 @@ struct S {
 static_assert(!is_explicit(^S::mem));
 static_assert(!is_explicit(^S::memfn));
 static_assert(!is_explicit(^S::TMemFn));
-static_assert(!is_explicit(members_of(^S, std::meta::is_constructor)[0]));
-static_assert(!is_explicit(members_of(^S, std::meta::is_constructor)[1]));
-static_assert(is_explicit(members_of(^S, std::meta::is_constructor)[2]));
+static_assert(
+    !is_explicit((members_of(^S) |
+                      std::views::filter(std::meta::is_constructor) |
+                      std::ranges::to<std::vector>())[0]));
+static_assert(
+    !is_explicit((members_of(^S) |
+                      std::views::filter(std::meta::is_constructor) |
+                      std::ranges::to<std::vector>())[1]));
+static_assert(
+    is_explicit((members_of(^S) |
+                     std::views::filter(std::meta::is_constructor) |
+                     std::ranges::to<std::vector>())[2]));
+
 static_assert(!is_explicit(^S::operator int));
-static_assert(!is_explicit(members_of(^S, std::meta::is_template)[3]));
+static_assert(
+    !is_explicit((members_of(^S) |
+                      std::views::filter(std::meta::is_template) |
+                      std::ranges::to<std::vector>())[3]));
 static_assert(is_explicit(^S::operator bool));
 
 // P2996R3 removes support for checking 'explicit' on templates.
-static_assert(!is_explicit(members_of(^S, std::meta::is_constructor)[3]));
-static_assert(!is_explicit(members_of(^S, std::meta::is_template)[4]));
+static_assert(
+    !is_explicit((members_of(^S) |
+                      std::views::filter(std::meta::is_constructor) |
+                      std::ranges::to<std::vector>())[3]));
+static_assert(
+    !is_explicit((members_of(^S) |
+                      std::views::filter(std::meta::is_template) |
+                      std::ranges::to<std::vector>())[4]));
 
 int x;
 void fn();

@@ -302,8 +302,10 @@ template <auto R> void fn() { }
 
 void fn() {
     class S { S(); ~S(); };
-    fn<members_of(^S, std::meta::is_constructor)[0]>();
-    fn<members_of(^S, std::meta::is_destructor)[0]>();
+    fn<(members_of(^S) |
+            std::views::filter(std::meta::is_constructor)).front()>();
+    fn<(members_of(^S) |
+            std::views::filter(std::meta::is_destructor)).front()>();
 }
 }  // namespace bb_clang_p2996_issue_54_regression_test
 

@@ -25,6 +25,8 @@ struct PrivateBase { int mem; };
 struct Access
     : public PublicBase, protected ProtectedBase, private PrivateBase {
 public:
+    static consteval std::meta::access_token token() { return {}; }
+
     int pub;
     struct PublicCls {};
     template <typename T> void PublicTFn();
@@ -101,7 +103,7 @@ private:
     }
 
     friend struct FriendClsOfAccess;
-    friend void FriendFnOfAccess();
+    friend consteval std::meta::access_token FriendFnOfAccess();
 };
 
 struct Derived : Access {
@@ -118,23 +120,29 @@ static_assert(is_accessible(^Access::PublicTFn));
 static_assert(is_accessible(^Access::PublicBase::mem));
 
 static_assert(  // Access::prot
-        !is_accessible(members_of(^Access, std::meta::is_nonstatic_data_member,
-                                           std::meta::is_protected)[0]));
-static_assert(  // Access:priv
-        !is_accessible(members_of(^Access, std::meta::is_nonstatic_data_member,
-                                           std::meta::is_private)[0]));
+    !is_accessible((members_of(^Access) |
+                      std::views::filter(std::meta::is_nonstatic_data_member) |
+                      std::views::filter(std::meta::is_protected)).front()));
+static_assert(  // Access::priv
+    !is_accessible((members_of(^Access) |
+                      std::views::filter(std::meta::is_nonstatic_data_member) |
+                      std::views::filter(std::meta::is_private)).front()));
 static_assert(  // Access::ProtectedCls
-        !is_accessible(members_of(^Access, std::meta::is_type,
-                                           std::meta::is_protected)[0]));
+    !is_accessible((members_of(^Access) |
+                      std::views::filter(std::meta::is_type) |
+                      std::views::filter(std::meta::is_protected)).front()));
 static_assert(  // Access::PrivateCls
-        !is_accessible(members_of(^Access, std::meta::is_type,
-                                           std::meta::is_private)[0]));
+    !is_accessible((members_of(^Access) |
+                      std::views::filter(std::meta::is_type) |
+                      std::views::filter(std::meta::is_private)).front()));
 static_assert(  // Access::ProtectedTFn
-        !is_accessible(members_of(^Access, std::meta::is_template,
-                                           std::meta::is_protected)[0]));
-static_assert(  // Access::PrivateTFn
-        !is_accessible(members_of(^Access, std::meta::is_template,
-                                           std::meta::is_private)[0]));
+    !is_accessible((members_of(^Access) |
+                      std::views::filter(std::meta::is_template) |
+                      std::views::filter(std::meta::is_protected)).front()));
+static_assert(  // Access::ProtectedTFn
+    !is_accessible((members_of(^Access) |
+                      std::views::filter(std::meta::is_template) |
+                      std::views::filter(std::meta::is_private)).front()));
 static_assert(is_accessible(bases_of(^Access)[0]));   // PublicBase
 static_assert(!is_accessible(bases_of(^Access)[1]));  // ProtectedBase
 static_assert(!is_accessible(bases_of(^Access)[2]));  // PrivateBase
@@ -156,7 +164,7 @@ struct FriendClsOfAccess {
   static_assert(is_accessible(bases_of(^Access)[2]));  // PrivateBase
 };
 
-void FriendFnOfAccess() {
+consteval std::meta::access_token FriendFnOfAccess() {
   static_assert(is_accessible(^Access::pub));
   static_assert(is_accessible(^Access::prot));
   static_assert(is_accessible(^Access::priv));
@@ -171,31 +179,37 @@ void FriendFnOfAccess() {
   static_assert(is_accessible(bases_of(^Access)[0]));  // PublicBase
   static_assert(is_accessible(bases_of(^Access)[1]));  // ProtectedBase
   static_assert(is_accessible(bases_of(^Access)[2]));  // PrivateBase
+
+  return std::meta::access_token{};
 }
 
                             // =====================
-                            // alt_accessibility_api
+                            // new_accessibility_api
                             // =====================
 
-static_assert(std::meta::access_context() == ^::);
+static_assert(std::meta::access_token().context == ^::);
 namespace alt_accessibility_api {
-static_assert(std::meta::access_context() == ^::alt_accessibility_api);
+static_assert(std::meta::access_token().context == ^::alt_accessibility_api);
 
 void fn() {
-  static_assert(std::meta::access_context() == ^fn);
+  static_assert(std::meta::access_token().context == ^fn);
   [] {
-    constexpr auto l = std::meta::access_context();
+    constexpr auto l = std::meta::access_token().context;
     static_assert(is_function(l));
     static_assert(l != ^fn);
   }();
 }
 
-static_assert(!is_accessible(members_of(^Access, std::meta::is_private)[0]));
-static_assert(is_accessible(members_of(^Access, std::meta::is_private)[0],
-                            ^FriendFnOfAccess));
-static_assert(is_accessible(members_of(^Access, std::meta::is_private)[0],
-                            ^Access));
-
+static_assert(!is_accessible((members_of(^Access) |
+                  std::views::filter(std::meta::is_private)).front()));
+static_assert(
+    is_accessible((members_of(^Access) |
+                      std::views::filter(std::meta::is_private)).front(),
+                  FriendFnOfAccess()));
+static_assert(
+    is_accessible((members_of(^Access) |
+                      std::views::filter(std::meta::is_private)).front(),
+                  Access::token()));
 }  // namespace alt_accessibility_api
 
                               // ================

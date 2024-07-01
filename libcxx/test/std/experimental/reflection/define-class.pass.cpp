@@ -85,8 +85,10 @@ static_assert(is_type(define_class(^C, {
               })));
 static_assert(!is_incomplete_type(^C));
 static_assert(nonstatic_data_members_of(^C).size() == 2);
-static_assert(members_of(^C, std::meta::is_nonstatic_data_member,
-                         std::meta::is_private).size() == 2);
+static_assert(
+        (members_of(^C) |
+            std::views::filter(std::meta::is_nonstatic_data_member) |
+            std::ranges::to<std::vector>()).size() == 2);
 
 C c;
 }  // namespace class_completion
@@ -105,8 +107,10 @@ static_assert(is_type(define_class(^U, {
 static_assert(!is_incomplete_type(^U));
 static_assert(size_of(^U) == size_of(^U::count));
 static_assert(nonstatic_data_members_of(^U).size() == 2);
-static_assert(members_of(^U, std::meta::is_nonstatic_data_member,
-                         std::meta::is_public).size() == 2);
+static_assert(
+        (members_of(^U) |
+            std::views::filter(std::meta::is_nonstatic_data_member) |
+            std::ranges::to<std::vector>()).size() == 2);
 
 U u = {13};
 }  // namespace union_completion

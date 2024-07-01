@@ -173,8 +173,12 @@ struct Cls {
 };
 
 constexpr auto ctor = [] (size_t idx) {
-  return members_of(^Cls, std::meta::is_constructor,
-                    [](auto R) { return !is_defaulted(R); })[idx];
+  return (members_of(^Cls) |
+      std::views::filter(std::meta::is_constructor) |
+      std::views::filter([](auto R) {
+        return !is_defaulted(R);
+      }) |
+      std::ranges::to<std::vector>())[idx];
 };
 
 // Non-template constructor.
