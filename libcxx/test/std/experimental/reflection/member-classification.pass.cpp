@@ -390,6 +390,299 @@ static_assert(!is_explicit(^::));
 static_assert(!is_explicit(^inner));
 }  // namespace explicit_functions
 
+                             // ==================
+                             // noexcept_functions
+                             // ==================
+
+namespace noexcept_functions {
+struct S {
+  // methods
+  void noexcept_method() noexcept;
+  void noexcept_true_method() noexcept(true);
+  void noexcept_false_method() noexcept(false);
+  void not_noexcept_method();
+  
+  // virtual methods
+  // w/o defining it complains about vtable
+  virtual void noexcept_virtual_method() noexcept {}
+  virtual void noexcept_true_virtual_method() noexcept(true) {}
+  virtual void noexcept_false_virtual_method() noexcept(false) {}
+  virtual void not_noexcept_virtual_method() {}
+
+  // template methods
+  template <typename T>
+  void noexcept_template_method() noexcept;
+  template <typename T>
+  void noexcept_true_template_method() noexcept(true);
+  template <typename T>
+  void noexcept_false_template_method() noexcept(false);
+  template <typename T>
+  void not_noexcept_template_method();
+};
+
+// non generic lambdas
+constexpr auto noexcept_lambda = []() noexcept {};
+constexpr auto not_noexcept_lambda = []{};
+
+// generic lambdas
+constexpr auto noexcept_generic_lambda = []<typename T>() noexcept {};
+constexpr auto not_noexcept_generic_lambda = []<typename T>() {};
+
+// functions
+void noexcept_function() noexcept;
+void noexcept_true_function() noexcept(true);
+void noexcept_false_function() noexcept(false);
+void not_noexcept_function();
+
+// template functions
+template <typename T>
+void noexcept_template_function() noexcept;
+template <typename T>
+void noexcept_true_template_function() noexcept(true);
+template <typename T>
+void noexcept_false_template_function() noexcept(false);
+template <typename T>
+void not_noexcept_template_function();
+
+// Everything mentioned in the proposal
+// (no-)noexcept member functions
+static_assert(is_noexcept(^S::noexcept_method));
+static_assert(is_noexcept(^S::noexcept_true_method));
+static_assert(!is_noexcept(^S::noexcept_false_method));
+static_assert(!is_noexcept(^S::not_noexcept_method));
+
+// (no-)noexcept member function types
+static_assert(is_noexcept(type_of(^S::noexcept_method)));
+static_assert(is_noexcept(type_of(^S::noexcept_true_method)));
+static_assert(!is_noexcept(type_of(^S::noexcept_false_method)));
+static_assert(!is_noexcept(type_of(^S::not_noexcept_method)));
+
+// (no-)noexcept virtual method
+static_assert(is_noexcept(^S::noexcept_virtual_method));
+static_assert(is_noexcept(^S::noexcept_true_virtual_method));
+static_assert(!is_noexcept(^S::noexcept_false_virtual_method));
+static_assert(!is_noexcept(^S::not_noexcept_virtual_method));
+
+// (no-)noexcept virtual method types
+static_assert(is_noexcept(type_of(^S::noexcept_virtual_method)));
+static_assert(is_noexcept(type_of(^S::noexcept_true_virtual_method)));
+static_assert(!is_noexcept(type_of(^S::noexcept_false_virtual_method)));
+static_assert(!is_noexcept(type_of(^S::not_noexcept_virtual_method)));
+
+// (no-)noexcept instantiated template methods
+static_assert(is_noexcept(^S::noexcept_template_method<int>));
+static_assert(is_noexcept(^S::noexcept_true_template_method<int>));
+static_assert(!is_noexcept(^S::noexcept_false_template_method<int>));
+static_assert(!is_noexcept(^S::not_noexcept_template_method<int>));
+
+// (no-)noexcept instantiated template method types
+static_assert(is_noexcept(type_of(^S::noexcept_template_method<int>)));
+static_assert(is_noexcept(type_of(^S::noexcept_true_template_method<int>)));
+static_assert(!is_noexcept(type_of(^S::noexcept_false_template_method<int>)));
+static_assert(!is_noexcept(type_of(^S::not_noexcept_template_method<int>)));
+
+// (no-)noexcept function
+static_assert(is_noexcept(^noexcept_function));
+static_assert(is_noexcept(^noexcept_true_function));
+static_assert(!is_noexcept(^noexcept_false_function));
+static_assert(!is_noexcept(^not_noexcept_function));
+
+// (no-)noexcept function type
+static_assert(is_noexcept(type_of(^noexcept_function)));
+static_assert(is_noexcept(type_of(^noexcept_true_function)));
+static_assert(!is_noexcept(type_of(^noexcept_false_function)));
+static_assert(!is_noexcept(type_of(^not_noexcept_function)));
+
+// (no-)noexcept instantiated template functions
+static_assert(is_noexcept(^noexcept_template_function<int>));
+static_assert(is_noexcept(^noexcept_true_template_function<int>));
+static_assert(!is_noexcept(^noexcept_false_template_function<int>));
+static_assert(!is_noexcept(^not_noexcept_template_function<int>));
+
+// (no-)noexcept instantiated template function types
+static_assert(is_noexcept(type_of(^noexcept_template_function<int>)));
+static_assert(is_noexcept(type_of(^noexcept_true_template_function<int>)));
+static_assert(!is_noexcept(type_of(^noexcept_false_template_function<int>)));
+static_assert(!is_noexcept(type_of(^not_noexcept_template_function<int>)));
+
+// The rest (should all be false regardless of noexcept specifier)
+// (no-)noexcept member function pointers
+static_assert(!is_noexcept(std::meta::reflect_value(&S::noexcept_method)));
+static_assert(!is_noexcept(std::meta::reflect_value(&S::noexcept_true_method)));
+static_assert(
+  !is_noexcept(std::meta::reflect_value(&S::noexcept_false_method)));
+static_assert(!is_noexcept(std::meta::reflect_value(&S::not_noexcept_method)));
+
+// (no-)noexcept member function pointer types
+static_assert(
+  !is_noexcept(type_of(std::meta::reflect_value(&S::noexcept_method))));
+static_assert(
+  !is_noexcept(type_of(std::meta::reflect_value(&S::noexcept_true_method))));
+static_assert(
+  !is_noexcept(type_of(std::meta::reflect_value(&S::noexcept_false_method))));
+static_assert(
+  !is_noexcept(type_of(std::meta::reflect_value(&S::not_noexcept_method))));
+
+// (no-)noexcept virtual method pointers
+static_assert(
+  !is_noexcept(std::meta::reflect_value(&S::noexcept_virtual_method)));
+static_assert(
+  !is_noexcept(std::meta::reflect_value(&S::noexcept_true_virtual_method)));
+static_assert(
+  !is_noexcept(std::meta::reflect_value(&S::noexcept_false_virtual_method)));
+static_assert(
+  !is_noexcept(std::meta::reflect_value(&S::not_noexcept_virtual_method)));
+
+// (no-)noexcept virtual method pointer types
+static_assert(!is_noexcept(
+  type_of(std::meta::reflect_value(&S::noexcept_virtual_method))));
+static_assert(!is_noexcept(
+  type_of(std::meta::reflect_value(&S::noexcept_true_virtual_method))));
+static_assert(!is_noexcept(
+  type_of(std::meta::reflect_value(&S::noexcept_false_virtual_method))));
+static_assert(!is_noexcept(
+  type_of(std::meta::reflect_value(&S::not_noexcept_virtual_method))));
+
+// (no-)noexcept instantiated template method pointers
+static_assert(!is_noexcept(
+  std::meta::reflect_value(&S::noexcept_template_method<int>)));
+static_assert(!is_noexcept(
+  std::meta::reflect_value(&S::noexcept_true_template_method<int>)));
+static_assert(!is_noexcept(
+  std::meta::reflect_value(&S::noexcept_false_template_method<int>)));
+static_assert(!is_noexcept(
+  std::meta::reflect_value(&S::not_noexcept_template_method<int>)));
+
+// (no-)noexcept instantiated template method pointer types
+static_assert(!is_noexcept(
+  type_of(std::meta::reflect_value(&S::noexcept_template_method<int>))));
+static_assert(!is_noexcept(
+  type_of(std::meta::reflect_value(&S::noexcept_true_template_method<int>))));
+static_assert(!is_noexcept(
+  type_of(std::meta::reflect_value(&S::noexcept_false_template_method<int>))));
+static_assert(!is_noexcept(
+  type_of(std::meta::reflect_value(&S::not_noexcept_template_method<int>))));
+
+// (no-)noexcept lambdas
+static_assert(!is_noexcept(^noexcept_lambda));
+static_assert(!is_noexcept(^not_noexcept_lambda));
+
+// (no-)noexcept closure types
+static_assert(!is_noexcept(type_of(^noexcept_lambda)));
+static_assert(!is_noexcept(type_of(^not_noexcept_lambda)));
+
+// (no-)noexcept function pointer
+static_assert(!is_noexcept(std::meta::reflect_value(&noexcept_function)));
+static_assert(!is_noexcept(std::meta::reflect_value(&noexcept_true_function)));
+static_assert(!is_noexcept(std::meta::reflect_value(&noexcept_false_function)));
+static_assert(!is_noexcept(std::meta::reflect_value(&not_noexcept_function)));
+
+// (no-)noexcept function pointer type
+static_assert(
+  !is_noexcept(type_of(std::meta::reflect_value(&noexcept_function))));
+static_assert(
+  !is_noexcept(type_of(std::meta::reflect_value(&noexcept_true_function))));
+static_assert(
+  !is_noexcept(type_of(std::meta::reflect_value(&noexcept_false_function))));
+static_assert(
+  !is_noexcept(type_of(std::meta::reflect_value(&not_noexcept_function))));
+
+// (no-)noexcept instantiated template function pointers
+static_assert(
+  !is_noexcept(std::meta::reflect_value(&noexcept_template_function<int>)));
+static_assert(!is_noexcept(
+  std::meta::reflect_value(&noexcept_true_template_function<int>)));
+static_assert(!is_noexcept(
+  std::meta::reflect_value(&noexcept_false_template_function<int>)));
+static_assert(
+  !is_noexcept(std::meta::reflect_value(&not_noexcept_template_function<int>)));
+
+// (no-)noexcept instantiated template function pointer types
+static_assert(!is_noexcept(
+  type_of(std::meta::reflect_value(&noexcept_template_function<int>))));
+static_assert(!is_noexcept(
+  type_of(std::meta::reflect_value(&noexcept_true_template_function<int>))));
+static_assert(!is_noexcept(
+  type_of(std::meta::reflect_value(&noexcept_false_template_function<int>))));
+static_assert(!is_noexcept(
+  type_of(std::meta::reflect_value(&not_noexcept_template_function<int>))));
+
+// (no-)noexcept non-instantiated template methods
+static_assert(!is_noexcept(^S::noexcept_template_method));
+static_assert(!is_noexcept(^S::not_noexcept_template_method));
+
+// (no-)noexcept generic closure types
+static_assert(!is_noexcept(^noexcept_generic_lambda));
+static_assert(!is_noexcept(^not_noexcept_generic_lambda));
+static_assert(!is_noexcept(type_of(^noexcept_generic_lambda)));
+static_assert(!is_noexcept(type_of(^not_noexcept_generic_lambda)));
+
+// (no-)noexcept non-instantiated template functions
+static_assert(!is_noexcept(^noexcept_template_function));
+static_assert(!is_noexcept(^not_noexcept_template_function));
+
+// Expressions that can't be noexcept
+// Namespaces
+static_assert(!is_noexcept(^::));
+static_assert(!is_noexcept(^noexcept_functions));
+
+// Non callable id-expressions & their types
+struct T {
+  static const int static_mem = 1;
+  int non_static_mem = 2;
+};
+
+template <typename>
+struct TT {};
+
+enum class EC {
+  Something
+};
+
+enum E {
+  E_Something
+};
+
+static auto static_x = 1;
+auto non_static_x = static_x;
+auto t = T();
+auto template_t = TT<int>();
+int c_array[] = {1, 2};
+auto [structured_binding1, structured_binding2] = c_array;
+
+// a variable
+static_assert(!is_noexcept(^static_x));
+static_assert(!is_noexcept(type_of(^static_x)));
+static_assert(!is_noexcept(^non_static_x));
+static_assert(!is_noexcept(type_of(^non_static_x)));
+
+// a static data member
+static_assert(!is_noexcept(^T::static_mem));
+static_assert(!is_noexcept(type_of(^T::static_mem)));
+
+// a structured binding
+static_assert(!is_noexcept(^structured_binding1));
+static_assert(!is_noexcept(type_of(^structured_binding1)));
+
+// a non static data member
+static_assert(!is_noexcept(^T::non_static_mem));
+static_assert(!is_noexcept(type_of(^T::non_static_mem)));
+
+// a template
+static_assert(!is_noexcept(^TT));
+static_assert(!is_noexcept(^template_t));
+static_assert(!is_noexcept(type_of(^template_t)));
+
+// an enum
+static_assert(!is_noexcept(^EC));
+static_assert(!is_noexcept(^EC::Something));
+static_assert(!is_noexcept(type_of(^EC::Something)));
+
+static_assert(!is_noexcept(^E));
+static_assert(!is_noexcept(^E_Something));
+static_assert(!is_noexcept(type_of(^E_Something)));
+} // namespace noexcept_functions
+
                               // ================
                               // bitfield members
                               // ================

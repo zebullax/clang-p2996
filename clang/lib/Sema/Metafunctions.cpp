@@ -159,6 +159,10 @@ static bool is_explicit(APValue &Result, Sema &S, EvalFn Evaluator,
                         QualType ResultTy, SourceRange Range,
                         ArrayRef<Expr *> Args);
 
+static bool is_noexcept(APValue &Result, Sema &S, EvalFn Evaluator,
+                        QualType ResultTy, SourceRange Range,
+                        ArrayRef<Expr *> Args);
+
 static bool is_bit_field(APValue &Result, Sema &S, EvalFn Evaluator,
                          QualType ResultTy, SourceRange Range,
                          ArrayRef<Expr *> Args);
@@ -396,6 +400,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_deleted },
   { Metafunction::MFRK_bool, 1, 1, is_defaulted },
   { Metafunction::MFRK_bool, 1, 1, is_explicit },
+  { Metafunction::MFRK_bool, 1, 1, is_noexcept },
   { Metafunction::MFRK_bool, 1, 1, is_bit_field },
   { Metafunction::MFRK_bool, 1, 1, has_static_storage_duration },
   { Metafunction::MFRK_bool, 1, 1, has_internal_linkage },
@@ -1101,6 +1106,25 @@ bool isAccessible(Sema &S, DeclContext *AccessDC, NamedDecl *D) {
     }
   }
   return Result;
+}
+
+static bool isFunctionOrMethodNoexcept(const QualType QT) {
+  const Type* T = QT.getTypePtr();
+
+  if (T->isFunctionProtoType()) {
+    // This covers (virtual) methods & functions
+    const auto *FPT = T->getAs<FunctionProtoType>();
+
+    switch (FPT->getExceptionSpecType()) {
+    case EST_BasicNoexcept:
+    case EST_NoexceptTrue:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  return false;
 }
 
 // -----------------------------------------------------------------------------
@@ -2639,6 +2663,39 @@ bool is_explicit(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
       result = CtorD->getExplicitSpecifier().isExplicit();
     else if (auto *ConvD = dyn_cast<CXXConversionDecl>(D))
       result = ConvD->getExplicitSpecifier().isExplicit();
+    return SetAndSucceed(Result, makeBool(S.Context, result));
+  }
+  }
+  llvm_unreachable("invalid reflection type");
+}
+
+bool is_noexcept(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
+                 SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  switch (R.getReflection().getKind()) {
+  case ReflectionValue::RK_null:
+  case ReflectionValue::RK_expr_result:
+  case ReflectionValue::RK_template:
+  case ReflectionValue::RK_namespace:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+    return SetAndSucceed(Result, makeBool(S.Context, false));
+  case ReflectionValue::RK_type: {
+    const QualType QT = R.getReflectedType();
+    const auto result = isFunctionOrMethodNoexcept(QT);
+
+    return SetAndSucceed(Result, makeBool(S.Context, result));
+  }
+  case ReflectionValue::RK_declaration: {
+    const ValueDecl *D = R.getReflectedDecl();
+    const auto result = isFunctionOrMethodNoexcept(D->getType());
+    
     return SetAndSucceed(Result, makeBool(S.Context, result));
   }
   }
