@@ -277,6 +277,31 @@ static_assert(rvfirst == std::meta::reflect_value(std::make_pair(1, true)));
 static_assert([:rvfirst:].first == 1);
 }  // namespace values_from_objects
 
+                   // =======================================
+                   // bb_clang_p2996_issue_67_regression_test
+                   // =======================================
+
+namespace bb_clang_p2996_issue_67_regression_test {
+template<class T> struct TCls {};
+
+template <std::size_t Count, std::meta::info... Rs>
+struct Cls
+{
+    static void fn()
+    {
+        [] <auto... Idxs> (std::index_sequence<Idxs...>) consteval {
+            (void) (Rs...[Idxs], ...);
+        }(std::make_index_sequence<Count>());
+    }
+};
+
+void odr_use()
+{
+    Cls<1, std::meta::reflect_value(0)>::fn();
+}
+}  // namespace bb_clang_p2996_issue_67_regression_test
+
+
 int main() {
   // RUN: grep "call-lambda-value: 1" %t.stdout
   extract<void(*)(int)>(

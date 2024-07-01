@@ -8844,25 +8844,13 @@ static Expr *BuildExpressionFromIntegralTemplateArgumentValue(
 static ExprResult
 BuildExpressionFromReflection(Sema &S, const ReflectionValue &R,
                               SourceLocation Loc) {
-  switch (R.getKind()) {
-  case ReflectionValue::RK_null:
-    return CXXReflectExpr::Create(S.Context, Loc, Loc);
-  case ReflectionValue::RK_type:
-    return CXXReflectExpr::Create(S.Context, Loc, Loc, R.getAsType());
-  case ReflectionValue::RK_expr_result:
-    return CXXReflectExpr::Create(S.Context, Loc, R.getAsExprResult());
-  case ReflectionValue::RK_declaration:
-    return CXXReflectExpr::Create(S.Context, Loc, Loc, R.getAsDecl());
-  case ReflectionValue::RK_template:
-    return CXXReflectExpr::Create(S.Context, Loc, Loc, R.getAsTemplate());
-  case ReflectionValue::RK_namespace:
-    return CXXReflectExpr::Create(S.Context, Loc, Loc, R.getAsNamespace());
-  case ReflectionValue::RK_base_specifier:
-    return CXXReflectExpr::Create(S.Context, Loc, Loc, R.getAsBaseSpecifier());
-  case ReflectionValue::RK_data_member_spec:
-    return CXXReflectExpr::Create(S.Context, Loc, Loc, R.getAsDataMemberSpec());
-  }
-  llvm_unreachable("unknown reflection kind");
+  ConstantExpr *CE =
+      ConstantExpr::CreateEmpty(S.Context, ConstantResultStorageKind::APValue);
+  CE->setType(S.Context.MetaInfoTy);
+  CE->setValueKind(VK_PRValue);
+  CE->SetResult(APValue(R.getKind(), R.getOpaqueValue()), S.Context);
+
+  return CE;
 }
 
 /// Construct a new expression that refers to the given reflection template
