@@ -152,6 +152,9 @@ consteval auto is_constructor(info) -> bool;
 consteval auto is_default_constructor(info) -> bool;
 consteval auto is_copy_constructor(info) -> bool;
 consteval auto is_move_constructor(info) -> bool;
+consteval auto is_assignment(info) -> bool;
+consteval auto is_copy_assignment(info) -> bool;
+consteval auto is_move_assignment(info) -> bool;
 consteval auto is_destructor(info) -> bool;
 consteval auto is_special_member(info) -> bool;
 consteval auto is_user_provided(info) -> bool;
@@ -434,6 +437,9 @@ enum : unsigned {
   __metafn_is_default_constructor,
   __metafn_is_copy_constructor,
   __metafn_is_move_constructor,
+  __metafn_is_assignment,
+  __metafn_is_copy_assignment,
+  __metafn_is_move_assignment,
   __metafn_is_destructor,
   __metafn_is_special_member,
   __metafn_is_user_provided,
@@ -1061,6 +1067,21 @@ consteval auto is_copy_constructor(info r) -> bool {
 // Returns whether the reflected entity is a move constructor.
 consteval auto is_move_constructor(info r) -> bool {
   return __metafunction(detail::__metafn_is_move_constructor, r);
+}
+
+// Returns whether the reflected entity is an assignment operator.
+consteval auto is_assignment(info r) -> bool {
+  return __metafunction(detail::__metafn_is_assignment, r);
+}
+
+// Returns whether the reflected entity is a copy assignment operator.
+consteval auto is_copy_assignment(info r) -> bool {
+  return __metafunction(detail::__metafn_is_copy_assignment, r);
+}
+
+// Returns whether the reflected entity is a move assignment operator.
+consteval auto is_move_assignment(info r) -> bool {
+  return __metafunction(detail::__metafn_is_move_assignment, r);
 }
 
 // Returns whether the reflected entity is a destructor.

@@ -791,4 +791,54 @@ static_assert(
                  false});
 }  // namespace special_constructors
 
+                            // ====================
+                            // assignment_operators
+                            // ====================
+
+namespace assignment_operators {
+
+struct S {
+  void operator=(S&) {}
+  S& operator=(const S&) { return *this; }
+  S& operator=(volatile S&) { return *this; }
+  S& operator=(const volatile S&) { return *this; }
+
+  void operator=(S&&) {}
+  S& operator=(const S&&);
+  S& operator=(volatile S&&) { return *this; }
+  S& operator=(const volatile S&&) { return *this; }
+
+  S& operator=(int) { return *this; }
+
+  void fn1() {}
+};
+
+static_assert(
+    (members_of(^S) | std::views::filter(std::meta::is_user_provided) |
+                      std::views::transform(std::meta::is_assignment) |
+                      std::ranges::to<std::vector>()) ==
+    std::vector {true, true, true, true,
+                 true, true, true, true,
+                 true,
+                 false});
+
+static_assert(
+    (members_of(^S) | std::views::filter(std::meta::is_user_provided) |
+                      std::views::transform(std::meta::is_copy_assignment) |
+                      std::ranges::to<std::vector>()) ==
+    std::vector {true, true, true, true,
+                 false, false, false, false,
+                 false,
+                 false});
+
+static_assert(
+    (members_of(^S) | std::views::filter(std::meta::is_user_provided) |
+                      std::views::transform(std::meta::is_move_assignment) |
+                      std::ranges::to<std::vector>()) ==
+    std::vector {false, false, false, false,
+                 true, true, true, true,
+                 false,
+                 false});
+}  // namespace assignment_operators
+
 int main() { }

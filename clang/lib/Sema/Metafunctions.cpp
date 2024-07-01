@@ -299,6 +299,18 @@ static bool is_move_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
                                 QualType ResultTy, SourceRange Range,
                                 ArrayRef<Expr *> Args);
 
+static bool is_assignment(APValue &Result, Sema &S, EvalFn Evaluator,
+                          QualType ResultTy, SourceRange Range,
+                          ArrayRef<Expr *> Args);
+
+static bool is_copy_assignment(APValue &Result, Sema &S, EvalFn Evaluator,
+                               QualType ResultTy, SourceRange Range,
+                               ArrayRef<Expr *> Args);
+
+static bool is_move_assignment(APValue &Result, Sema &S, EvalFn Evaluator,
+                               QualType ResultTy, SourceRange Range,
+                               ArrayRef<Expr *> Args);
+
 static bool is_destructor(APValue &Result, Sema &S, EvalFn Evaluator,
                           QualType ResultTy, SourceRange Range,
                           ArrayRef<Expr *> Args);
@@ -456,6 +468,9 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_default_constructor },
   { Metafunction::MFRK_bool, 1, 1, is_copy_constructor },
   { Metafunction::MFRK_bool, 1, 1, is_move_constructor },
+  { Metafunction::MFRK_bool, 1, 1, is_assignment },
+  { Metafunction::MFRK_bool, 1, 1, is_copy_assignment },
+  { Metafunction::MFRK_bool, 1, 1, is_move_assignment },
   { Metafunction::MFRK_bool, 1, 1, is_destructor },
   { Metafunction::MFRK_bool, 1, 1, is_special_member },
   { Metafunction::MFRK_bool, 1, 1, is_user_provided },
@@ -3451,6 +3466,60 @@ bool is_move_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
   if (R.getReflection().getKind() == ReflectionValue::RK_declaration)
     if (auto *CtorD = dyn_cast<CXXConstructorDecl>(R.getReflectedDecl()))
       result = CtorD->isMoveConstructor();
+
+  return SetAndSucceed(Result, makeBool(S.Context, result));
+}
+
+bool is_assignment(APValue &Result, Sema &S, EvalFn Evaluator,
+                   QualType ResultTy, SourceRange Range,
+                   ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool result = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_declaration)
+    if (auto *FD = dyn_cast<FunctionDecl>(R.getReflectedDecl()))
+      result = (FD->getOverloadedOperator() == OO_Equal);
+
+  return SetAndSucceed(Result, makeBool(S.Context, result));
+}
+
+bool is_copy_assignment(APValue &Result, Sema &S, EvalFn Evaluator,
+                        QualType ResultTy, SourceRange Range,
+                        ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool result = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_declaration)
+    if (auto *MD = dyn_cast<CXXMethodDecl>(R.getReflectedDecl()))
+      result = MD->isCopyAssignmentOperator();
+
+  return SetAndSucceed(Result, makeBool(S.Context, result));
+}
+
+bool is_move_assignment(APValue &Result, Sema &S, EvalFn Evaluator,
+                        QualType ResultTy, SourceRange Range,
+                        ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool result = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_declaration)
+    if (auto *MD = dyn_cast<CXXMethodDecl>(R.getReflectedDecl()))
+      result = MD->isMoveAssignmentOperator();
 
   return SetAndSucceed(Result, makeBool(S.Context, result));
 }
