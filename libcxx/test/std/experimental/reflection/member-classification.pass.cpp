@@ -841,4 +841,24 @@ static_assert(
                  false});
 }  // namespace assignment_operators
 
+                             // ===================
+                             // member_initializers
+                             // ===================
+
+namespace member_initializers {
+
+struct S {
+  int a;
+  int b = 3;
+};
+
+static_assert(
+    (nonstatic_data_members_of(^S) |
+        std::views::transform(std::meta::has_default_member_initializer) |
+        std::ranges::to<std::vector>()) == std::vector {false, true});
+
+static_assert(!has_default_member_initializer(^int));
+static_assert(!has_default_member_initializer(^::));
+}  // namespace member_initializers
+
 int main() { }

@@ -283,6 +283,11 @@ static bool has_template_arguments(APValue &Result, Sema &S, EvalFn Evaluator,
                                    QualType ResultTy, SourceRange Range,
                                    ArrayRef<Expr *> Args);
 
+static bool has_default_member_initializer(APValue &Result, Sema &S,
+                                           EvalFn Evaluator,
+                                           QualType ResultTy, SourceRange Range,
+                                           ArrayRef<Expr *> Args);
+
 static bool is_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
                            QualType ResultTy, SourceRange Range,
                            ArrayRef<Expr *> Args);
@@ -464,6 +469,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_value },
   { Metafunction::MFRK_bool, 1, 1, is_object },
   { Metafunction::MFRK_bool, 1, 1, has_template_arguments },
+  { Metafunction::MFRK_bool, 1, 1, has_default_member_initializer },
   { Metafunction::MFRK_bool, 1, 1, is_constructor },
   { Metafunction::MFRK_bool, 1, 1, is_default_constructor },
   { Metafunction::MFRK_bool, 1, 1, is_copy_constructor },
@@ -3385,6 +3391,24 @@ bool has_template_arguments(APValue &Result, Sema &S, EvalFn Evaluator,
     return SetAndSucceed(Result, makeBool(S.Context, false));
   }
   llvm_unreachable("unknown reflection kind");
+}
+
+bool has_default_member_initializer(APValue &Result, Sema &S, EvalFn Evaluator,
+                                    QualType ResultTy, SourceRange Range,
+                                    ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool HasInitializer = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_declaration)
+    if (auto *FD = dyn_cast<FieldDecl>(R.getReflectedDecl()))
+      HasInitializer = FD->hasInClassInitializer();
+
+  return SetAndSucceed(Result, makeBool(S.Context, HasInitializer));
 }
 
 bool is_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
