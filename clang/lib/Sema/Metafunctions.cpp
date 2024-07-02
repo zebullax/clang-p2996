@@ -167,6 +167,14 @@ static bool is_bit_field(APValue &Result, Sema &S, EvalFn Evaluator,
                          QualType ResultTy, SourceRange Range,
                          ArrayRef<Expr *> Args);
 
+static bool is_const(APValue &Result, Sema &S, EvalFn Evaluator,
+                     QualType ResultTy, SourceRange Range,
+                     ArrayRef<Expr *> Args);
+
+static bool is_volatile(APValue &Result, Sema &S, EvalFn Evaluator,
+                        QualType ResultTy, SourceRange Range,
+                        ArrayRef<Expr *> Args);
+
 static bool is_lvalue_reference_qualified(APValue &Result, Sema &S,
                                           EvalFn Evaluator, QualType ResultTy,
                                           SourceRange Range,
@@ -441,6 +449,8 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_explicit },
   { Metafunction::MFRK_bool, 1, 1, is_noexcept },
   { Metafunction::MFRK_bool, 1, 1, is_bit_field },
+  { Metafunction::MFRK_bool, 1, 1, is_const },
+  { Metafunction::MFRK_bool, 1, 1, is_volatile },
   { Metafunction::MFRK_bool, 1, 1, is_lvalue_reference_qualified },
   { Metafunction::MFRK_bool, 1, 1, is_rvalue_reference_qualified },
   { Metafunction::MFRK_bool, 1, 1, has_static_storage_duration },
@@ -597,9 +607,9 @@ static void encodeName(std::string &Result, StringRef In, bool BasicOnly) {
     Result = In;
   } else {
     Result.reserve(In.size() * 8);  // more than enough for '\u{XYZ}'
-    
+
     llvm::raw_string_ostream OS(Result);
-    
+
     const char *InCursor = In.begin();
     while (InCursor < In.end()) {
       if (isBasicCharacter(*InCursor)) {
@@ -1173,6 +1183,22 @@ static bool isFunctionOrMethodNoexcept(const QualType QT) {
   }
 
   return false;
+}
+
+static bool isConstQualifiedType(QualType QT) {
+  bool result = QT.isConstQualified();
+  if (auto *FPT = dyn_cast<FunctionProtoType>(QT))
+    result |= FPT->isConst();
+
+  return result;
+}
+
+static bool isVolatileQualifiedType(QualType QT) {
+  bool result = QT.isVolatileQualified();
+  if (auto *FPT = dyn_cast<FunctionProtoType>(QT))
+    result |= FPT->isVolatile();
+
+  return result;
 }
 
 // -----------------------------------------------------------------------------
@@ -2747,7 +2773,7 @@ bool is_noexcept(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   case ReflectionValue::RK_declaration: {
     const ValueDecl *D = R.getReflectedDecl();
     const auto result = isFunctionOrMethodNoexcept(D->getType());
-    
+
     return SetAndSucceed(Result, makeBool(S.Context, result));
   }
   }
@@ -2769,6 +2795,77 @@ bool is_bit_field(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
       result = FD->isBitField();
   }
   return SetAndSucceed(Result, makeBool(S.Context, result));
+}
+
+bool is_const(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
+              SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  switch (R.getReflection().getKind()) {
+  case ReflectionValue::RK_null:
+  case ReflectionValue::RK_template:
+  case ReflectionValue::RK_namespace:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+    return SetAndSucceed(Result, makeBool(S.Context, false));
+  case ReflectionValue::RK_type: {
+    bool result = isConstQualifiedType(R.getReflectedType());
+
+    return SetAndSucceed(Result, makeBool(S.Context, result));
+  }
+  case ReflectionValue::RK_declaration: {
+    bool result = isConstQualifiedType(R.getReflectedDecl()->getType());
+
+    return SetAndSucceed(Result, makeBool(S.Context, result));
+  }
+  case ReflectionValue::RK_expr_result: {
+    bool result = isConstQualifiedType(R.getReflectedExprResult()->getType());
+
+    return SetAndSucceed(Result, makeBool(S.Context, result));
+  }
+  }
+  llvm_unreachable("invalid reflection type");
+}
+
+bool is_volatile(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
+                 SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  switch (R.getReflection().getKind()) {
+  case ReflectionValue::RK_null:
+  case ReflectionValue::RK_template:
+  case ReflectionValue::RK_namespace:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+    return SetAndSucceed(Result, makeBool(S.Context, false));
+  case ReflectionValue::RK_type: {
+    bool result = isVolatileQualifiedType(R.getReflectedType());
+
+    return SetAndSucceed(Result, makeBool(S.Context, result));
+  }
+  case ReflectionValue::RK_declaration: {
+    bool result = isVolatileQualifiedType(R.getReflectedDecl()->getType());
+
+    return SetAndSucceed(Result, makeBool(S.Context, result));
+  }
+  case ReflectionValue::RK_expr_result: {
+    bool result =
+        isVolatileQualifiedType(R.getReflectedExprResult()->getType());
+
+    return SetAndSucceed(Result, makeBool(S.Context, result));
+  }
+  }
+  llvm_unreachable("invalid reflection type");
 }
 
 bool is_lvalue_reference_qualified(APValue &Result, Sema &S, EvalFn Evaluator,

@@ -861,4 +861,61 @@ static_assert(!has_default_member_initializer(^int));
 static_assert(!has_default_member_initializer(^::));
 }  // namespace member_initializers
 
+                             // ==================
+                             // const_and_volatile
+                             // ==================
+
+namespace const_and_volatile {
+
+struct S {
+    void fn1();
+    void fn2() const;
+    void fn3() volatile;
+};
+
+int v1;
+
+const int v2 = 0;
+const int arr1[] = {1, 2};
+
+volatile int v3;
+volatile int arr2[] = {1, 2};
+
+static_assert(!is_const(^S::fn1));
+static_assert(is_const(^S::fn2));
+static_assert(!is_const(^S::fn3));
+
+static_assert(!is_const(^v1));
+static_assert(is_const(^v2));
+static_assert(is_const(^arr1));
+static_assert(is_const(std::meta::reflect_object(arr1[1])));
+static_assert(!is_const(^v3));
+static_assert(!is_const(^arr2));
+static_assert(!is_const(std::meta::reflect_object(arr2[1])));
+
+static_assert(!is_volatile(^S::fn1));
+static_assert(!is_volatile(^S::fn2));
+static_assert(is_volatile(^S::fn3));
+
+static_assert(!is_volatile(^v1));
+static_assert(!is_volatile(^v2));
+static_assert(!is_volatile(^arr1));
+static_assert(!is_volatile(std::meta::reflect_object(arr1[1])));
+static_assert(is_volatile(^v3));
+static_assert(is_volatile(^arr2));
+static_assert(is_volatile(std::meta::reflect_object(arr2[1])));
+
+static_assert(!is_const(^int));
+static_assert(is_const(^const int));
+static_assert(is_const(^const volatile int));
+static_assert(!is_const(^volatile int));
+static_assert(is_const(^void() const));
+
+static_assert(!is_volatile(^int));
+static_assert(!is_volatile(^const int));
+static_assert(is_volatile(^const volatile int));
+static_assert(is_volatile(^volatile int));
+static_assert(is_volatile(^void() volatile));
+}  // namespace const_and_volatile
+
 int main() { }
