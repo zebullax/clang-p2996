@@ -70,17 +70,17 @@ static_assert(type_of(std::meta::reflect_value(&Cls::fn)) == ^void (Cls::*)());
 
 namespace reflect_object_results {
 int NonConstVar;
-static_assert(std::meta::reflect_object(NonConstVar) == ^NonConstVar);
+static_assert(std::meta::reflect_object(NonConstVar) != ^NonConstVar);
 static_assert(type_of(std::meta::reflect_object(NonConstVar)) == ^int);
 
-static_assert(std::meta::reflect_object(ConstVar) == ^ConstVar);
+static_assert(std::meta::reflect_object(ConstVar) != ^ConstVar);
 static_assert(type_of(std::meta::reflect_object(ConstVar)) == ^const int);
 
-static_assert(std::meta::reflect_object(ConstexprVar) == ^ConstexprVar);
+static_assert(std::meta::reflect_object(ConstexprVar) != ^ConstexprVar);
 static_assert(type_of(std::meta::reflect_object(ConstexprVar)) == ^const int);
 
 static constexpr std::pair<int, short> p = {1, 2};
-static_assert(std::meta::reflect_object(p) == ^p);
+static_assert(std::meta::reflect_object(p) != ^p);
 static_assert(std::meta::reflect_object(p.first) != ^p);
 static_assert(type_of(std::meta::reflect_object(p)) ==
               ^const std::pair<int, short>);
@@ -94,8 +94,8 @@ static_assert([:std::meta::reflect_object(p.second):] == 2);
 static_assert(type_of(std::meta::reflect_object(p.second)) == ^const short);
 
 const int &Ref = NonConstVar;
-static_assert(std::meta::reflect_object(Ref) == ^NonConstVar);
-static_assert(type_of(std::meta::reflect_object(Ref)) == ^int);
+static_assert(std::meta::reflect_object(Ref) != ^NonConstVar);
+static_assert(type_of(std::meta::reflect_object(Ref)) != ^int);
 }  // namespace reflect_object_results
 
                           // ========================

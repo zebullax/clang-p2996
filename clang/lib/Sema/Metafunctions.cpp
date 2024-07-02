@@ -3765,7 +3765,7 @@ bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
 
   // If this is an lvalue to a complete object, promote the result to reflect
   // the declaration.
-  if (!E->getType()->isPointerType() && Arg.isLValue() &&
+  if (E->getType()->isFunctionType() && Arg.isLValue() &&
       Arg.getLValueOffset().isZero())
     if (!Arg.hasLValuePath() || Arg.getLValuePath().size() == 0)
       if (APValue::LValueBase LVBase = Arg.getLValueBase();
@@ -3949,7 +3949,7 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
 
   // If this is an lvalue to a complete object, promote the result to reflect
   // the declaration.
-  if (!ResultExpr->getType()->isPointerType() &&
+  if (ResultExpr->getType()->isFunctionType() &&
       FnResult.getKind() == APValue::LValue &&
       FnResult.getLValueOffset().isZero())
     if (!FnResult.hasLValuePath() || FnResult.getLValuePath().size() == 0)
