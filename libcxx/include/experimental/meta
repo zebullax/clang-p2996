@@ -60,29 +60,25 @@ consteval auto subobjects_of(info class_type) -> vector<info>;
 consteval auto enumerators_of(info enum_type) -> vector<info>;
 
 // member access queries
-struct access_token {
-  const std::meta::info context;
-
-public:
-  consteval access_token();
-  consteval access_token(const access_token &);
-  consteval access_token(access_token &&);
+struct access_context {
+  consteval access_context();
 };
 
-consteval auto is_accessible(info r, access_token from = {}) -> bool;
+consteval auto is_accessible(info r, access_context from = {}) -> bool;
 
 consteval auto accessible_members_of(info target,
-                                     access_token from = {}) -> vector<info>;
+                                     access_context from = {}) -> vector<info>;
 consteval auto accessible_nonstatic_data_members_of(
-                                        info target,
-                                        access_token from = {}) -> vector<info>;
+                                      info target,
+                                      access_context from = {}) -> vector<info>;
 consteval auto accessible_static_data_members_of(
-                                        info target,
-                                        access_token from = {}) -> vector<info>;
+                                      info target,
+                                      access_context from = {}) -> vector<info>;
 consteval auto accessible_bases_of(info target,
-                                   access_token from = {}) -> vector<info>;
-consteval auto accessible_subobjects_of(info target,
-                                        access_token from = {}) -> vector<info>;
+                                   access_context from = {}) -> vector<info>;
+consteval auto accessible_subobjects_of(
+                                      info target,
+                                      access_context from = {}) -> vector<info>;
 
 // substitute
 template <reflection_range R = initializer_list<info>>
@@ -1750,23 +1746,23 @@ consteval auto type_unwrap_ref_decay(info type) -> info {
 
 // Proposed alternative P2996 accessibility API
 
-struct access_token {
-  const std::meta::info context;
+struct access_context {
+  const std::meta::info repr;
 
 public:
-  consteval access_token()
-      : context(__metafunction(detail::__metafn_access_context)) {}
+  consteval access_context()
+      : repr(__metafunction(detail::__metafn_access_context)) {}
 
-  consteval access_token(const access_token &) = default;
-  consteval access_token(access_token &&) = default;
+  consteval access_context(const access_context &) = default;
+  consteval access_context(access_context &&) = default;
 };
 
 consteval auto is_accessible(info target,
-                             access_token from = {}) -> bool {
-  return __metafunction(detail::__metafn_is_accessible, target, from.context);
+                             access_context from = {}) -> bool {
+  return __metafunction(detail::__metafn_is_accessible, target, from.repr);
 }
 
-consteval auto accessible_members_of(info target, access_token from = {})
+consteval auto accessible_members_of(info target, access_context from = {})
     -> vector<info> {
   if (is_namespace(target))
     throw "Cannot query the accessible members of a namespace";
@@ -1776,7 +1772,7 @@ consteval auto accessible_members_of(info target, access_token from = {})
          ranges::to<vector>();
 }
 
-consteval auto accessible_bases_of(info target, access_token from = {})
+consteval auto accessible_bases_of(info target, access_context from = {})
     -> vector<info> {
   if (is_namespace(target))
     throw "Namespaces cannot have base classes";
@@ -1787,8 +1783,8 @@ consteval auto accessible_bases_of(info target, access_token from = {})
 }
 
 consteval auto accessible_nonstatic_data_members_of(
-                                       info target,
-                                       access_token from = {}) -> vector<info> {
+                                     info target,
+                                     access_context from = {}) -> vector<info> {
   if (is_namespace(target))
     throw "Namespaces cannot have nonstatic members";
 
@@ -1798,8 +1794,8 @@ consteval auto accessible_nonstatic_data_members_of(
 }
 
 consteval auto accessible_static_members_of(
-                                       info target,
-                                       access_token from = {}) -> vector<info> {
+                                     info target,
+                                     access_context from = {}) -> vector<info> {
   if (is_namespace(target))
     throw "Namespaces cannot have static members";
 
@@ -1809,8 +1805,8 @@ consteval auto accessible_static_members_of(
 }
 
 consteval auto accessible_subobjects_of(
-                                       info target,
-                                       access_token from = {}) -> vector<info> {
+                                     info target,
+                                     access_context from = {}) -> vector<info> {
   if (is_namespace(target))
     throw "Namespaces cannot have subobjects";
 

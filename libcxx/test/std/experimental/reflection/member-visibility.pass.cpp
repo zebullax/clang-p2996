@@ -25,7 +25,7 @@ struct PrivateBase { int mem; };
 struct Access
     : public PublicBase, protected ProtectedBase, private PrivateBase {
 public:
-    static consteval std::meta::access_token token() { return {}; }
+    static consteval std::meta::access_context token() { return {}; }
 
     int pub;
     struct PublicCls {};
@@ -103,7 +103,7 @@ private:
     }
 
     friend struct FriendClsOfAccess;
-    friend consteval std::meta::access_token FriendFnOfAccess();
+    friend consteval std::meta::access_context FriendFnOfAccess();
 };
 
 struct Derived : Access {
@@ -164,7 +164,7 @@ struct FriendClsOfAccess {
   static_assert(is_accessible(bases_of(^Access)[2]));  // PrivateBase
 };
 
-consteval std::meta::access_token FriendFnOfAccess() {
+consteval std::meta::access_context FriendFnOfAccess() {
   static_assert(is_accessible(^Access::pub));
   static_assert(is_accessible(^Access::prot));
   static_assert(is_accessible(^Access::priv));
@@ -180,21 +180,21 @@ consteval std::meta::access_token FriendFnOfAccess() {
   static_assert(is_accessible(bases_of(^Access)[1]));  // ProtectedBase
   static_assert(is_accessible(bases_of(^Access)[2]));  // PrivateBase
 
-  return std::meta::access_token{};
+  return std::meta::access_context{};
 }
 
                             // =====================
                             // new_accessibility_api
                             // =====================
 
-static_assert(std::meta::access_token().context == ^::);
+static_assert(std::meta::access_context().repr == ^::);
 namespace alt_accessibility_api {
-static_assert(std::meta::access_token().context == ^::alt_accessibility_api);
+static_assert(std::meta::access_context().repr == ^::alt_accessibility_api);
 
 void fn() {
-  static_assert(std::meta::access_token().context == ^fn);
+  static_assert(std::meta::access_context().repr == ^fn);
   [] {
-    constexpr auto l = std::meta::access_token().context;
+    constexpr auto l = std::meta::access_context().repr;
     static_assert(is_function(l));
     static_assert(l != ^fn);
   }();
