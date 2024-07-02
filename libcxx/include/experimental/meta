@@ -44,7 +44,8 @@ consteval auto type_of(info) -> info;
 consteval auto parent_of(info) -> info;
 consteval auto dealias(info) -> info;
 
-// value queries
+// object and value queries
+consteval auto object_of(info) -> info;
 consteval auto value_of(info) -> info;
 
 // template queries
@@ -387,6 +388,7 @@ enum : unsigned {
   __metafn_type_of,
   __metafn_parent_of,
   __metafn_dealias,
+  __metafn_object_of,
   __metafn_value_of,
   __metafn_template_of,
   __metafn_can_substitute,
@@ -730,6 +732,11 @@ consteval auto type_of(info r) -> info {
 // Returns the containing class or namespace of a class or namespace member.
 consteval auto parent_of(info r) -> info {
   return __metafunction(detail::__metafn_parent_of, r);
+}
+
+// Returns a reflection of the object designated by the reflected entity.
+consteval auto object_of(info r) -> info {
+  return __metafunction(detail::__metafn_object_of, r);
 }
 
 // Returns a reflection of the value evaluated from the reflected entity.

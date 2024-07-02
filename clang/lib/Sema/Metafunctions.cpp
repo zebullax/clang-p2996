@@ -99,6 +99,10 @@ static bool value_of(APValue &Result, Sema &S, EvalFn Evaluator,
                      QualType ResultTy, SourceRange Range,
                      ArrayRef<Expr *> Args);
 
+static bool object_of(APValue &Result, Sema &S, EvalFn Evaluator,
+                      QualType ResultTy, SourceRange Range,
+                      ArrayRef<Expr *> Args);
+
 static bool template_of(APValue &Result, Sema &S, EvalFn Evaluator,
                         QualType ResultTy, SourceRange Range,
                         ArrayRef<Expr *> Args);
@@ -432,6 +436,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_metaInfo, 1, 1, type_of },
   { Metafunction::MFRK_metaInfo, 1, 1, parent_of },
   { Metafunction::MFRK_metaInfo, 1, 1, dealias },
+  { Metafunction::MFRK_metaInfo, 1, 1, object_of },
   { Metafunction::MFRK_metaInfo, 1, 1, value_of },
   { Metafunction::MFRK_metaInfo, 1, 1, template_of },
   { Metafunction::MFRK_bool, 3, 3, can_substitute },
@@ -1201,6 +1206,44 @@ static bool isVolatileQualifiedType(QualType QT) {
   return result;
 }
 
+static QualType findResultType(QualType ExprTy, APValue V) {
+  SplitQualType SQT;
+
+  if (V.isLValue() && !ExprTy->isPointerType()) {
+    SQT = V.getLValueBase().getType().split();
+
+    for (auto p = V.getLValuePath().begin();
+         p != V.getLValuePath().end(); ++p) {
+      const Decl *D = V.getLValuePath().back().getAsBaseOrMember().getPointer();
+      if (D) {  // base or member case
+        if (auto *VD = dyn_cast<FieldDecl>(D)) {
+          QualType QT = VD->getType();
+          SQT.Ty = QT.getTypePtr();
+
+          if (QT.isConstQualified()) SQT.Quals.addConst();
+          if (QT.isVolatileQualified()) SQT.Quals.addVolatile();
+
+          continue;
+        } else if (auto *TD = dyn_cast<CXXRecordDecl>(D)) {
+          SQT.Ty = TD->getTypeForDecl();
+          continue;
+        }
+
+        llvm_unreachable("unknown lvalue path kind");
+      } else { // array case
+        QualType QT = cast<ArrayType>(SQT.Ty)->getElementType();
+        SQT.Ty = QT.getTypePtr();
+        if (QT.isConstQualified()) SQT.Quals.addConst();
+        if (QT.isVolatileQualified()) SQT.Quals.addVolatile();
+      }
+    }
+    return QualType(SQT.Ty, SQT.Quals.getAsOpaqueValue());
+  }
+  return desugarType(ExprTy, /*UnwrapAliases=*/true,
+                     /*DropCV=*/!ExprTy->isRecordType(),
+                     /*DropRefs=*/true);
+}
+
 // -----------------------------------------------------------------------------
 // Metafunction implementations
 // -----------------------------------------------------------------------------
@@ -1766,6 +1809,64 @@ bool dealias(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   llvm_unreachable("unknown reflection kind");
 }
 
+bool object_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
+               SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.MetaInfoTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  switch (R.getReflection().getKind()) {
+  case ReflectionValue::RK_expr_result: {
+    ConstantExpr *E = R.getReflectedExprResult();
+    if (!E->isLValue())
+      return true;
+
+    return SetAndSucceed(Result, R);
+  }
+  case ReflectionValue::RK_declaration: {
+    VarDecl *VD = dyn_cast<VarDecl>(R.getReflectedDecl());
+    if (!VD)
+      return true;
+
+    QualType QT = VD->getType();
+    if (auto *LVRT = dyn_cast<LValueReferenceType>(QT)) {
+      QT = LVRT->getPointeeType();
+    }
+
+    Expr *Synthesized = DeclRefExpr::Create(S.Context,
+                                            NestedNameSpecifierLoc(),
+                                            SourceLocation(), VD, false,
+                                            Range.getBegin(), QT,
+                                            VK_LValue, VD, nullptr);
+    APValue Value;
+    if (!Evaluator(Value, Synthesized, false) || !Value.isLValue())
+      return true;
+
+    ConstantExpr *CE =
+        ConstantExpr::CreateEmpty(S.Context,
+                                  ConstantResultStorageKind::APValue);
+    CE->setType(findResultType(Synthesized->getType(), Value));
+    CE->setValueKind(VK_LValue);
+    CE->SetResult(Value, S.Context);
+
+    APValue Final(ReflectionValue::RK_expr_result, CE);
+    return SetAndSucceed(Result, Final);
+  }
+  case ReflectionValue::RK_null:
+  case ReflectionValue::RK_type:
+  case ReflectionValue::RK_template:
+  case ReflectionValue::RK_namespace:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+    return true;
+  }
+  llvm_unreachable("unimplemented");
+}
+
+
 bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
               SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
@@ -1791,9 +1892,7 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     ConstantExpr *CE =
         ConstantExpr::CreateEmpty(S.Context,
                                   ConstantResultStorageKind::APValue);
-    CE->setType(desugarType(E->getType(), /*UnwrapAliases=*/true,
-                            /*DropCV=*/!E->getType()->isRecordType(),
-                            /*DropRefs=*/true));
+    CE->setType(findResultType(E->getType(), ER.Val));
     CE->setValueKind(VK_PRValue);
     CE->SetResult(ER.Val, S.Context);
 
@@ -1804,14 +1903,14 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     ValueDecl *Decl = R.getReflectedDecl();
 
     APValue Value;
+    QualType QT;
     if (auto *VD = dyn_cast<VarDecl>(Decl)) {
       if (!VD->isUsableInConstantExpressions(S.Context))
         return true;
 
-      QualType QT = VD->getType();
-      if (auto *LVRT = dyn_cast<LValueReferenceType>(QT)) {
+      QT = VD->getType();
+      if (auto *LVRT = dyn_cast<LValueReferenceType>(QT))
         QT = LVRT->getPointeeType();
-      }
 
       Expr *Synthesized = DeclRefExpr::Create(S.Context,
                                               NestedNameSpecifierLoc(),
@@ -1826,6 +1925,7 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
                                               SourceLocation(), Decl, false,
                                               Range.getBegin(), Decl->getType(),
                                               VK_PRValue, Decl, nullptr);
+      QT = Synthesized->getType();
 
       Expr::EvalResult ER;
       if (!Synthesized->EvaluateAsConstantExpr(ER, S.Context))
@@ -1833,15 +1933,13 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
       Value = ER.Val;
     } else if (auto *TPOD = dyn_cast<TemplateParamObjectDecl>(Decl)) {
       Value = TPOD->getValue();
+      QT = TPOD->getType();
     }
 
-    QualType QT = desugarType(Decl->getType(), /*UnwrapAliases=*/true,
-                              /*DropCV=*/!Decl->getType()->isRecordType(),
-                              /*DropRefs=*/true);
     ConstantExpr *CE =
         ConstantExpr::CreateEmpty(S.Context,
                                   ConstantResultStorageKind::APValue);
-    CE->setType(QT);
+    CE->setType(findResultType(QT, Value));
     CE->setValueKind(VK_PRValue);
     CE->SetResult(Value, S.Context);
 
@@ -3754,7 +3852,7 @@ bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
   ConstantExpr *E =
         ConstantExpr::CreateEmpty(S.Context,
                                   ConstantResultStorageKind::APValue);
-  E->setType(Args[1]->getType());
+  E->setType(findResultType(Args[1]->getType(), Arg));
   E->setValueKind(IsLValue ? VK_LValue : VK_PRValue);
   E->SetResult(Arg, S.Context);
   {
@@ -3763,7 +3861,7 @@ bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
       return true;
   }
 
-  // If this is an lvalue to a complete object, promote the result to reflect
+  // If this is an lvalue to a function, promote the result to reflect
   // the declaration.
   if (E->getType()->isFunctionType() && Arg.isLValue() &&
       Arg.getLValueOffset().isZero())
@@ -3947,7 +4045,7 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
   if (!Evaluator(FnResult, ResultExpr, !ResultExpr->isLValue()))
     return true;
 
-  // If this is an lvalue to a complete object, promote the result to reflect
+  // If this is an lvalue to a function, promote the result to reflect
   // the declaration.
   if (ResultExpr->getType()->isFunctionType() &&
       FnResult.getKind() == APValue::LValue &&
@@ -3961,7 +4059,7 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
   ConstantExpr *CE =
             ConstantExpr::CreateEmpty(S.Context,
                                       ConstantResultStorageKind::APValue);
-  CE->setType(ResultExpr->getType());
+  CE->setType(findResultType(ResultExpr->getType(), FnResult));
   CE->setValueKind(ResultExpr->isLValue() ? VK_LValue : VK_PRValue);
   CE->SetResult(FnResult, S.Context);
 

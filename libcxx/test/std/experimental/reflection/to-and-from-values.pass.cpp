@@ -95,7 +95,14 @@ static_assert(type_of(std::meta::reflect_object(p.second)) == ^const short);
 
 const int &Ref = NonConstVar;
 static_assert(std::meta::reflect_object(Ref) != ^NonConstVar);
-static_assert(type_of(std::meta::reflect_object(Ref)) != ^int);
+static_assert(type_of(std::meta::reflect_object(Ref)) == ^int);
+
+struct B {};
+struct D : B {};
+
+D d;
+static_assert(type_of(std::meta::reflect_object(d)) == ^D);
+static_assert(type_of(std::meta::reflect_object(static_cast<B &>(d))) == ^B);
 }  // namespace reflect_object_results
 
                           // ========================
@@ -230,6 +237,35 @@ consteval std::meta::info fn() {
 }
 static_assert([:fn():] == 3);
 }  // namespace value_of_types
+
+                           // ======================
+                           // objects_from_variables
+                           // ======================
+
+namespace objects_from_variables {
+
+constexpr int i = 1;
+static_assert(object_of(^i) == std::meta::reflect_object(i));
+static_assert(value_of(^i) == value_of(object_of(^i)));
+
+struct A { const int ci = 0; int nci; };
+struct B : A { mutable int i; };
+
+B arr[2];
+static_assert(object_of(^arr) != ^arr);
+static_assert(std::meta::reflect_object(arr) == object_of(^arr));
+static_assert(std::meta::reflect_object(arr[0]) != object_of(^arr));
+static_assert(type_of(object_of(^arr)) == ^B[2]);
+
+const A &r = arr[1];
+static_assert(object_of(^r) != ^r);
+static_assert(std::meta::reflect_object(arr[1]) != object_of(^r));
+static_assert(std::meta::reflect_object(static_cast<A&>(arr[1])) ==
+              object_of(^r));
+static_assert(type_of(^r) == ^const A&);
+static_assert(type_of(object_of(^r)) == ^A);
+
+}  // namespace objects_from_variables
 
                              // ===================
                              // values_from_objects
