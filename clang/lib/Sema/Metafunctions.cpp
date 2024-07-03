@@ -275,6 +275,10 @@ static bool is_alias_template(APValue &Result, Sema &S, EvalFn Evaluator,
                               QualType ResultTy, SourceRange Range,
                               ArrayRef<Expr *> Args);
 
+static bool is_constructor_template(APValue &Result, Sema &S, EvalFn Evaluator,
+                                    QualType ResultTy, SourceRange Range,
+                                    ArrayRef<Expr *> Args);
+
 static bool is_concept(APValue &Result, Sema &S, EvalFn Evaluator,
                        QualType ResultTy, SourceRange Range,
                        ArrayRef<Expr *> Args);
@@ -479,6 +483,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_variable_template },
   { Metafunction::MFRK_bool, 1, 1, is_class_template },
   { Metafunction::MFRK_bool, 1, 1, is_alias_template },
+  { Metafunction::MFRK_bool, 1, 1, is_constructor_template },
   { Metafunction::MFRK_bool, 1, 1, is_concept },
   { Metafunction::MFRK_bool, 1, 1, is_structured_binding },
   { Metafunction::MFRK_bool, 1, 1, is_value },
@@ -3477,6 +3482,25 @@ bool is_alias_template(APValue &Result, Sema &S, EvalFn Evaluator,
   return SetAndSucceed(Result, makeBool(S.Context, IsAliasTemplate));
 }
 
+bool is_constructor_template(APValue &Result, Sema &S, EvalFn Evaluator,
+                             QualType ResultTy, SourceRange Range,
+                             ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool IsCtorTemplate = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_template) {
+    const TemplateDecl *TD = R.getReflectedTemplate().getAsTemplateDecl();
+    if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TD))
+      IsCtorTemplate = isa<CXXConstructorDecl>(FTD->getTemplatedDecl());
+  }
+  return SetAndSucceed(Result, makeBool(S.Context, IsCtorTemplate));
+}
+
 bool is_concept(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
                 SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
@@ -3621,18 +3645,12 @@ bool is_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionValue::RK_type:
   case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_namespace:
+  case ReflectionValue::RK_template:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionValue::RK_declaration: {
     bool result = isa<CXXConstructorDecl>(R.getReflectedDecl());
-    return SetAndSucceed(Result, makeBool(S.Context, result));
-  }
-  case ReflectionValue::RK_template: {
-    bool result = false;
-    TemplateDecl *TDecl = R.getReflectedTemplate().getAsTemplateDecl();
-    if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TDecl))
-      result = isa<CXXConstructorDecl>(FTD->getTemplatedDecl());
     return SetAndSucceed(Result, makeBool(S.Context, result));
   }
   }

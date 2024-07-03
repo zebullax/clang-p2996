@@ -172,26 +172,26 @@ struct Cls {
   template <typename T> consteval Cls(T) : value(sizeof(T)) {}
 };
 
-constexpr auto ctor = [] (size_t idx) {
-  return (members_of(^Cls) |
+constexpr auto ctor = 
+  (members_of(^Cls) |
       std::views::filter(std::meta::is_constructor) |
-      std::views::filter([](auto R) {
-        return !is_defaulted(R);
-      }) |
-      std::ranges::to<std::vector>())[idx];
-};
+      std::views::filter(std::meta::is_user_provided)).front();
+
+constexpr auto ctor_template =
+  (members_of(^Cls) |
+      std::views::filter(std::meta::is_constructor_template)).front();
 
 // Non-template constructor.
-static_assert([:reflect_invoke(ctor(0),
+static_assert([:reflect_invoke(ctor,
                                {std::meta::reflect_value(25)}):].value == 25);
 
 // Template constructor with template arguments specified.
-static_assert([:reflect_invoke(substitute(ctor(1), {^int}),
+static_assert([:reflect_invoke(substitute(ctor_template, {^int}),
                                {std::meta::reflect_value(4ll)}):].value ==
               sizeof(int));
 
 // Template constructor with template arguments inferred.
-static_assert([:reflect_invoke(ctor(1),
+static_assert([:reflect_invoke(ctor_template,
                                {std::meta::reflect_value('c')}):].value == 1);
 
 }  // namespace constructors_and_destructors

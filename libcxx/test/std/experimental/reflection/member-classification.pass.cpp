@@ -354,12 +354,12 @@ static_assert(
                       std::ranges::to<std::vector>())[0]));
 static_assert(
     !is_explicit((members_of(^S) |
-                      std::views::filter(std::meta::is_constructor) |
-                      std::ranges::to<std::vector>())[1]));
+                      std::views::filter(std::meta::is_constructor_template) |
+                      std::ranges::to<std::vector>())[0]));
 static_assert(
     is_explicit((members_of(^S) |
                      std::views::filter(std::meta::is_constructor) |
-                     std::ranges::to<std::vector>())[2]));
+                     std::ranges::to<std::vector>())[1]));
 
 static_assert(!is_explicit(^S::operator int));
 static_assert(

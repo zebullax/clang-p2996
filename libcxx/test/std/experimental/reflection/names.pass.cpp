@@ -131,8 +131,7 @@ static_assert(
     std::vector<std::string_view>{"Cls"});
 static_assert(
     (members_of(^Cls) |
-         std::views::filter(std::meta::is_constructor) |
-         std::views::filter(std::meta::is_template) |
+         std::views::filter(std::meta::is_constructor_template) |
          std::views::transform(std::meta::name_of) |
          std::ranges::to<std::vector>()) ==
     std::vector<std::string_view>{"Cls"});
@@ -172,8 +171,7 @@ static_assert(
     std::vector<std::string_view>{"Cls"});
 static_assert(
     (members_of(^Cls) |
-         std::views::filter(std::meta::is_constructor) |
-         std::views::filter(std::meta::is_template) |
+         std::views::filter(std::meta::is_constructor_template) |
          std::views::transform(std::meta::display_string_of) |
          std::ranges::to<std::vector>()) ==
     std::vector<std::string_view>{"Cls"});
