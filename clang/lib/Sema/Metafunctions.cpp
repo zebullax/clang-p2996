@@ -75,9 +75,9 @@ static bool name_of(APValue &Result, Sema &S, EvalFn Evaluator,
                     QualType ResultTy, SourceRange Range,
                     ArrayRef<Expr *> Args);
 
-static bool display_name_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                            QualType ResultTy, SourceRange Range,
-                            ArrayRef<Expr *> Args);
+static bool display_string_of(APValue &Result, Sema &S, EvalFn Evaluator,
+                              QualType ResultTy, SourceRange Range,
+                              ArrayRef<Expr *> Args);
 
 static bool source_location_of(APValue &Result, Sema &S, EvalFn Evaluator,
                                QualType ResultTy, SourceRange Range,
@@ -431,7 +431,7 @@ static constexpr Metafunction Metafunctions[] = {
 
   // exposed metafunctions
   { Metafunction::MFRK_spliceFromArg, 4, 4, name_of },
-  { Metafunction::MFRK_spliceFromArg, 3, 3, display_name_of },
+  { Metafunction::MFRK_spliceFromArg, 3, 3, display_string_of },
   { Metafunction::MFRK_sourceLoc, 1, 1, source_location_of },
   { Metafunction::MFRK_metaInfo, 1, 1, type_of },
   { Metafunction::MFRK_metaInfo, 1, 1, parent_of },
@@ -1610,9 +1610,9 @@ bool name_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool display_name_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                     QualType ResultTy, SourceRange Range,
-                     ArrayRef<Expr *> Args) {
+bool display_string_of(APValue &Result, Sema &S, EvalFn Evaluator,
+                       QualType ResultTy, SourceRange Range,
+                       ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
 
   APValue R;

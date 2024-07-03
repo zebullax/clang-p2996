@@ -32,10 +32,10 @@ concept reflection_range = see below;
 
 // name and location
 consteval auto name_of(info) -> string_view;
-consteval auto display_name_of(info) -> string_view;
+consteval auto display_string_of(info) -> string_view;
 
 consteval auto u8name_of(info) -> u8string_view;
-consteval auto u8display_name_of(info) -> u8string_view;
+consteval auto u8display_string_of(info) -> u8string_view;
 
 consteval auto source_location_of(info r) -> source_location;
 
@@ -383,7 +383,7 @@ enum : unsigned {
 
   // exposed metafunctions
   __metafn_name_of,
-  __metafn_display_name_of,
+  __metafn_display_string_of,
   __metafn_source_location_of,
   __metafn_type_of,
   __metafn_parent_of,
@@ -708,13 +708,13 @@ consteval auto u8name_of(info r) -> u8string_view {
 }
 
 // Returns a name for the reflected entity.
-consteval auto display_name_of(info r) -> string_view {
-  return __metafunction(detail::__metafn_display_name_of, ^const char *, r,
+consteval auto display_string_of(info r) -> string_view {
+  return __metafunction(detail::__metafn_display_string_of, ^const char *, r,
                         /*UTF8=*/false);
 }
 
-consteval auto u8display_name_of(info r) -> u8string_view {
-  return __metafunction(detail::__metafn_display_name_of, ^const char8_t *, r,
+consteval auto u8display_string_of(info r) -> u8string_view {
+  return __metafunction(detail::__metafn_display_string_of, ^const char8_t *, r,
                         /*UTF8=*/true);
 }
 
