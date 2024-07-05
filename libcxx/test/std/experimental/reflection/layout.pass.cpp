@@ -35,13 +35,10 @@ static_assert(alignment_of(^int_alias) == alignof(int));
 
 
 struct S1 { char mem; };
-static_assert(offset_of(^S1::mem) == 0);
+static_assert(offset_of(^S1::mem) == std::meta::member_offsets{0, 0});
 static_assert(size_of(^S1::mem) == 1);
-static_assert(bit_offset_of(^S1::mem) == 0);
 static_assert(bit_size_of(^S1::mem) == 8);
 static_assert(size_of(^S1) == 1);
-static_assert(bit_offset_of(^S1::mem) == 0);
-static_assert(bit_size_of(^S1::mem) == 8);
 
 
 struct BitField {
@@ -51,16 +48,12 @@ struct BitField {
     char bf3 : 3;
     int bf4 : 3;
 };
-static_assert(offset_of(^BitField::bf1) == 0);
-static_assert(offset_of(^BitField::bf2) == 0);
-static_assert(offset_of(nonstatic_data_members_of(^BitField)[2]) == 1);
-static_assert(offset_of(^BitField::bf3) == 1);
-static_assert(offset_of(^BitField::bf4) == 1);
-static_assert(bit_offset_of(^BitField::bf1) == 0);
-static_assert(bit_offset_of(^BitField::bf2) == 1);
-static_assert(bit_offset_of(nonstatic_data_members_of(^BitField)[2]) == 0);
-static_assert(bit_offset_of(^BitField::bf3) == 0);
-static_assert(bit_offset_of(^BitField::bf4) == 3);
+static_assert(offset_of(^BitField::bf1) == std::meta::member_offsets{0, 0});
+static_assert(offset_of(^BitField::bf2) == std::meta::member_offsets{0, 1});
+static_assert(offset_of(nonstatic_data_members_of(^BitField)[2]) ==
+              std::meta::member_offsets{1, 0});
+static_assert(offset_of(^BitField::bf3) == std::meta::member_offsets{1, 0});
+static_assert(offset_of(^BitField::bf4) == std::meta::member_offsets{1, 3});
 static_assert(bit_size_of(^BitField::bf1) == 1);
 static_assert(bit_size_of(^BitField::bf2) == 2);
 static_assert(bit_size_of(nonstatic_data_members_of(^BitField)[2]) == 0);
@@ -80,10 +73,10 @@ static_assert(alignment_of(^Align::a2) == 2);
 static_assert(alignment_of(^Align::a4) == 4);
 static_assert(alignment_of(^Align::a8) == 8);
 static_assert(alignment_of(^Align) == 8);
-static_assert(offset_of(^Align::a1) == 0);
-static_assert(offset_of(^Align::a2) == 2);
-static_assert(offset_of(^Align::a4) == 4);
-static_assert(offset_of(^Align::a8) == 8);
+static_assert(offset_of(^Align::a1) == std::meta::member_offsets{0, 0});
+static_assert(offset_of(^Align::a2) == std::meta::member_offsets{2, 0});
+static_assert(offset_of(^Align::a4) == std::meta::member_offsets{4, 0});
+static_assert(offset_of(^Align::a8) == std::meta::member_offsets{8, 0});
 static_assert(size_of(^Align::a1) == sizeof(char));
 static_assert(size_of(^Align::a2) == sizeof(char));
 static_assert(size_of(^Align::a4) == sizeof(char));

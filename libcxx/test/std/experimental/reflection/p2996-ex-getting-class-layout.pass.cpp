@@ -36,7 +36,10 @@ consteval auto get_layout() {
   constexpr size_t sz = nonstatic_data_members_of(^S).size();
   std::array<member_descriptor, sz> layout;
   for (int i = 0; i < members.size(); ++i) {
-      layout[i] = {.offset=offset_of(members[i]), .size=size_of(members[i])};
+      layout[i] = {
+          .offset=offset_of(members[i]).bytes,
+          .size=size_of(members[i])
+      };
   }
   return layout;
 }

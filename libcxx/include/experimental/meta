@@ -168,11 +168,17 @@ template <reflection_range R = initializer_list<info>>
   consteval auto define_class(info class_type, R &&members) -> info;
 
 // data layout
-consteval auto offset_of(info) -> size_t;
+struct member_offsets {
+  size_t bytes;
+  size_t bits;
+
+  constexpr size_t total_bits() const;
+  auto operator<=>(member_offsets const&) const = default;
+};
+consteval auto offset_of(info) -> member_offsets;
 consteval auto size_of(info) -> size_t;
-consteval auto bit_offset_of(info) -> size_t;
-consteval auto bit_size_of(info) -> size_t;
 consteval auto alignment_of(info) -> size_t;
+consteval auto bit_size_of(info) -> size_t;
 
 // primary type categories
 consteval auto type_is_void(info) -> bool;
@@ -1273,9 +1279,20 @@ consteval auto define_class(info class_type, R &&members) -> info {
   }
 }
 
+struct member_offsets {
+  size_t bytes;
+  size_t bits;
+
+  constexpr auto total_bits() -> size_t { return bytes * CHAR_BIT; }
+  auto operator<=>(member_offsets const&) const = default;
+};
+
 // Returns the offset of the reflected entity.
-consteval auto offset_of(info r) -> size_t {
-  return __metafunction(detail::__metafn_offset_of, r);
+consteval auto offset_of(info r) -> member_offsets {
+  return member_offsets {
+      __metafunction(detail::__metafn_offset_of, r),
+      __metafunction(detail::__metafn_bit_offset_of, r)
+  };
 }
 
 // Returns the size of the reflected entity.
@@ -1283,19 +1300,14 @@ consteval auto size_of(info r) -> size_t {
   return __metafunction(detail::__metafn_size_of, r);
 }
 
-
-consteval auto bit_offset_of(info r) -> size_t {
-  return __metafunction(detail::__metafn_bit_offset_of, r);
+// Returns the alignment of the reflected entity.
+consteval auto alignment_of(info r) -> size_t {
+  return __metafunction(detail::__metafn_alignment_of, r);
 }
 
 // Returns the size of the reflected entity in bits.
 consteval auto bit_size_of(info r) -> size_t {
   return __metafunction(detail::__metafn_bit_size_of, r);
-}
-
-// Returns the alignment of the reflected entity.
-consteval auto alignment_of(info r) -> size_t {
-  return __metafunction(detail::__metafn_alignment_of, r);
 }
 
 // Type trait wrappers
