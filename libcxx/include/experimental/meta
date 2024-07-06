@@ -1283,7 +1283,10 @@ struct member_offsets {
   size_t bytes;
   size_t bits;
 
-  constexpr auto total_bits() -> size_t { return bytes * CHAR_BIT; }
+  constexpr auto total_bits() -> size_t {
+    return bytes * CHAR_BIT + bits;
+  }
+
   auto operator<=>(member_offsets const&) const = default;
 };
 
