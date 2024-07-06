@@ -97,7 +97,15 @@ void ReflectionValue::Profile(llvm::FoldingSetNodeID &ID) const {
     getAsExprResult()->getAPValueResult().Profile(ID);
     break;
   case RK_declaration:
-    ID.AddPointer(getAsDecl());
+    if (auto *PVD = dyn_cast<ParmVarDecl>(getAsDecl())) {
+      auto *FD = cast<FunctionDecl>(PVD->getDeclContext());
+      FD = FD->getFirstDecl();
+      PVD = FD->getParamDecl(PVD->getFunctionScopeIndex());
+
+      ID.AddPointer(PVD);
+    } else {
+      ID.AddPointer(getAsDecl());
+    }
     break;
   case RK_template:
     getAsTemplate().Profile(ID);
@@ -169,6 +177,16 @@ bool ReflectionValue::operator==(ReflectionValue const& Rhs) const {
     return LID == RID;
   }
   case RK_declaration:
+    if (isa<ParmVarDecl>(getAsDecl())) {
+      if (isa<ParmVarDecl>(Rhs.getAsDecl())) {
+        llvm::FoldingSetNodeID LID, RID;
+        Profile(LID);
+        Rhs.Profile(RID);
+
+        return LID == RID;
+      }
+      return false;
+    }
     return declaresSameEntity(getAsDecl(), Rhs.getAsDecl());
   case RK_template:
     return declaresSameEntity(getAsTemplate().getAsTemplateDecl(),

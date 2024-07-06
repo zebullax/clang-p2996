@@ -215,7 +215,10 @@ void fn(int a1, bool b, char c1);
 static_assert(has_consistent_name(parameters_of(^fn)[2]));
 
 void fn(int a2, bool,   char c2);
+constexpr auto r_a2 = parameters_of(^fn)[0];
+
 void fn(int a3, bool b, char c1);
+constexpr auto r_a3 = parameters_of(^fn)[0];
 
 static_assert(parameters_of(^fn).size() == 3);
 static_assert(parameters_of(type_of(^fn)) == std::vector {^int, ^bool, ^char});
@@ -229,6 +232,8 @@ static_assert(has_consistent_name(parameters_of(^fn)[1]));
 static_assert(any_name_of(parameters_of(^fn)[2]) == "c1" ||
               any_name_of(parameters_of(^fn)[2]) == "c2");
 static_assert(!has_consistent_name(parameters_of(^fn)[2]));
+
+static_assert(r_a2 == r_a3);
 }  // namespace with_ambiguous_names
 
                               // =================
