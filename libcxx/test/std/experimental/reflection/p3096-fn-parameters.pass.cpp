@@ -217,6 +217,8 @@ static_assert(has_consistent_name(parameters_of(^fn)[2]));
 void fn(int a2, bool,   char c2);
 constexpr auto r_a2 = parameters_of(^fn)[0];
 
+static_assert(name_of(parameters_of(^fn)[1]) == "b");
+
 void fn(int a3, bool b, char c1);
 constexpr auto r_a3 = parameters_of(^fn)[0];
 

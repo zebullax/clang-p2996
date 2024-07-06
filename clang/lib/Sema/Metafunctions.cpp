@@ -695,22 +695,32 @@ static void getTypeName(std::string &Result, ASTContext &C, QualType QT,
   encodeName(Result, QT.getAsString(PP), BasicOnly);
 }
 
-static bool parameterHasConsistentName(ParmVarDecl *PVD) {
+static bool parameterHasConsistentName(ParmVarDecl *PVD,
+                                       std::string &Out) {
   StringRef FirstNameSeen = PVD->getName();
   unsigned ParamIdx = PVD->getFunctionScopeIndex();
 
+  FunctionDecl *FD = cast<FunctionDecl>(PVD->getDeclContext());
+  FD = FD->getMostRecentDecl();
+
+  PVD = FD->getParamDecl(ParamIdx);
   while (PVD) {
-    FunctionDecl *FD = cast<FunctionDecl>(PVD->getDeclContext());
+    FD = cast<FunctionDecl>(PVD->getDeclContext());
     FD = FD->getPreviousDecl();
-    if (!FD)
+    if (!FD) {
+      Out = FirstNameSeen;
       return true;
+    }
 
     PVD = FD->getParamDecl(ParamIdx);
     assert(PVD);
-    if (StringRef Name = PVD->getName();
-        Name.size() > 0 && Name != FirstNameSeen)
+    if (FirstNameSeen.size() == 0)
+      FirstNameSeen = PVD->getName();
+
+    if (StringRef Name = PVD->getName(); !Name.empty() && Name != FirstNameSeen)
       return false;
   }
+  Out = FirstNameSeen;
   return true;
 }
 
@@ -1586,10 +1596,11 @@ bool name_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   }
   case ReflectionValue::RK_declaration: {
     if (auto *PVD = dyn_cast<ParmVarDecl>(R.getReflectedDecl());
-        EnforceConsistent && PVD && !parameterHasConsistentName(PVD))
+        PVD && !parameterHasConsistentName(PVD, Name) && EnforceConsistent)
       return true;
 
-    getDeclName(Name, S.Context, R.getReflectedDecl(), !IsUtf8);
+    if (Name.empty())
+      getDeclName(Name, S.Context, R.getReflectedDecl(), !IsUtf8);
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_template: {
@@ -4706,7 +4717,9 @@ bool has_consistent_name(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
   case ReflectionValue::RK_declaration: {
     if (auto *PVD = dyn_cast<ParmVarDecl>(R.getReflectedDecl())) {
-      bool Consistent = parameterHasConsistentName(PVD);
+      [[maybe_unused]] std::string Unused;
+      bool Consistent = parameterHasConsistentName(PVD, Unused);
+
       return SetAndSucceed(Result, makeBool(S.Context, Consistent));
     }
     return true;
