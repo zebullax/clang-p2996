@@ -101,6 +101,12 @@ constexpr info info_tmplparam = foo<int>();
 namespace ns {}
 constexpr info info_ns = ^ns;
 
+// Reflection as a default initializer for a class member
+class WithDefaultInitializer {
+    [[maybe_unused]] info k = ^::;
+};
+constexpr WithDefaultInitializer with_default_init;
+
                    // =======================================
                    // bb_clang_p2996_issue_35_regression_test
                    // =======================================

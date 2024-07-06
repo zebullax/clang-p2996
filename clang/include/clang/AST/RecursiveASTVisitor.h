@@ -2975,11 +2975,8 @@ DEF_TRAVERSE_STMT(CXXReflectExpr, {
     TRY_TO(TraverseTemplateName(Op.getAsTemplate()));
     break;
   }
-  case ReflectionValue::RK_namespace: {
-    TRY_TO(TraverseDecl(Op.getAsNamespace()));
-    break;
-  }
   case ReflectionValue::RK_null:
+  case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_data_member_spec:
     break;
