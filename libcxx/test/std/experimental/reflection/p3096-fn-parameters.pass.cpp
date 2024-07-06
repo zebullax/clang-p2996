@@ -250,6 +250,7 @@ static_assert(type_of(parameters_of(^fn)[0]) == ^int);
 static_assert(type_of(parameters_of(^fn)[1]) == ^bool);
 static_assert(type_of(parameters_of(^fn)[2]) == ^char *);
 static_assert(type_of(parameters_of(^fn)[3]) == ^char &);
+static_assert(!is_const(parameters_of(^fn)[1]));
 }  // namespace with_ambiguous_types
 
                         // ============================

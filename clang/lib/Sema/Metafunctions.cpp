@@ -2933,7 +2933,9 @@ bool is_const(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return SetAndSucceed(Result, makeBool(S.Context, result));
   }
   case ReflectionValue::RK_declaration: {
-    bool result = isConstQualifiedType(R.getReflectedDecl()->getType());
+    bool result = false;
+    if (!isa<ParmVarDecl>(R.getReflectedDecl()))
+      result = isConstQualifiedType(R.getReflectedDecl()->getType());
 
     return SetAndSucceed(Result, makeBool(S.Context, result));
   }
@@ -2968,7 +2970,9 @@ bool is_volatile(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return SetAndSucceed(Result, makeBool(S.Context, result));
   }
   case ReflectionValue::RK_declaration: {
-    bool result = isVolatileQualifiedType(R.getReflectedDecl()->getType());
+    bool result = false;
+    if (!isa<ParmVarDecl>(R.getReflectedDecl()))
+      result = isVolatileQualifiedType(R.getReflectedDecl()->getType());
 
     return SetAndSucceed(Result, makeBool(S.Context, result));
   }
