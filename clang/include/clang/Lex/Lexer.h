@@ -602,7 +602,7 @@ public:
   /// Check if this is the first time we're lexing the input file.
   bool isFirstTimeLexingFile() const { return IsFirstTimeLexingFile; }
 
-  bool validateAndRewriteIdentifier(std::string &In);
+  bool validateIdentifier(const std::string &In);
 
 private:
   //===--------------------------------------------------------------------===//

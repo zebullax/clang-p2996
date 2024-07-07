@@ -241,13 +241,13 @@ static_assert(display_string_of(^myns::EnumCls::C) == "C");
 
 class K\u{00FC}hl1 {};
 
-static_assert(name_of(^Kühl1) == "K\\u{00FC}hl1");
+static_assert(name_of(^Kühl1) == "Kühl1");
 static_assert(display_string_of(^Kühl1) == "Kühl1");
 static_assert(u8name_of(^Kühl1) == u8"Kühl1");
 static_assert(u8display_string_of(^Kühl1) == u8"Kühl1");
 
 class Kühl2 {};
-static_assert(name_of(^Kühl2) == "K\\u{00FC}hl2");
+static_assert(name_of(^Kühl2) == "Kühl2");
 static_assert(display_string_of(^Kühl2) == "Kühl2");
 static_assert(u8name_of(^Kühl2) == u8"Kühl2");
 static_assert(u8display_string_of(^Kühl2) == u8"Kühl2");

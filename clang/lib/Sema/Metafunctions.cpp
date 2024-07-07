@@ -28,9 +28,7 @@
 #include "clang/Sema/Template.h"
 #include "clang/Sema/TemplateDeduction.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/Format.h"
-#include "llvm/Support/UnicodeCharRanges.h"
 #include "llvm/Support/raw_ostream.h"
 
 
@@ -554,15 +552,6 @@ bool Metafunction::Lookup(unsigned ID, const Metafunction *&result) {
 // Metafunction helper functions
 // -----------------------------------------------------------------------------
 
-static bool isBasicCharacter(uint32_t c) {
-  static llvm::sys::UnicodeCharRange BasicCharRanges[] = {
-    {0x0009, 0x0009}, {0x000A, 0x000C}, {0x0020, 0x007E},
-  };
-  static llvm::sys::UnicodeCharSet BasicCharSet(BasicCharRanges);
-
-  return BasicCharSet.contains(c);
-}
-
 static APValue makeBool(ASTContext &C, bool B) {
   return APValue(C.MakeIntValue(B, C.BoolTy));
 }
@@ -617,33 +606,6 @@ static bool SetAndSucceed(APValue &Out, const APValue &Result) {
   return false;
 }
 
-static void encodeName(std::string &Result, StringRef In, bool BasicOnly) {
-  if (!BasicOnly) {
-    Result = In;
-  } else {
-    Result.reserve(In.size() * 8);  // more than enough for '\u{XYZ}'
-
-    llvm::raw_string_ostream OS(Result);
-
-    const char *InCursor = In.begin();
-    while (InCursor < In.end()) {
-      if (isBasicCharacter(*InCursor)) {
-        OS << *(InCursor++);
-      } else {
-        llvm::UTF32 CodePoint;
-        if (llvm::conversionOK != llvm::convertUTF8Sequence(
-                reinterpret_cast<const llvm::UTF8 **>(&InCursor),
-                reinterpret_cast<const llvm::UTF8 *>(In.end()),
-                &CodePoint, llvm::ConversionFlags::strictConversion))
-          llvm_unreachable("failed converting non-basic character to UCN");
-
-        OS << "\\u{" << llvm::format_hex_no_prefix(CodePoint, 4, true) << "}";
-      }
-    }
-    Result.shrink_to_fit();
-  }
-}
-
 static TemplateName findTemplateOfDecl(const Decl *D) {
   TemplateDecl *TDecl = nullptr;
   if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
@@ -676,28 +638,24 @@ static TemplateName findTemplateOfType(QualType QT) {
 }
 
 static void getTemplateName(std::string &Result, ASTContext &C,
-                            TemplateName TName, bool BasicOnly) {
+                            TemplateName TName) {
   PrintingPolicy PP = C.getPrintingPolicy();
-
-  std::string Name;
   {
-    llvm::raw_string_ostream NameOut(Name);
+    llvm::raw_string_ostream NameOut(Result);
     TName.print(NameOut, PP, TemplateName::Qualified::None);
   }
-  encodeName(Result, Name, BasicOnly);
 }
 
-static void getTypeName(std::string &Result, ASTContext &C, QualType QT,
-                        bool BasicOnly) {
+static void getTypeName(std::string &Result, ASTContext &C, QualType QT) {
   if (TemplateName TName = findTemplateOfType(QT); !TName.isNull()) {
-    return getTemplateName(Result, C, TName, BasicOnly);
+    return getTemplateName(Result, C, TName);
   }
 
   PrintingPolicy PP = C.getPrintingPolicy();
   PP.SuppressTagKeyword = true;
   PP.SuppressScope = true;
 
-  encodeName(Result, QT.getAsString(PP), BasicOnly);
+  Result = QT.getAsString(PP);
 }
 
 static bool parameterHasConsistentName(ParmVarDecl *PVD,
@@ -729,21 +687,17 @@ static bool parameterHasConsistentName(ParmVarDecl *PVD,
   return true;
 }
 
-static void getDeclName(std::string &Result, ASTContext &C, Decl *D,
-                         bool BasicOnly) {
+static void getDeclName(std::string &Result, ASTContext &C, Decl *D) {
   if (TemplateName TName = findTemplateOfDecl(D); !TName.isNull())
-    return getTemplateName(Result, C, TName, BasicOnly);
+    return getTemplateName(Result, C, TName);
 
   PrintingPolicy PP = C.getPrintingPolicy();
-
-  std::string Name;
   {
-    llvm::raw_string_ostream NameOut(Name);
+    llvm::raw_string_ostream NameOut(Result);
     if (auto *ND = dyn_cast<NamedDecl>(D);
         ND && !isa<TemplateParamObjectDecl>(D))
       ND->printName(NameOut, PP);
   }
-  encodeName(Result, Name, BasicOnly);
 }
 
 static NamedDecl *findTypeDecl(QualType QT) {
@@ -1611,7 +1565,7 @@ bool name_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   std::string Name;
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type: {
-    getTypeName(Name, S.Context, R.getReflectedType(), !IsUtf8);
+    getTypeName(Name, S.Context, R.getReflectedType());
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_declaration: {
@@ -1620,23 +1574,22 @@ bool name_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
       return true;
 
     if (Name.empty())
-      getDeclName(Name, S.Context, R.getReflectedDecl(), !IsUtf8);
+      getDeclName(Name, S.Context, R.getReflectedDecl());
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_template: {
-    getTemplateName(Name, S.Context, R.getReflectedTemplate(), !IsUtf8);
+    getTemplateName(Name, S.Context, R.getReflectedTemplate());
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_expr_result: {
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_namespace: {
-    getDeclName(Name, S.Context, R.getReflectedNamespace(), !IsUtf8);
+    getDeclName(Name, S.Context, R.getReflectedNamespace());
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_base_specifier: {
-    getTypeName(Name, S.Context, R.getReflectedBaseSpecifier()->getType(),
-                !IsUtf8);
+    getTypeName(Name, S.Context, R.getReflectedBaseSpecifier()->getType());
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_null:
@@ -1666,27 +1619,26 @@ bool display_string_of(APValue &Result, Sema &S, EvalFn Evaluator,
   std::string Name;
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type: {
-    getTypeName(Name, S.Context, R.getReflectedType(), false);
+    getTypeName(Name, S.Context, R.getReflectedType());
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_declaration: {
-    getDeclName(Name, S.Context, R.getReflectedDecl(), false);
+    getDeclName(Name, S.Context, R.getReflectedDecl());
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_template: {
-    getTemplateName(Name, S.Context, R.getReflectedTemplate(), false);
+    getTemplateName(Name, S.Context, R.getReflectedTemplate());
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_expr_result: {
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_namespace: {
-    getDeclName(Name, S.Context, R.getReflectedNamespace(), false);
+    getDeclName(Name, S.Context, R.getReflectedNamespace());
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_base_specifier: {
-    getTypeName(Name, S.Context, R.getReflectedBaseSpecifier()->getType(),
-                false);
+    getTypeName(Name, S.Context, R.getReflectedBaseSpecifier()->getType());
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_null: {
@@ -4180,7 +4132,7 @@ bool data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
   if (Name) {
     Lexer Lex(Range.getBegin(), S.getLangOpts(), Name->data(), Name->data(),
               Name->data() + Name->size(), false);
-    if (!Lex.validateAndRewriteIdentifier(*Name))
+    if (!Lex.validateIdentifier(*Name))
       return true;
   }
 

@@ -244,31 +244,8 @@ static_assert(
     is_type(define_class(^Cls1,
                          {data_member_spec(^int, {.name=u8name_of(^Kühl)})})));
 static_assert(u8name_of(nonstatic_data_members_of(^Cls1)[0]) == u8"Kühl");
-
-class Cls2;
-
-constexpr std::string_view sv = name_of(^Kühl);
-static_assert(sv == "K\\u{00FC}hl");
-static_assert(is_type(define_class(^Cls2,
-                                   {data_member_spec(^int, {.name=sv})})));
-static_assert(u8name_of(nonstatic_data_members_of(^Cls2)[0]) == u8"Kühl");
-
+static_assert(name_of(nonstatic_data_members_of(^Cls1)[0]) == "Kühl");
 }  // namespace utf8_name_of_roundtrip
-
-                           // ======================
-                           // member_names_with_ucns
-                           // ======================
-
-namespace member_names_with_ucns {
-struct S;
-constexpr auto U = define_class(^S, {
-  data_member_spec(^int, {.name="i", .alignment=64}),
-  data_member_spec(^int, {.name=u8"こんにち", .alignment=64}),
-  data_member_spec(^int, {.name="v\\N{LATIN SMALL LETTER AE}rs\\u{E5}god"})
-});
-[[maybe_unused]] constexpr [:U:] s{.i=1, .こんにち=2, .værsågod=3};
-
-}  // namespace member_names_with_ucns
 
                          // ===========================
                          // data_member_spec_comparison

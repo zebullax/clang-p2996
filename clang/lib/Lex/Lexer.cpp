@@ -4690,9 +4690,7 @@ bool Lexer::LexDependencyDirectiveTokenWhileSkipping(Token &Result) {
   return false;
 }
 
-bool Lexer::validateAndRewriteIdentifier(std::string &In) {
-  SmallVector<llvm::UTF32, 30> RewriteUTF32;
-
+bool Lexer::validateIdentifier(const std::string &In) {
   static const llvm::sys::UnicodeCharRange DigitRanges[] = {
     {0x0030, 0x0039}
   };
@@ -4716,7 +4714,6 @@ bool Lexer::validateAndRewriteIdentifier(std::string &In) {
     std::optional<uint32_t> UCN = tryReadUCN(Cursor, SlashLoc, nullptr);
     if (!UCN || !XIDStartChars.contains(UCN.value()))
       return false;
-    RewriteUTF32.push_back(UCN.value());
   } else {
     llvm::UTF32 CodePoint;
 
@@ -4729,7 +4726,6 @@ bool Lexer::validateAndRewriteIdentifier(std::string &In) {
     if (!NondigitChars.contains(CodePoint) &&
         !XIDStartChars.contains(CodePoint))
         return false;
-    RewriteUTF32.push_back(CodePoint);
   }
 
   // Validate remaining characters.
@@ -4740,7 +4736,6 @@ bool Lexer::validateAndRewriteIdentifier(std::string &In) {
       if (!UCN || !(XIDStartChars.contains(UCN.value()) ||
                     XIDContinueChars.contains(UCN.value())))
         return false;
-      RewriteUTF32.push_back(UCN.value());
     } else {
       llvm::UTF32 CodePoint;
 
@@ -4755,16 +4750,8 @@ bool Lexer::validateAndRewriteIdentifier(std::string &In) {
           !XIDStartChars.contains(CodePoint) &&
           !XIDContinueChars.contains(CodePoint))
         return false;
-      RewriteUTF32.push_back(CodePoint);
     }
   }
   assert(Cursor == End);
-
-  std::string Rewrite;
-  Rewrite.reserve(RewriteUTF32.size() * 4);
-  if (!llvm::convertUTF32ToUTF8String(RewriteUTF32, Rewrite))
-    return true;
-  In = Rewrite;
-
   return true;
 }
