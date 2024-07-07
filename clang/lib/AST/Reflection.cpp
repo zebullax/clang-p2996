@@ -47,6 +47,8 @@ QualType ReflectionValue::getAsType() const {
   QualType QT = QualType::getFromOpaquePtr(Entity);
 
   bool UnwrapAliases = false;
+  bool IsConst = QT.isConstQualified();
+  bool IsVolatile = QT.isVolatileQualified();
 
   void *AsPtr;
   do {
@@ -65,6 +67,12 @@ QualType ReflectionValue::getAsType() const {
     if (const auto *RST = dyn_cast<ReflectionSpliceType>(QT);
         RST && !RST->isDependentType())
       QT = RST->getUnderlyingType();
+    if (const auto *TST = dyn_cast<TemplateSpecializationType>(QT);
+        TST && !TST->isTypeAlias()) {
+      QT = TST->desugar();
+    }
+    if (const auto *DTST = dyn_cast<DeducedTemplateSpecializationType>(QT))
+      QT = DTST->getDeducedType();
     if (const auto *DTT = dyn_cast<DecltypeType>(QT)) {
       QT = DTT->desugar();
       UnwrapAliases = true;
@@ -76,6 +84,12 @@ QualType ReflectionValue::getAsType() const {
         TDT && UnwrapAliases)
       QT = TDT->desugar();
   } while (QT.getAsOpaquePtr() != AsPtr);
+
+  if (IsConst)
+    QT = QT.withConst();
+  if (IsVolatile)
+    QT = QT.withVolatile();
+
   return QT;
 }
 
@@ -85,17 +99,37 @@ void ReflectionValue::Profile(llvm::FoldingSetNodeID &ID) const {
   case RK_null:
     break;
   case RK_type: {
+    // Quals | Kind/0 | ...
+
     QualType QT = getAsType();
-    QT.Profile(ID);
+
+    QT.getQualifiers().Profile(ID);
+
+    if (auto *TST = dyn_cast<TemplateSpecializationType>(QT)) {
+      // Note: This sugar only kept for alias template specializations.
+      ID.AddInteger(Type::TemplateSpecialization);
+      ID.AddPointer(TST->getTemplateName().getAsTemplateDecl());
+      ID.AddPointer(QT->getAsRecordDecl()->getCanonicalDecl());
+    } else {
+      ID.AddInteger(0);
+      if (auto *TDT = dyn_cast<TypedefType>(QT)) {
+        ID.AddBoolean(true);
+        ID.AddPointer(TDT->getDecl());
+      } else {
+        ID.AddBoolean(false);
+        QT.getCanonicalType().Profile(ID);
+      }
+    }
     break;
   }
-  case RK_expr_result:
-    if (auto *RD = getAsExprResult()->getType()->getAsRecordDecl();
-        RD && RD->isLambda()) {
-      QualType(RD->getTypeForDecl(), 0).Profile(ID);
-    }
-    getAsExprResult()->getAPValueResult().Profile(ID);
+  case RK_expr_result: {
+    APValue V = getAsExprResult()->getAPValueResult();
+
+    getAsExprResult()->getType()
+        .getCanonicalType().getUnqualifiedType().Profile(ID);
+    V.Profile(ID);
     break;
+  }
   case RK_declaration:
     if (auto *PVD = dyn_cast<ParmVarDecl>(getAsDecl())) {
       auto *FD = cast<FunctionDecl>(PVD->getDeclContext());
@@ -108,7 +142,7 @@ void ReflectionValue::Profile(llvm::FoldingSetNodeID &ID) const {
     }
     break;
   case RK_template:
-    getAsTemplate().Profile(ID);
+    ID.AddPointer(getAsTemplate().getAsTemplateDecl()->getCanonicalDecl());
     break;
   case RK_namespace:
     ID.AddPointer(getAsNamespace());
@@ -122,7 +156,6 @@ void ReflectionValue::Profile(llvm::FoldingSetNodeID &ID) const {
     ID.AddBoolean(TDMS->Name.has_value());
     if (TDMS->Name)
       ID.AddString(TDMS->Name.value());
-    ID.AddBoolean(TDMS->IsStatic);
     ID.AddBoolean(TDMS->Alignment.has_value());
     if (TDMS->Alignment)
       ID.AddBoolean(TDMS->Alignment.value());
@@ -135,70 +168,11 @@ void ReflectionValue::Profile(llvm::FoldingSetNodeID &ID) const {
 }
 
 bool ReflectionValue::operator==(ReflectionValue const& Rhs) const {
-  if (getKind() != Rhs.getKind())
-    return false;
+  llvm::FoldingSetNodeID LID, RID;
+  Profile(LID);
+  Rhs.Profile(RID);
 
-  switch (getKind()) {
-  case RK_null:
-    return true;
-  case RK_type: {
-    QualType LQT = getAsType(), RQT = Rhs.getAsType();
-    if (LQT.getQualifiers() != RQT.getQualifiers())
-      return false;
-
-    if (auto *LTST = dyn_cast<TemplateSpecializationType>(LQT)) {
-      if (LTST->isTypeAlias()) {
-        auto *RTST = dyn_cast<TemplateSpecializationType>(RQT);
-        if (!RTST || !RTST->isTypeAlias() ||
-            LTST->getTemplateName().getAsTemplateDecl() !=
-                  RTST->getTemplateName().getAsTemplateDecl())
-          return false;
-      }
-      return declaresSameEntity(LQT->getAsRecordDecl(), RQT->getAsRecordDecl());
-    }
-
-    if (LQT->isTypedefNameType() || RQT->isTypedefNameType())
-      return LQT == RQT;
-
-    return LQT.getCanonicalType() == RQT.getCanonicalType();
-  }
-  case RK_expr_result: {
-    APValue LV = getAsExprResult()->getAPValueResult();
-    APValue RV = Rhs.getAsExprResult()->getAPValueResult();
-
-    llvm::FoldingSetNodeID LID, RID;
-    getAsExprResult()->getType()
-        .getCanonicalType().getUnqualifiedType().Profile(LID);
-    LV.Profile(LID);
-    Rhs.getAsExprResult()->getType()
-        .getCanonicalType().getUnqualifiedType().Profile(RID);
-    RV.Profile(RID);
-
-    return LID == RID;
-  }
-  case RK_declaration:
-    if (isa<ParmVarDecl>(getAsDecl())) {
-      if (isa<ParmVarDecl>(Rhs.getAsDecl())) {
-        llvm::FoldingSetNodeID LID, RID;
-        Profile(LID);
-        Rhs.Profile(RID);
-
-        return LID == RID;
-      }
-      return false;
-    }
-    return declaresSameEntity(getAsDecl(), Rhs.getAsDecl());
-  case RK_template:
-    return declaresSameEntity(getAsTemplate().getAsTemplateDecl(),
-                              Rhs.getAsTemplate().getAsTemplateDecl());
-  case RK_namespace:
-    return declaresSameEntity(getAsNamespace(), Rhs.getAsNamespace());
-  case RK_base_specifier:
-    return getAsBaseSpecifier() == Rhs.getAsBaseSpecifier();
-  case RK_data_member_spec:
-    return getAsDataMemberSpec() == Rhs.getAsDataMemberSpec();
-  }
-  llvm_unreachable("unknown reflection kind");
+  return LID == RID;
 }
 
 bool ReflectionValue::operator!=(ReflectionValue const& Rhs) const {
@@ -207,7 +181,6 @@ bool ReflectionValue::operator!=(ReflectionValue const& Rhs) const {
 
 bool TagDataMemberSpec::operator==(TagDataMemberSpec const &Rhs) const {
   return (Ty == Ty &&
-          IsStatic == Rhs.IsStatic &&
           Alignment == Rhs.Alignment &&
           BitWidth == Rhs.BitWidth &&
           Name == Rhs.Name);

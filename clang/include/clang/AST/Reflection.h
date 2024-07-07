@@ -155,7 +155,6 @@ struct TagDataMemberSpec {
   QualType Ty;
 
   std::optional<std::string> Name;
-  bool IsStatic;
   std::optional<size_t> Alignment;
   std::optional<size_t> BitWidth;
 

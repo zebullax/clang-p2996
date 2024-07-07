@@ -4748,7 +4748,6 @@ void CXXNameMangler::mangleReflection(const ReflectionValue &R) {
 
     TagDataMemberSpec *TDMS = R.getAsDataMemberSpec();
     Context.mangleCanonicalTypeName(TDMS->Ty, Out, false);
-    Out << TDMS->IsStatic;
     if (TDMS->Name)
       Out << "N$" << (*TDMS->Name) << '$';
     if (TDMS->Alignment)

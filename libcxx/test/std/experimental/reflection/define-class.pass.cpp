@@ -232,23 +232,6 @@ static_assert(type_of(^foo::b) == ^bool);
 static_assert(nonstatic_data_members_of(^foo).size() == 2);
 }  // namespace with_non_contiguous_range
 
-                             // ==================
-                             // static_data_member
-                             // ==================
-
-namespace static_data_member {
-struct S;
-class C;
-union U;
-
-static_assert(is_incomplete_type(^S));
-static_assert(is_type(define_class(^S, {
-                data_member_spec(^int, {.name="count", .is_static=true}),
-              })));
-static_assert(!is_incomplete_type(^S));
-decltype(S::count) S::count = 14;
-}  // namespace static_data_member
-
                            // =======================
                            // utf8_name_of_roundtrips
                            // =======================
@@ -287,7 +270,22 @@ constexpr auto U = define_class(^S, {
 
 }  // namespace member_names_with_ucns
 
-int main() {
-    // RUN: grep "S::count=14" %t.stdout
-    std::print("S::count={}", static_data_member::S::count);
-}
+                         // ===========================
+                         // data_member_spec_comparison
+                         // ===========================
+
+namespace data_member_spec_comparison {
+static_assert(data_member_spec(^int, {}) != ^int);
+static_assert(data_member_spec(^int, {}) == data_member_spec(^int, {}));
+static_assert(data_member_spec(^int, {}) !=
+              data_member_spec(^int, {.name="i"}));
+static_assert(data_member_spec(^int, {.name=u8"i"}) ==
+              data_member_spec(^int, {.name="i"}));
+static_assert(data_member_spec(^int, {.name="i", .alignment=4}) !=
+              data_member_spec(^int, {.name="i"}));
+
+using Alias = int;
+static_assert(data_member_spec(^Alias, {}) != data_member_spec(^int, {}));
+}  // namespace data_member_spec_comparison
+
+int main() { }

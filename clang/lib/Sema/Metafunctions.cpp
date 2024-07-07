@@ -506,7 +506,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_user_provided },
   { Metafunction::MFRK_metaInfo, 2, 2, reflect_result },
   { Metafunction::MFRK_metaInfo, 5, 5, reflect_invoke },
-  { Metafunction::MFRK_metaInfo, 10, 10, data_member_spec },
+  { Metafunction::MFRK_metaInfo, 9, 9, data_member_spec },
   { Metafunction::MFRK_metaInfo, 3, 3, define_class },
   { Metafunction::MFRK_sizeT, 1, 1, offset_of },
   { Metafunction::MFRK_sizeT, 1, 1, size_of },
@@ -951,8 +951,21 @@ static APValue getNthTemplateArgument(Sema &S,
     // Could not get a test case to hit one of the below
     case TemplateArgument::Null:
       llvm_unreachable("TemplateArgument::Null not supported");
-    case TemplateArgument::NullPtr:
-      llvm_unreachable("TemplateArgument::NullPtr not supported");
+    case TemplateArgument::NullPtr: {
+      ConstantExpr *CE =
+          ConstantExpr::CreateEmpty(S.Context,
+                                    ConstantResultStorageKind::APValue);
+      CE->setType(templArgument.getNullPtrType());
+      CE->setValueKind(VK_PRValue);
+
+      APValue Null((const ValueDecl *)nullptr,
+                   CharUnits::fromQuantity(S.Context.getTargetNullPointerValue(
+                                               CE->getType())),
+                   APValue::NoLValuePath(), /*IsNullPtr=*/true);
+      CE->SetResult(Null, S.Context);
+
+      return APValue(ReflectionValue::RK_expr_result, CE);
+    }
     case TemplateArgument::StructuralValue: {
       QualType QT = templArgument.getStructuralValueType();
       ExprValueKind VK = VK_PRValue;
@@ -994,7 +1007,9 @@ static bool isTemplateSpecialization(QualType QT) {
     return false;
 
   return isa<TemplateSpecializationType>(QT) ||
-      isa<DependentTemplateSpecializationType>(QT);
+      isa<DependentTemplateSpecializationType>(QT) ||
+      isa_and_nonnull<ClassTemplateSpecializationDecl>(
+          QT->getAsCXXRecordDecl());
 }
 
 static size_t getBitOffsetOfField(ASTContext &C, const FieldDecl *FD) {
@@ -4119,11 +4134,6 @@ bool data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
   QualType MemberTy = Scratch.getReflectedType();
 
-  // Evaluate whether the data member is static.
-  if (!Evaluator(Scratch, Args[ArgIdx++], true) || !Scratch.isInt())
-    return true;
-  bool IsStatic = static_cast<bool>(Scratch.getInt().getExtValue());
-
   // Evaluate whether a member name was provided.
   std::optional<std::string> Name;
   if (!Evaluator(Scratch, Args[ArgIdx++], true))
@@ -4209,7 +4219,7 @@ bool data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
   ArgIdx++;
 
   TagDataMemberSpec *TDMS = new (S.Context) TagDataMemberSpec {
-    MemberTy, Name, IsStatic, Alignment, BitWidth
+    MemberTy, Name, Alignment, BitWidth
   };
   return SetAndSucceed(Result, makeReflection(TDMS));
 }
@@ -4390,8 +4400,7 @@ bool define_class(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     AttributeFactory AttrFactory;
     AttributePool AttrPool(AttrFactory);
     DeclSpec DS(AttrFactory);
-    DS.SetStorageClassSpec(S, TDMS->IsStatic ? DeclSpec::SCS_static :
-                                               DeclSpec::SCS_unspecified,
+    DS.SetStorageClassSpec(S, DeclSpec::SCS_unspecified,
                            Args[0]->getBeginLoc(),
                            PrevSpec, DiagID, S.Context.getPrintingPolicy());
 

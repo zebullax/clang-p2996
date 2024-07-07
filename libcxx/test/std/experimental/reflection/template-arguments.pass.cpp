@@ -169,7 +169,7 @@ constexpr float Fs[] = {4.5, 5.5, 6.5};
 static_assert(!has_template_arguments(^WithPtr));
 static_assert(has_template_arguments(^WithPtr<Fs>));
 static_assert(template_arguments_of(^WithPtr<Fs>).size() == 1);
-static_assert([:template_arguments_of(^WithPtr<Fs>)[0]:] == Fs);
+static_assert([:template_arguments_of(^WithPtr<Fs>)[0]:] == +Fs);
 
 static_assert(has_template_arguments(^WithPtr<nullptr>));
 static_assert(template_arguments_of(^WithPtr<nullptr>).size() == 1);

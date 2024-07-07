@@ -1245,7 +1245,6 @@ struct data_member_options_t {
   };
 
   optional<name_type> name = nullopt;
-  bool is_static = false;
   optional<int> alignment = nullopt;
   optional<int> width = nullopt;
 };
@@ -1255,21 +1254,23 @@ struct data_member_options_t {
 consteval auto data_member_spec(info member_type,
                                 data_member_options_t options = {}) -> info {
   auto name = options.name.value_or(u8"").impl;
-  bool is_static = options.is_static;
   int alignment = options.alignment.value_or(0);
   int width = options.width.value_or(0);
+
+  if (alignment && width)
+    throw "Cannot specify both width and alignment for a data member";
 
   if (holds_alternative<u8string>(name)) {
     const u8string &s = get<u8string>(name);
     return __metafunction(detail::__metafn_data_member_spec,
-                          member_type, is_static, options.name.has_value(),
+                          member_type, options.name.has_value(),
                           s.size(), ^const char8_t *, s.data(),
                           options.alignment.has_value(), alignment,
                           options.width.has_value(), width);
   } else {
     const string &s = get<string>(name);
     return __metafunction(detail::__metafn_data_member_spec,
-                          member_type, is_static, options.name.has_value(),
+                          member_type, options.name.has_value(),
                           s.size(), ^const char *, s.data(),
                           options.alignment.has_value(), alignment,
                           options.width.has_value(), width);
@@ -1985,7 +1986,7 @@ struct hash<meta::info> {
   }
 
 private:
-  const meta::info unused = ^::;
+  [[maybe_unused]] const meta::info unused = ^::;
 };
 
 _LIBCPP_END_NAMESPACE_STD
