@@ -348,6 +348,16 @@ consteval auto return_type_of(info) -> info;
 
 } // namespace reflection_v2
 } // namespace meta
+
+template <>
+struct hash<meta::info> {
+  hash() = default;
+  hash(const hash<meta::info>&) = default;
+  hash(hash<meta::info>&&) = default;
+
+  consteval auto operator()(std::meta::info) -> size_t;
+};
+
 } // namespace std
 
  */
@@ -464,6 +474,7 @@ enum : unsigned {
   __metafn_bit_offset_of,
   __metafn_bit_size_of,
   __metafn_alignment_of,
+  __metafn_reflection_hash,
 
   // Proposed alternative P2996 accessibility API
   __metafn_access_context,
@@ -1960,6 +1971,24 @@ consteval auto test_trait(info templ, R &&args) -> bool {
 }
 
 _LIBCPP_END_NAMESPACE_META_V2
+
+_LIBCPP_BEGIN_NAMESPACE_STD
+
+template <>
+struct hash<meta::info> {
+  consteval hash() = default;
+  consteval hash(const hash<meta::info>&) = default;
+  consteval hash(hash<meta::info>&&) = default;
+
+  consteval auto operator()(std::meta::info r) const -> size_t {
+    return __metafunction(meta::detail::__metafn_reflection_hash, r);
+  }
+
+private:
+  const meta::info unused = ^::;
+};
+
+_LIBCPP_END_NAMESPACE_STD
 
 #endif  // __has_feature(reflection)
 

@@ -380,6 +380,10 @@ static bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator,
                          QualType ResultTy, SourceRange Range,
                          ArrayRef<Expr *> Args);
 
+static bool reflection_hash(APValue &Result, Sema &S, EvalFn Evaluator,
+                            QualType ResultTy, SourceRange Range,
+                            ArrayRef<Expr *> Args);
+
 // -----------------------------------------------------------------------------
 // P3096 Metafunction declarations
 // -----------------------------------------------------------------------------
@@ -509,6 +513,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_sizeT, 1, 1, bit_offset_of },
   { Metafunction::MFRK_sizeT, 1, 1, bit_size_of },
   { Metafunction::MFRK_sizeT, 1, 1, alignment_of },
+  { Metafunction::MFRK_sizeT, 1, 1, reflection_hash },
 
   // Proposed alternative P2996 accessibility API
   { Metafunction::MFRK_metaInfo, 0, 0, access_context },
@@ -4646,6 +4651,24 @@ bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
   }
   llvm_unreachable("unknown reflection kind");
+}
+
+bool reflection_hash(APValue &Result, Sema &S, EvalFn Evaluator,
+                     QualType ResultTy, SourceRange Range,
+                     ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.getSizeType());
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  llvm::FoldingSetNodeID ID;
+  R.getReflection().Profile(ID);
+  return SetAndSucceed(
+          Result,
+          APValue(S.Context.MakeIntValue(ID.ComputeHash(),
+                                         S.Context.getSizeType())));
 }
 
 bool get_ith_parameter_of(APValue &Result, Sema &S, EvalFn Evaluator,
