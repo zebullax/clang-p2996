@@ -1581,9 +1581,6 @@ bool name_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     getTemplateName(Name, S.Context, R.getReflectedTemplate());
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
-  case ReflectionValue::RK_expr_result: {
-    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
-  }
   case ReflectionValue::RK_namespace: {
     getDeclName(Name, S.Context, R.getReflectedNamespace());
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
@@ -1593,6 +1590,7 @@ bool name_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
   }
   case ReflectionValue::RK_null:
+  case ReflectionValue::RK_expr_result:
   case ReflectionValue::RK_data_member_spec:
     return true;
   }

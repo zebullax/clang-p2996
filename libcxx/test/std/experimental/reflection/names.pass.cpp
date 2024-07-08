@@ -20,8 +20,6 @@
 
 static_assert(u8name_of(^::) == u8"");
 static_assert(name_of(^::) == "");
-static_assert(u8name_of(std::meta::reflect_value(3)) == u8"");
-static_assert(name_of(std::meta::reflect_value(3)) == "");
 static_assert(u8name_of(^int) == u8"int");
 static_assert(name_of(^int) == "int");
 static_assert(u8display_string_of(^::) == u8"");
@@ -63,10 +61,8 @@ static_assert(name_of(^Enum::A) == "A");
 static_assert(name_of(^EnumCls) == "EnumCls");
 static_assert(name_of(^EnumCls::A) == "A");
 static_assert(name_of(template_arguments_of(^TFn<int, 0, TCls>)[0]) == "int");
-static_assert(name_of(template_arguments_of(^TFn<int, 0, TCls>)[1]) == "");
 static_assert(name_of(template_arguments_of(^TFn<int, 0, TCls>)[2]) == "TCls");
 static_assert(name_of(template_arguments_of(^WithTypePack<int>)[0]) == "int");
-static_assert(name_of(template_arguments_of(^WithAutoPack<3>)[0]) == "");
 static_assert(display_string_of(^::) == "");
 static_assert(display_string_of(^var) == "var");
 static_assert(display_string_of(^fn) == "fn");
