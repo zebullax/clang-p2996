@@ -378,9 +378,9 @@ static bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator,
                          QualType ResultTy, SourceRange Range,
                          ArrayRef<Expr *> Args);
 
-static bool reflection_hash(APValue &Result, Sema &S, EvalFn Evaluator,
-                            QualType ResultTy, SourceRange Range,
-                            ArrayRef<Expr *> Args);
+static bool define_static_string(APValue &Result, Sema &S, EvalFn Evaluator,
+                                 QualType ResultTy, SourceRange Range,
+                                 ArrayRef<Expr *> Args);
 
 // -----------------------------------------------------------------------------
 // P3096 Metafunction declarations
@@ -511,7 +511,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_sizeT, 1, 1, bit_offset_of },
   { Metafunction::MFRK_sizeT, 1, 1, bit_size_of },
   { Metafunction::MFRK_sizeT, 1, 1, alignment_of },
-  { Metafunction::MFRK_sizeT, 1, 1, reflection_hash },
+  { Metafunction::MFRK_spliceFromArg, 5, 5, define_static_string },
 
   // Proposed alternative P2996 accessibility API
   { Metafunction::MFRK_metaInfo, 0, 0, access_context },
@@ -4626,22 +4626,51 @@ bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool reflection_hash(APValue &Result, Sema &S, EvalFn Evaluator,
-                     QualType ResultTy, SourceRange Range,
-                     ArrayRef<Expr *> Args) {
+bool define_static_string(APValue &Result, Sema &S, EvalFn Evaluator,
+                          QualType ResultTy, SourceRange Range,
+                          ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.getSizeType());
+  assert(Args[1]->getType()->isReflectionType());
 
-  APValue R;
-  if (!Evaluator(R, Args[0], true))
+  APValue Scratch;
+
+  // Evaluate the character type.
+  if (!Evaluator(Scratch, Args[1], true))
     return true;
+  QualType CharTy = Scratch.getReflectedType();
 
-  llvm::FoldingSetNodeID ID;
-  R.getReflection().Profile(ID);
-  return SetAndSucceed(
-          Result,
-          APValue(S.Context.MakeIntValue(ID.ComputeHash(),
-                                         S.Context.getSizeType())));
+  // Evaluate the length of the string provided.
+  std::string Contents;
+  if (!Evaluator(Scratch, Args[2], true))
+    return true;
+  size_t Length = Scratch.getInt().getExtValue();
+  Contents.resize(Length);
+
+  // Evaluate the given name. Miserably inefficient, but gets the job done.
+  for (uint64_t k = 0; k < Length; ++k) {
+    llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
+    Expr *Synthesized = IntegerLiteral::Create(S.Context, Idx,
+                                               S.Context.getSizeType(),
+                                               Args[3]->getExprLoc());
+
+    Synthesized = new (S.Context) ArraySubscriptExpr(Args[3],
+                                                     Synthesized, CharTy,
+                                                     VK_LValue, OK_Ordinary,
+                                                     Range.getBegin());
+    if (Synthesized->isValueDependent() || Synthesized->isTypeDependent())
+      return true;
+
+    if (!Evaluator(Scratch, Synthesized, true))
+      return true;
+
+    Contents[k] = static_cast<char>(Scratch.getInt().getExtValue());
+  }
+
+  if (!Evaluator(Scratch, Args[4], true))
+    return true;
+  bool IsUtf8 = Scratch.getInt().getBoolValue();
+
+  return !Evaluator(Result, makeCString(Contents, S.Context, IsUtf8), true);
 }
 
 bool get_ith_parameter_of(APValue &Result, Sema &S, EvalFn Evaluator,

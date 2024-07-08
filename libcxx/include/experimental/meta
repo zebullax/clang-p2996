@@ -474,7 +474,7 @@ enum : unsigned {
   __metafn_bit_offset_of,
   __metafn_bit_size_of,
   __metafn_alignment_of,
-  __metafn_reflection_hash,
+  __metafn_define_static_string,
 
   // Proposed alternative P2996 accessibility API
   __metafn_access_context,
@@ -1285,14 +1285,14 @@ consteval auto data_member_spec(info member_type,
     const u8string &s = get<u8string>(name);
     return __metafunction(detail::__metafn_data_member_spec,
                           member_type, options.name.has_value(),
-                          s.size(), ^const char8_t *, s.data(),
+                          s.size(), ^const char8_t, s.data(),
                           options.alignment.has_value(), alignment,
                           options.width.has_value(), width, no_unique_address);
   } else {
     const string &s = get<string>(name);
     return __metafunction(detail::__metafn_data_member_spec,
                           member_type, options.name.has_value(),
-                          s.size(), ^const char *, s.data(),
+                          s.size(), ^const char, s.data(),
                           options.alignment.has_value(), alignment,
                           options.width.has_value(), width, no_unique_address);
   }
@@ -1340,6 +1340,26 @@ consteval auto size_of(info r) -> size_t {
 consteval auto bit_size_of(info r) -> size_t {
   return __metafunction(detail::__metafn_bit_size_of, r);
 }
+
+// Returns a static string having the provided contents.
+consteval auto define_static_string(std::string_view in) {
+  if (in.empty())
+    return "";
+
+  return __metafunction(detail::__metafn_define_static_string,
+                        ^const char *, ^char, in.size(), in.data(),
+                        /*IsUtf8=*/false);
+}
+
+consteval auto define_static_string(std::u8string_view in) {
+  if (in.empty())
+    return u8"";
+
+  return __metafunction(detail::__metafn_define_static_string,
+                        ^const char8_t *, ^char8_t, in.size(), in.data(),
+                        /*IsUtf8=*/true);
+}
+
 
 // Type trait wrappers
 
@@ -1988,24 +2008,6 @@ consteval auto test_trait(info templ, R &&args) -> bool {
 }
 
 _LIBCPP_END_NAMESPACE_META_V2
-
-_LIBCPP_BEGIN_NAMESPACE_STD
-
-template <>
-struct hash<meta::info> {
-  consteval hash() = default;
-  consteval hash(const hash<meta::info>&) = default;
-  consteval hash(hash<meta::info>&&) = default;
-
-  consteval auto operator()(std::meta::info r) const -> size_t {
-    return __metafunction(meta::detail::__metafn_reflection_hash, r);
-  }
-
-private:
-  [[maybe_unused]] const meta::info unused = ^::;
-};
-
-_LIBCPP_END_NAMESPACE_STD
 
 #endif  // __has_feature(reflection)
 
