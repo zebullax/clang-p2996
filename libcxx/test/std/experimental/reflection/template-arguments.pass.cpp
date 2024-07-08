@@ -201,10 +201,13 @@ template <int P> void fn_int_value() {
 
 template <const int &P> void fn_int_ref() {
   static_assert(is_object(^P));
-  static_assert(is_variable(^P));
-  static_assert(type_of(^P) == ^const int);
-  static_assert(name_of(^P) == "k");
-  static_assert([:^P:] == 2);
+  static_assert(!is_variable(^P));
+  if constexpr (is_const(^P)) {
+    static_assert(type_of(^P) == ^const int);
+    static_assert([:^P:] == 2);
+  } else {
+    static_assert(type_of(^P) == ^int);
+  }
 }
 
 template <const int &P> void fn_int_subobject_ref() {
@@ -225,9 +228,8 @@ template <S P> void fn_cls_value() {
 
 template <S &P> void fn_cls_ref() {
   static_assert(is_object(^P));
-  static_assert(is_variable(^P));
+  static_assert(!is_variable(^P));
   static_assert(type_of(^P) == ^S);
-  static_assert(name_of(^P) == "s");
 }
 
 template <void(&P)()> void fn_fn_ref_param() {
@@ -247,6 +249,9 @@ void instantiations() {
 
   static constexpr int k = 2;
   fn_int_ref<k>();
+
+  static int k2;
+  fn_int_ref<k2>();
 
   static constexpr std::pair<int, int> p {3, 4};
   fn_int_subobject_ref<p.first>();

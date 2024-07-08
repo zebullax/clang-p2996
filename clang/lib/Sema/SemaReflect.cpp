@@ -376,13 +376,33 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc, Expr *E) {
   if (auto *DRE = dyn_cast<DeclRefExpr>(E))
     return BuildCXXReflectExpr(OperatorLoc, DRE->getExprLoc(), DRE->getDecl());
 
+  // Always allow '^P' where 'P' is a template parameter.
   if (auto *SNTTPE = dyn_cast<SubstNonTypeTemplateParmExpr>(E)) {
     Expr *Replacement = SNTTPE->getReplacement();
-    if (SNTTPE->isLValue()) {
-      if (auto *CE = dyn_cast<ConstantExpr>(Replacement))
-        return CXXReflectExpr::Create(Context, OperatorLoc, Replacement);
 
-      return BuildCXXReflectExpr(OperatorLoc, Replacement);
+    if (SNTTPE->isLValue()) {
+      SmallVector<PartialDiagnosticAt, 4> Diags;
+      Expr::EvalResult ER;
+      ER.Diag = &Diags;
+
+      if (!E->EvaluateAsConstantExpr(ER, Context)) {
+        Diag(E->getExprLoc(), diag::err_splice_operand_not_constexpr);
+        for (PartialDiagnosticAt PD : Diags)
+          Diag(PD.first, PD.second);
+        return ExprError();
+      }
+
+      // "Promote" function references to the function declarations.
+      // There is no analogous distinction between "objects" and "variables" for
+      // functions.
+      if (SNTTPE->getType()->isFunctionType()) {
+        const ValueDecl *VD = ER.Val.getLValueBase().get<const ValueDecl *>();
+        return BuildCXXReflectExpr(OperatorLoc, E->getExprLoc(),
+                                   const_cast<ValueDecl *>(VD));
+      }
+
+      Replacement = ConstantExpr::Create(Context, E, ER.Val);
+      Replacement->setType(ComputeResultType(E->getType(), ER.Val));
     }
 
     return CXXReflectExpr::Create(Context, OperatorLoc, Replacement);

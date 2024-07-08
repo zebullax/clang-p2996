@@ -12089,6 +12089,8 @@ public:
 
   DeclContext *TryFindDeclContextOf(const Expr *E);
 
+  QualType ComputeResultType(QualType ExprTy, const APValue &V);
+
 
 private:
   // Lambdas having bound references to this Sema object, used to evaluate

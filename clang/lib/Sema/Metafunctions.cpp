@@ -1195,7 +1195,7 @@ static bool isVolatileQualifiedType(QualType QT) {
   return result;
 }
 
-static QualType findResultType(QualType ExprTy, APValue V) {
+QualType Sema::ComputeResultType(QualType ExprTy, const APValue &V) {
   SplitQualType SQT;
 
   if (V.isLValue() && !ExprTy->isPointerType()) {
@@ -1834,7 +1834,7 @@ bool object_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     ConstantExpr *CE =
         ConstantExpr::CreateEmpty(S.Context,
                                   ConstantResultStorageKind::APValue);
-    CE->setType(findResultType(Synthesized->getType(), Value));
+    CE->setType(S.ComputeResultType(Synthesized->getType(), Value));
     CE->setValueKind(VK_LValue);
     CE->SetResult(Value, S.Context);
 
@@ -1878,7 +1878,7 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     ConstantExpr *CE =
         ConstantExpr::CreateEmpty(S.Context,
                                   ConstantResultStorageKind::APValue);
-    CE->setType(findResultType(E->getType(), ER.Val));
+    CE->setType(S.ComputeResultType(E->getType(), ER.Val));
     CE->setValueKind(VK_PRValue);
     CE->SetResult(ER.Val, S.Context);
 
@@ -1925,7 +1925,7 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     ConstantExpr *CE =
         ConstantExpr::CreateEmpty(S.Context,
                                   ConstantResultStorageKind::APValue);
-    CE->setType(findResultType(QT, Value));
+    CE->setType(S.ComputeResultType(QT, Value));
     CE->setValueKind(VK_PRValue);
     CE->SetResult(Value, S.Context);
 
@@ -3855,7 +3855,7 @@ bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
   ConstantExpr *E =
         ConstantExpr::CreateEmpty(S.Context,
                                   ConstantResultStorageKind::APValue);
-  E->setType(findResultType(Args[1]->getType(), Arg));
+  E->setType(S.ComputeResultType(Args[1]->getType(), Arg));
   E->setValueKind(IsLValue ? VK_LValue : VK_PRValue);
   E->SetResult(Arg, S.Context);
   {
@@ -4062,7 +4062,7 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
   ConstantExpr *CE =
             ConstantExpr::CreateEmpty(S.Context,
                                       ConstantResultStorageKind::APValue);
-  CE->setType(findResultType(ResultExpr->getType(), FnResult));
+  CE->setType(S.ComputeResultType(ResultExpr->getType(), FnResult));
   CE->setValueKind(ResultExpr->isLValue() ? VK_LValue : VK_PRValue);
   CE->SetResult(FnResult, S.Context);
 
