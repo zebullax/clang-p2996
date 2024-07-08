@@ -504,7 +504,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_user_provided },
   { Metafunction::MFRK_metaInfo, 2, 2, reflect_result },
   { Metafunction::MFRK_metaInfo, 5, 5, reflect_invoke },
-  { Metafunction::MFRK_metaInfo, 9, 9, data_member_spec },
+  { Metafunction::MFRK_metaInfo, 10, 10, data_member_spec },
   { Metafunction::MFRK_metaInfo, 3, 3, define_class },
   { Metafunction::MFRK_sizeT, 1, 1, offset_of },
   { Metafunction::MFRK_sizeT, 1, 1, size_of },
@@ -4168,8 +4168,14 @@ bool data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
   }
   ArgIdx++;
 
+  // Evaluate whether the "no_unique_address" attribute should apply.
+  if (!Evaluator(Scratch, Args[ArgIdx++], true))
+    return true;
+  bool NoUniqueAddress = Scratch.getInt().getBoolValue();
+  ArgIdx++;
+
   TagDataMemberSpec *TDMS = new (S.Context) TagDataMemberSpec {
-    MemberTy, Name, Alignment, BitWidth
+    MemberTy, Name, Alignment, BitWidth, NoUniqueAddress
   };
   return SetAndSucceed(Result, makeReflection(TDMS));
 }
@@ -4375,6 +4381,14 @@ bool define_class(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
       ParsedAttr::Form Form(tok::kw_alignas);
       ParsedAttr *Attr = AttrPool.create(&AttrII, Range, nullptr,
                                          SourceLocation(), &Args, 1, Form);
+      MemberAttrs.addAtEnd(Attr);
+    }
+    if (TDMS->NoUniqueAddress) {
+      IdentifierInfo &AttrII =
+          S.PP.getIdentifierTable().get("no_unique_address");
+      ParsedAttr *Attr = AttrPool.create(&AttrII, Range, nullptr,
+                                         SourceLocation(), nullptr, 0,
+                                         ParsedAttr::Form::CXX11());
       MemberAttrs.addAtEnd(Attr);
     }
 

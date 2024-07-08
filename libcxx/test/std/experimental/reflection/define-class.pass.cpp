@@ -71,6 +71,14 @@ constexpr S s = {14, true, 11};
 static_assert(s.count == 14);
 static_assert(s.flag);
 static_assert(s.[:nonstatic_data_members_of(^S)[2]:] == 11);
+
+struct Empty {};
+struct WithEmpty;
+static_assert(is_type(define_class(^WithEmpty, {
+  data_member_spec(^int, {}),
+  data_member_spec(^Empty, {.no_unique_address=true}),
+})));
+static_assert(sizeof(WithEmpty) == sizeof(int));
 }  // namespace test_all_flags
 
                               // ================
