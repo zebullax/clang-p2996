@@ -20,10 +20,16 @@
 
 static_assert(u8name_of(^::) == u8"");
 static_assert(name_of(^::) == "");
-static_assert(u8name_of(^int) == u8"int");
-static_assert(name_of(^int) == "int");
 static_assert(u8display_string_of(^::) == u8"");
 static_assert(display_string_of(^::) == "");
+static_assert(!has_identifier(^::));
+
+static_assert(u8name_of(^int) == u8"int");
+static_assert(name_of(^int) == "int");
+static_assert(identifier_of(^int) == "int");
+static_assert(u8identifier_of(^int) == u8"int");
+static_assert(has_identifier(^int));
+
 static_assert(u8display_string_of(std::meta::reflect_value(3)) == u8"");
 static_assert(display_string_of(std::meta::reflect_value(3)) == "");
 static_assert(u8display_string_of(^int) == u8"int");
@@ -45,29 +51,76 @@ enum Enum { A };
 enum class EnumCls { A };
 
 static_assert(name_of(^Alias) == "Alias");
+static_assert(identifier_of(^Alias) == "Alias");
+static_assert(has_identifier(^Alias));
+
 static_assert(name_of(^var) == "var");
+static_assert(identifier_of(^var) == "var");
+static_assert(display_string_of(^var) == "var");
+static_assert(has_identifier(^var));
+
 static_assert(name_of(^fn) == "fn");
+static_assert(identifier_of(^fn) == "fn");
+static_assert(has_identifier(^fn));
+
 static_assert(name_of(^TCls) == "TCls");
+static_assert(identifier_of(^TCls) == "TCls");
+static_assert(has_identifier(^TCls));
+
 static_assert(name_of(^TCls<int>) == "TCls");
+static_assert(identifier_of(^TCls<int>) == "TCls");
+static_assert(!has_identifier(^TCls<int>));
+
 static_assert(name_of(^TFn) == "TFn");
 static_assert(name_of(^TFn<int, 0, TCls>) == "TFn");
-static_assert(name_of(^TAlias) == "TAlias");
-static_assert(name_of(^TAlias<int>) == "TAlias");
-static_assert(name_of(^TVar) == "TVar");
-static_assert(name_of(^TVar<int>) == "TVar");
-static_assert(name_of(^Concept) == "Concept");
-static_assert(name_of(^Enum) == "Enum");
-static_assert(name_of(^Enum::A) == "A");
-static_assert(name_of(^EnumCls) == "EnumCls");
-static_assert(name_of(^EnumCls::A) == "A");
-static_assert(name_of(template_arguments_of(^TFn<int, 0, TCls>)[0]) == "int");
-static_assert(name_of(template_arguments_of(^TFn<int, 0, TCls>)[2]) == "TCls");
-static_assert(name_of(template_arguments_of(^WithTypePack<int>)[0]) == "int");
-static_assert(display_string_of(^::) == "");
-static_assert(display_string_of(^var) == "var");
-static_assert(display_string_of(^fn) == "fn");
-static_assert(display_string_of(^TCls) == "TCls");
+static_assert(identifier_of(^TFn) == "TFn");
 static_assert(display_string_of(^TFn) == "TFn");
+static_assert(has_identifier(^TFn));
+
+static_assert(name_of(^TAlias) == "TAlias");
+static_assert(identifier_of(^TAlias) == "TAlias");
+static_assert(has_identifier(^TAlias));
+static_assert(name_of(^TAlias<int>) == "TAlias");
+static_assert(!has_identifier(^TAlias<int>));
+
+static_assert(name_of(^TVar) == "TVar");
+static_assert(identifier_of(^TVar) == "TVar");
+static_assert(has_identifier(^TVar));
+static_assert(name_of(^TVar<int>) == "TVar");
+static_assert(!has_identifier(^TVar<int>));
+
+static_assert(name_of(^Concept) == "Concept");
+static_assert(identifier_of(^Concept) == "Concept");
+static_assert(has_identifier(^Concept));
+
+static_assert(name_of(^Enum) == "Enum");
+static_assert(identifier_of(^Enum) == "Enum");
+static_assert(has_identifier(^Enum));
+
+static_assert(name_of(^Enum::A) == "A");
+static_assert(identifier_of(^Enum::A) == "A");
+static_assert(has_identifier(^Enum::A));
+
+static_assert(name_of(^EnumCls) == "EnumCls");
+static_assert(identifier_of(^EnumCls) == "EnumCls");
+static_assert(has_identifier(^EnumCls));
+
+static_assert(name_of(^EnumCls::A) == "A");
+static_assert(identifier_of(^EnumCls::A) == "A");
+static_assert(has_identifier(^EnumCls::A));
+
+static_assert(name_of(template_arguments_of(^TFn<int, 0, TCls>)[0]) == "int");
+static_assert(identifier_of(template_arguments_of(^TFn<int, 0, TCls>)[0]) ==
+              "int");
+static_assert(!has_identifier(template_arguments_of(^TFn<int, 0, TCls>)[1]));
+static_assert(name_of(template_arguments_of(^TFn<int, 0, TCls>)[2]) == "TCls");
+static_assert(identifier_of(template_arguments_of(^TFn<int, 0, TCls>)[2]) ==
+              "TCls");
+static_assert(name_of(template_arguments_of(^WithTypePack<int>)[0]) == "int");
+static_assert(identifier_of(template_arguments_of(^WithTypePack<int>)[0]) ==
+              "int");
+static_assert(display_string_of(^::) == "");
+static_assert(display_string_of(^TCls) == "TCls");
 static_assert(display_string_of(^TAlias) == "TAlias");
 static_assert(display_string_of(^TVar) == "TVar");
 static_assert(display_string_of(^Concept) == "Concept");
@@ -112,12 +165,19 @@ struct Cls : Base {
   enum class EnumCls { B };
 };
 static_assert(name_of(^Cls) == "Cls");
+static_assert(identifier_of(^Cls) == "Cls");
 static_assert(name_of(bases_of(^Cls)[0]) == "Base");
+static_assert(!has_identifier(bases_of(^Cls)[0]));
 static_assert(name_of(^Cls::Alias) == "Alias");
+static_assert(identifier_of(^Cls::Alias) == "Alias");
 static_assert(name_of(^Cls::mem) == "mem");
+static_assert(identifier_of(^Cls::mem) == "mem");
 static_assert(name_of(^Cls::memfn) == "memfn");
+static_assert(identifier_of(^Cls::memfn) == "memfn");
 static_assert(name_of(^Cls::sfn) == "sfn");
+static_assert(identifier_of(^Cls::sfn) == "sfn");
 static_assert(name_of(^Cls::Inner) == "Inner");
+static_assert(identifier_of(^Cls::Inner) == "Inner");
 static_assert(
     (members_of(^Cls) |
          std::views::filter(std::meta::is_constructor) |
@@ -126,31 +186,55 @@ static_assert(
          std::ranges::to<std::vector>()) ==
     std::vector<std::string_view>{"Cls"});
 static_assert(
+    !has_identifier((members_of(^Cls) |
+         std::views::filter(std::meta::is_constructor)).front()));
+
+static_assert(
     (members_of(^Cls) |
          std::views::filter(std::meta::is_constructor_template) |
          std::views::transform(std::meta::name_of) |
          std::ranges::to<std::vector>()) ==
     std::vector<std::string_view>{"Cls"});
 static_assert(
+    !has_identifier((members_of(^Cls) |
+         std::views::filter(std::meta::is_constructor_template)).front()));
+static_assert(
     (members_of(^Cls) |
          std::views::filter(std::meta::is_destructor) |
          std::views::transform(std::meta::name_of) |
          std::ranges::to<std::vector>()) ==
     std::vector<std::string_view>{"~Cls"});
+static_assert(
+    !has_identifier((members_of(^Cls) |
+         std::views::filter(std::meta::is_destructor)).front()));
 static_assert(name_of(^Cls::operator bool) == "operator bool");
+static_assert(!has_identifier(^Cls::operator bool));
 static_assert(
     (members_of(^Cls) |
          std::views::filter(std::meta::is_template) |
          std::views::transform(std::meta::name_of) |
          std::ranges::to<std::vector>())[5] == "operator int");
+static_assert(
+    !has_identifier(
+        (members_of(^Cls) |
+             std::views::filter(std::meta::is_template) |
+             std::ranges::to<std::vector>())[5]));
 static_assert(name_of(^Cls::TInner) == "TInner");
+static_assert(identifier_of(^Cls::TInner) == "TInner");
 static_assert(name_of(^Cls::TMemFn) == "TMemFn");
+static_assert(identifier_of(^Cls::TMemFn) == "TMemFn");
 static_assert(name_of(^Cls::TAlias) == "TAlias");
+static_assert(identifier_of(^Cls::TAlias) == "TAlias");
 static_assert(name_of(^Cls::TSVar) == "TSVar");
+static_assert(identifier_of(^Cls::TSVar) == "TSVar");
 static_assert(name_of(^Cls::Enum) == "Enum");
+static_assert(identifier_of(^Cls::Enum) == "Enum");
 static_assert(name_of(^Cls::Enum::B) == "B");
+static_assert(identifier_of(^Cls::Enum::B) == "B");
 static_assert(name_of(^Cls::EnumCls) == "EnumCls");
+static_assert(identifier_of(^Cls::EnumCls) == "EnumCls");
 static_assert(name_of(^Cls::EnumCls::B) == "B");
+static_assert(identifier_of(^Cls::EnumCls::B) == "B");
 static_assert(display_string_of(^Cls) == "Cls");
 static_assert(display_string_of(bases_of(^Cls)[0]) == "Base");
 static_assert(display_string_of(^Cls::Alias) == "Alias");
@@ -209,18 +293,31 @@ enum Enum { C };
 enum class EnumCls { C };
 }  // namespace myns
 static_assert(name_of(^myns) == "myns");
+static_assert(identifier_of(^myns) == "myns");
 static_assert(name_of(^myns::mem) == "mem");
+static_assert(identifier_of(^myns::mem) == "mem");
 static_assert(name_of(^myns::memfn) == "memfn");
+static_assert(identifier_of(^myns::memfn) == "memfn");
 static_assert(name_of(^myns::Cls) == "Cls");
+static_assert(identifier_of(^myns::Cls) == "Cls");
 static_assert(name_of(^myns::TInner) == "TInner");
+static_assert(identifier_of(^myns::TInner) == "TInner");
 static_assert(name_of(^myns::TFn) == "TFn");
+static_assert(identifier_of(^myns::TFn) == "TFn");
 static_assert(name_of(^myns::TAlias) == "TAlias");
+static_assert(identifier_of(^myns::TAlias) == "TAlias");
 static_assert(name_of(^myns::TVar) == "TVar");
+static_assert(identifier_of(^myns::TVar) == "TVar");
 static_assert(name_of(^myns::Concept) == "Concept");
+static_assert(identifier_of(^myns::Concept) == "Concept");
 static_assert(name_of(^myns::Enum) == "Enum");
+static_assert(identifier_of(^myns::Enum) == "Enum");
 static_assert(name_of(^myns::Enum::C) == "C");
+static_assert(identifier_of(^myns::Enum::C) == "C");
 static_assert(name_of(^myns::EnumCls) == "EnumCls");
+static_assert(identifier_of(^myns::EnumCls) == "EnumCls");
 static_assert(name_of(^myns::EnumCls::C) == "C");
+static_assert(identifier_of(^myns::EnumCls::C) == "C");
 static_assert(display_string_of(^myns) == "myns");
 static_assert(display_string_of(^myns::mem) == "mem");
 static_assert(display_string_of(^myns::memfn) == "memfn");
@@ -238,14 +335,18 @@ static_assert(display_string_of(^myns::EnumCls::C) == "C");
 class K\u{00FC}hl1 {};
 
 static_assert(name_of(^Kühl1) == "Kühl1");
+static_assert(identifier_of(^Kühl1) == "Kühl1");
 static_assert(display_string_of(^Kühl1) == "Kühl1");
 static_assert(u8name_of(^Kühl1) == u8"Kühl1");
+static_assert(u8identifier_of(^Kühl1) == u8"Kühl1");
 static_assert(u8display_string_of(^Kühl1) == u8"Kühl1");
 
 class Kühl2 {};
 static_assert(name_of(^Kühl2) == "Kühl2");
+static_assert(identifier_of(^Kühl2) == "Kühl2");
 static_assert(display_string_of(^Kühl2) == "Kühl2");
 static_assert(u8name_of(^Kühl2) == u8"Kühl2");
+static_assert(u8identifier_of(^Kühl2) == u8"Kühl2");
 static_assert(u8display_string_of(^Kühl2) == u8"Kühl2");
 
 

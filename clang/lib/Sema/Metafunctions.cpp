@@ -73,6 +73,14 @@ static bool name_of(APValue &Result, Sema &S, EvalFn Evaluator,
                     QualType ResultTy, SourceRange Range,
                     ArrayRef<Expr *> Args);
 
+static bool identifier_of(APValue &Result, Sema &S, EvalFn Evaluator,
+                          QualType ResultTy, SourceRange Range,
+                          ArrayRef<Expr *> Args);
+
+static bool has_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args);
+
 static bool display_string_of(APValue &Result, Sema &S, EvalFn Evaluator,
                               QualType ResultTy, SourceRange Range,
                               ArrayRef<Expr *> Args);
@@ -437,7 +445,9 @@ static constexpr Metafunction Metafunctions[] = {
 
   // exposed metafunctions
   { Metafunction::MFRK_spliceFromArg, 4, 4, name_of },
+  { Metafunction::MFRK_spliceFromArg, 4, 4, identifier_of },
   { Metafunction::MFRK_spliceFromArg, 3, 3, display_string_of },
+  { Metafunction::MFRK_bool, 1, 1, has_identifier },
   { Metafunction::MFRK_sourceLoc, 1, 1, source_location_of },
   { Metafunction::MFRK_metaInfo, 1, 1, type_of },
   { Metafunction::MFRK_metaInfo, 1, 1, parent_of },
@@ -658,7 +668,20 @@ static void getTypeName(std::string &Result, ASTContext &C, QualType QT) {
   Result = QT.getAsString(PP);
 }
 
-static bool parameterHasConsistentName(ParmVarDecl *PVD,
+static void getDeclName(std::string &Result, ASTContext &C, Decl *D) {
+  if (TemplateName TName = findTemplateOfDecl(D); !TName.isNull())
+    return getTemplateName(Result, C, TName);
+
+  PrintingPolicy PP = C.getPrintingPolicy();
+  {
+    llvm::raw_string_ostream NameOut(Result);
+    if (auto *ND = dyn_cast<NamedDecl>(D);
+        ND && !isa<TemplateParamObjectDecl>(D))
+      ND->printName(NameOut, PP);
+  }
+}
+
+static bool getConsistentParameterName(ParmVarDecl *PVD,
                                        std::string &Out) {
   StringRef FirstNameSeen = PVD->getName();
   unsigned ParamIdx = PVD->getFunctionScopeIndex();
@@ -677,27 +700,14 @@ static bool parameterHasConsistentName(ParmVarDecl *PVD,
 
     PVD = FD->getParamDecl(ParamIdx);
     assert(PVD);
-    if (FirstNameSeen.size() == 0)
-      FirstNameSeen = PVD->getName();
+    if (FirstNameSeen.empty() && PVD->getIdentifier())
+      FirstNameSeen = PVD->getIdentifier()->getName();
 
     if (StringRef Name = PVD->getName(); !Name.empty() && Name != FirstNameSeen)
       return false;
   }
   Out = FirstNameSeen;
   return true;
-}
-
-static void getDeclName(std::string &Result, ASTContext &C, Decl *D) {
-  if (TemplateName TName = findTemplateOfDecl(D); !TName.isNull())
-    return getTemplateName(Result, C, TName);
-
-  PrintingPolicy PP = C.getPrintingPolicy();
-  {
-    llvm::raw_string_ostream NameOut(Result);
-    if (auto *ND = dyn_cast<NamedDecl>(D);
-        ND && !isa<TemplateParamObjectDecl>(D))
-      ND->printName(NameOut, PP);
-  }
 }
 
 static NamedDecl *findTypeDecl(QualType QT) {
@@ -1570,7 +1580,7 @@ bool name_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   }
   case ReflectionValue::RK_declaration: {
     if (auto *PVD = dyn_cast<ParmVarDecl>(R.getReflectedDecl());
-        PVD && !parameterHasConsistentName(PVD, Name) && EnforceConsistent)
+        PVD && !getConsistentParameterName(PVD, Name) && EnforceConsistent)
       return true;
 
     if (Name.empty())
@@ -1595,6 +1605,152 @@ bool name_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     return true;
   }
   llvm_unreachable("unknown reflection kind");
+}
+
+bool identifier_of(APValue &Result, Sema &S, EvalFn Evaluator,
+                   QualType ResultTy, SourceRange Range,
+                   ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+
+  APValue R;
+  if (!Evaluator(R, Args[1], true))
+    return true;
+
+  bool IsUtf8;
+  {
+    APValue Scratch;
+    if (!Evaluator(Scratch, Args[2], true))
+      return true;
+    IsUtf8 = Scratch.getInt().getBoolValue();
+  }
+
+  bool EnforceConsistent;
+  {
+    APValue Scratch;
+    if (!Evaluator(Scratch, Args[3], true))
+      return true;
+    EnforceConsistent = Scratch.getInt().getBoolValue();
+  }
+
+  std::string Name;
+  switch (R.getReflection().getKind()) {
+  case ReflectionValue::RK_type: {
+    QualType QT = R.getReflectedType();
+    if (QT->isFundamentalType())
+      getTypeName(Name, S.Context, R.getReflectedType());
+    else if (auto *D = findTypeDecl(QT))
+      if (auto *ND = dyn_cast<NamedDecl>(D); ND && ND->getIdentifier())
+        Name = ND->getIdentifier()->getName();
+
+    break;
+  }
+  case ReflectionValue::RK_declaration: {
+    if (auto *PVD = dyn_cast<ParmVarDecl>(R.getReflectedDecl())) {
+      bool ConsistentName = getConsistentParameterName(PVD, Name);
+      if (EnforceConsistent && !ConsistentName)
+        return true;
+      break;
+    }
+
+    if (auto *ND = dyn_cast<NamedDecl>(R.getReflectedDecl());
+        ND && ND->getIdentifier())
+      Name = ND->getIdentifier()->getName();
+
+    break;
+  }
+  case ReflectionValue::RK_template: {
+    const TemplateDecl *TD = R.getReflectedTemplate().getAsTemplateDecl();
+    if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TD))
+      if (isa<CXXConstructorDecl>(FTD->getTemplatedDecl()))
+        break;
+
+    if (TD->getIdentifier())
+      Name = TD->getIdentifier()->getName();
+
+    break;
+  }
+  case ReflectionValue::RK_namespace: {
+    getDeclName(Name, S.Context, R.getReflectedNamespace());
+    break;
+  }
+  case ReflectionValue::RK_null:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_expr_result:
+  case ReflectionValue::RK_data_member_spec:
+    return true;
+  }
+  if (Name.empty())
+    return true;
+
+  return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
+}
+
+bool has_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
+                    QualType ResultTy, SourceRange Range,
+                    ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool HasIdentifier = false;
+  switch (R.getReflection().getKind()) {
+  case ReflectionValue::RK_type: {
+    QualType QT = R.getReflectedType();
+    if (isTemplateSpecialization(QT))
+      break;
+    else if (QT->isFundamentalType()) {
+      HasIdentifier = true;
+      break;
+    }
+
+    if (auto *D = findTypeDecl(QT))
+      if (auto *ND = dyn_cast<NamedDecl>(D); ND && ND->getIdentifier())
+        HasIdentifier = (ND->getIdentifier() != nullptr);
+
+    break;
+  }
+  case ReflectionValue::RK_declaration: {
+    auto *D = R.getReflectedDecl();
+    if (auto *PVD = dyn_cast<ParmVarDecl>(D)) {
+      std::string Name;
+      (void) getConsistentParameterName(PVD, Name);
+
+      HasIdentifier = !Name.empty();
+      break;
+    } else if (auto *FD = dyn_cast<FunctionDecl>(D);
+               FD && FD->getTemplateSpecializationArgs())
+      break;
+    else if (auto *VTSD = dyn_cast<VarTemplateSpecializationDecl>(D))
+      break;
+    else if (auto *ND = dyn_cast<NamedDecl>(D))
+      HasIdentifier = (ND->getIdentifier() != nullptr);
+
+    break;
+  }
+  case ReflectionValue::RK_template: {
+    const TemplateDecl *TD = R.getReflectedTemplate().getAsTemplateDecl();
+    if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TD))
+      if (isa<CXXConstructorDecl>(FTD->getTemplatedDecl()))
+        break;
+
+    HasIdentifier = (TD->getIdentifier() != nullptr);
+    break;
+  }
+  case ReflectionValue::RK_namespace: {
+    if (auto *ND = dyn_cast<NamedDecl>(R.getReflectedNamespace()))
+      HasIdentifier = (ND->getIdentifier() != nullptr);
+    break;
+  }
+  case ReflectionValue::RK_null:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_expr_result:
+  case ReflectionValue::RK_data_member_spec:
+    break;
+  }
+
+  return SetAndSucceed(Result, makeBool(S.Context, HasIdentifier));
 }
 
 bool display_string_of(APValue &Result, Sema &S, EvalFn Evaluator,
@@ -4747,7 +4903,7 @@ bool has_consistent_name(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionValue::RK_declaration: {
     if (auto *PVD = dyn_cast<ParmVarDecl>(R.getReflectedDecl())) {
       [[maybe_unused]] std::string Unused;
-      bool Consistent = parameterHasConsistentName(PVD, Unused);
+      bool Consistent = getConsistentParameterName(PVD, Unused);
 
       return SetAndSucceed(Result, makeBool(S.Context, Consistent));
     }

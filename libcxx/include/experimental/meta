@@ -32,10 +32,14 @@ concept reflection_range = see below;
 
 // name and location
 consteval auto name_of(info) -> string_view;
+consteval auto identifier_of(info) -> string_view;
 consteval auto display_string_of(info) -> string_view;
 
 consteval auto u8name_of(info) -> u8string_view;
+consteval auto u8identifier_of(info) -> u8string_view;
 consteval auto u8display_string_of(info) -> u8string_view;
+
+consteval auto has_identifier(info) -> bool;
 
 consteval auto source_location_of(info r) -> source_location;
 
@@ -340,6 +344,8 @@ consteval auto parameters_of(info) -> vector<info>;
 consteval auto has_consistent_name(info) -> bool;
 consteval auto any_name_of(info) -> string_view;
 consteval auto u8any_name_of(info) -> u8string_view;
+consteval auto any_identifier_of(info) -> string_view;
+consteval auto u8any_identifier_of(info) -> u8string_view;
 consteval auto has_ellipsis_parameter(info) -> bool;
 consteval auto has_default_argument(info) -> bool;
 consteval auto is_explicit_object_parameter(info) -> bool;
@@ -400,7 +406,9 @@ enum : unsigned {
 
   // exposed metafunctions
   __metafn_name_of,
+  __metafn_identifier_of,
   __metafn_display_string_of,
+  __metafn_has_identifier,
   __metafn_source_location_of,
   __metafn_type_of,
   __metafn_parent_of,
@@ -726,6 +734,16 @@ consteval auto u8name_of(info r) -> u8string_view {
                         /*UTF8=*/true, /*EnforceConsistent=*/true);
 }
 
+consteval auto identifier_of(info r) -> string_view {
+  return __metafunction(detail::__metafn_identifier_of, ^const char *, r,
+                        /*UTF8=*/false, /*EnforceConsistent=*/true);
+}
+
+consteval auto u8identifier_of(info r) -> u8string_view {
+  return __metafunction(detail::__metafn_identifier_of, ^const char8_t *, r,
+                        /*UTF8=*/true, /*EnforceConsistent=*/true);
+}
+
 // Returns a name for the reflected entity.
 consteval auto display_string_of(info r) -> string_view {
   return __metafunction(detail::__metafn_display_string_of, ^const char *, r,
@@ -735,6 +753,10 @@ consteval auto display_string_of(info r) -> string_view {
 consteval auto u8display_string_of(info r) -> u8string_view {
   return __metafunction(detail::__metafn_display_string_of, ^const char8_t *, r,
                         /*UTF8=*/true);
+}
+
+consteval auto has_identifier(info r) -> bool {
+  return __metafunction(detail::__metafn_has_identifier, r);
 }
 
 // Returns the source location of the reflected entity.
@@ -1342,7 +1364,7 @@ consteval auto bit_size_of(info r) -> size_t {
 }
 
 // Returns a static string having the provided contents.
-consteval auto define_static_string(std::string_view in) {
+consteval auto define_static_string(std::string_view in) -> const char * {
   if (in.empty())
     return "";
 
@@ -1351,7 +1373,7 @@ consteval auto define_static_string(std::string_view in) {
                         /*IsUtf8=*/false);
 }
 
-consteval auto define_static_string(std::u8string_view in) {
+consteval auto define_static_string(std::u8string_view in) -> const char8_t * {
   if (in.empty())
     return u8"";
 
@@ -1946,6 +1968,16 @@ consteval auto any_name_of(info r) -> string_view {
 
 consteval auto u8any_name_of(info r) -> u8string_view {
   return __metafunction(detail::__metafn_name_of, ^const char8_t *, r,
+                        /*UTF8=*/true, /*EnforceConsistent=*/false);
+}
+
+consteval auto any_identifier_of(info r) -> string_view {
+  return __metafunction(detail::__metafn_identifier_of, ^const char *, r,
+                        /*UTF8=*/false, /*EnforceConsistent=*/false);
+}
+
+consteval auto u8any_identifier_of(info r) -> u8string_view {
+  return __metafunction(detail::__metafn_identifier_of, ^const char8_t *, r,
                         /*UTF8=*/true, /*EnforceConsistent=*/false);
 }
 
