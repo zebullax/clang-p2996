@@ -17699,9 +17699,16 @@ HandleImmediateInvocations(Sema &SemaRef,
     Visitor.TraverseStmt(
         Rec.ImmediateInvocationCandidates.front().getPointer()->getSubExpr());
   }
-  for (auto CE : Rec.ImmediateInvocationCandidates)
+  // NOTE(P2996): Avoid using a range-for loop, as constant expressions with
+  // side-effects may introduce additional invocation candidates, thereby
+  // invalidating the iterator.
+  //
+  // TODO(P2996): Can we avoid this?
+  for (size_t Idx = 0; Idx < Rec.ImmediateInvocationCandidates.size(); ++Idx) {
+    auto CE = Rec.ImmediateInvocationCandidates[Idx];
     if (!CE.getInt())
       EvaluateAndDiagnoseImmediateInvocation(SemaRef, CE);
+  }
   for (auto *DR : Rec.ReferenceToConsteval) {
     // If the expression is immediate escalating, it is not an error;
     // The outer context itself becomes immediate and further errors,

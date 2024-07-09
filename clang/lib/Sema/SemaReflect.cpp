@@ -719,13 +719,6 @@ ExprResult Sema::BuildReflectionSpliceExpr(
     }
     case ReflectionValue::RK_expr_result: {
       Operand = RV.getAsExprResult();
-      if (!isConstantEvaluatedContext() && !isa<ConstantExpr>(Operand)) {
-        Operand = ConstantExpr::Create(Context, Operand,
-                                       ConstantResultStorageKind::APValue,
-                                       true);
-        ExprEvalContexts.back().ImmediateInvocationCandidates.emplace_back(
-              cast<ConstantExpr>(Operand), 0);
-      }
       Operand = CXXExprSpliceExpr::Create(Context, Operand->getValueKind(),
                                           TemplateKWLoc, LSplice, Operand,
                                           RSplice, TArgs, AllowMemberReference);
