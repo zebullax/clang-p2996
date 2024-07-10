@@ -123,6 +123,7 @@ consteval auto is_defaulted(info) -> bool;
 consteval auto is_explicit(info) -> bool;
 consteval bool is_noexcept(info) -> bool;
 consteval auto is_bit_field(info) -> bool;
+consteval auto is_enumerator(info) -> bool;
 consteval auto is_const(info) -> bool;
 consteval auto is_volatile(info) -> bool;
 consteval auto is_lvalue_reference_qualified(info) -> bool;
@@ -431,6 +432,7 @@ enum : unsigned {
   __metafn_is_explicit,
   __metafn_is_noexcept,
   __metafn_is_bit_field,
+  __metafn_is_enumerator,
   __metafn_is_const,
   __metafn_is_volatile,
   __metafn_is_lvalue_reference_qualified,
@@ -984,6 +986,11 @@ consteval auto is_noexcept(info r) -> bool {
 // Returns whether the reflected class data member is a bit field.
 consteval auto is_bit_field(info r) -> bool {
   return __metafunction(detail::__metafn_is_bit_field, r);
+}
+
+// Returns whether the reflected class data member is an enumerator.
+consteval auto is_enumerator(info r) -> bool {
+  return __metafunction(detail::__metafn_is_enumerator, r);
 }
 
 // Returns whether the reflected type is const-qualified, or if the reflected

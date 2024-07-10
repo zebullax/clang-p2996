@@ -177,6 +177,10 @@ static bool is_bit_field(APValue &Result, Sema &S, EvalFn Evaluator,
                          QualType ResultTy, SourceRange Range,
                          ArrayRef<Expr *> Args);
 
+static bool is_enumerator(APValue &Result, Sema &S, EvalFn Evaluator,
+                          QualType ResultTy, SourceRange Range,
+                          ArrayRef<Expr *> Args);
+
 static bool is_const(APValue &Result, Sema &S, EvalFn Evaluator,
                      QualType ResultTy, SourceRange Range,
                      ArrayRef<Expr *> Args);
@@ -470,6 +474,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_explicit },
   { Metafunction::MFRK_bool, 1, 1, is_noexcept },
   { Metafunction::MFRK_bool, 1, 1, is_bit_field },
+  { Metafunction::MFRK_bool, 1, 1, is_enumerator },
   { Metafunction::MFRK_bool, 1, 1, is_const },
   { Metafunction::MFRK_bool, 1, 1, is_volatile },
   { Metafunction::MFRK_bool, 1, 1, is_lvalue_reference_qualified },
@@ -3037,6 +3042,23 @@ bool is_bit_field(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     if (const auto *FD = dyn_cast<FieldDecl>(R.getReflectedDecl()))
       result = FD->isBitField();
   }
+  return SetAndSucceed(Result, makeBool(S.Context, result));
+}
+
+bool is_enumerator(APValue &Result, Sema &S, EvalFn Evaluator,
+                   QualType ResultTy, SourceRange Range,
+                   ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool result = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_declaration)
+    result = isa<EnumConstantDecl>(R.getReflectedDecl());
+
   return SetAndSucceed(Result, makeBool(S.Context, result));
 }
 

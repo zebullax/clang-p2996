@@ -54,6 +54,7 @@ static_assert(!is_concept(null_reflection));
 static_assert(!is_base(null_reflection));
 static_assert(!is_value(null_reflection));
 static_assert(!is_object(null_reflection));
+static_assert(!is_enumerator(null_reflection));
 static_assert(!is_user_provided(null_reflection));
 
 static_assert(!is_type(std::meta::reflect_value(3)));
@@ -71,6 +72,7 @@ static_assert(!is_concept(std::meta::reflect_value(3)));
 static_assert(!is_base(std::meta::reflect_value(3)));
 static_assert(is_value(std::meta::reflect_value(3)));
 static_assert(!is_object(std::meta::reflect_value(3)));
+static_assert(!is_enumerator(std::meta::reflect_value(3)));
 
 static_assert(is_type(^type));
 static_assert(!is_incomplete_type(^type));
@@ -87,6 +89,7 @@ static_assert(!is_concept(^type));
 static_assert(!is_base(^type));
 static_assert(!is_value(^type));
 static_assert(!is_object(^type));
+static_assert(!is_enumerator(^type));
 
 static_assert(!is_type(^func));
 static_assert(!is_incomplete_type(^func));
@@ -103,6 +106,7 @@ static_assert(!is_concept(^func));
 static_assert(!is_base(^func));
 static_assert(!is_value(^func));
 static_assert(!is_object(^func));
+static_assert(!is_enumerator(^func));
 static_assert(is_user_provided(^func));
 
 static_assert(is_type(^alias));
@@ -120,6 +124,7 @@ static_assert(!is_concept(^alias));
 static_assert(!is_base(^alias));
 static_assert(!is_value(^alias));
 static_assert(!is_object(^alias));
+static_assert(!is_enumerator(^alias));
 
 static_assert(!is_type(^var));
 static_assert(!is_incomplete_type(^var));
@@ -136,6 +141,7 @@ static_assert(!is_concept(^var));
 static_assert(!is_base(^var));
 static_assert(!is_value(^var));
 static_assert(!is_object(^var));
+static_assert(!is_enumerator(^var));
 
 static_assert(!is_type(^ref));
 static_assert(!is_incomplete_type(^ref));
@@ -152,6 +158,7 @@ static_assert(!is_concept(^ref));
 static_assert(!is_base(^ref));
 static_assert(!is_value(^ref));
 static_assert(!is_object(^ref));
+static_assert(!is_enumerator(^ref));
 
 static_assert(!is_type(^TCls));
 static_assert(!is_incomplete_type(^TCls));
@@ -168,6 +175,7 @@ static_assert(!is_concept(^TCls));
 static_assert(!is_base(^TCls));
 static_assert(!is_value(^TCls));
 static_assert(!is_object(^TCls));
+static_assert(!is_enumerator(^TCls));
 
 static_assert(is_type(^IncompleteTCls<int>));
 static_assert(is_incomplete_type(^IncompleteTCls<int>));
@@ -184,6 +192,7 @@ static_assert(!is_concept(^IncompleteTCls<int>));
 static_assert(!is_base(^IncompleteTCls<int>));
 static_assert(!is_value(^IncompleteTCls<int>));
 static_assert(!is_object(^IncompleteTCls<int>));
+static_assert(!is_enumerator(^IncompleteTCls<int>));
 
 static_assert(is_type(^TCls<int>));
 static_assert(!is_incomplete_type(^TCls<int>));
@@ -200,6 +209,7 @@ static_assert(!is_concept(^TCls<int>));
 static_assert(!is_base(^TCls<int>));
 static_assert(!is_value(^TCls<int>));
 static_assert(!is_object(^TCls<int>));
+static_assert(!is_enumerator(^TCls<int>));
 
 static_assert(!is_type(^TFn));
 static_assert(!is_incomplete_type(^TFn));
@@ -216,6 +226,7 @@ static_assert(!is_concept(^TFn));
 static_assert(!is_base(^TFn));
 static_assert(!is_value(^TFn));
 static_assert(!is_object(^TFn));
+static_assert(!is_enumerator(^TFn));
 
 static_assert(!is_type(^TFn<int>));
 static_assert(!is_incomplete_type(^TFn<int>));
@@ -233,6 +244,7 @@ static_assert(!is_base(^TFn<int>));
 static_assert(!is_value(^TFn<int>));
 static_assert(!is_object(^TFn<int>));
 static_assert(is_user_provided(^TFn<int>));
+static_assert(!is_enumerator(^TFn<int>));
 
 static_assert(!is_type(^TConcept));
 static_assert(!is_incomplete_type(^TConcept));
@@ -249,6 +261,7 @@ static_assert(is_concept(^TConcept));
 static_assert(!is_base(^TConcept));
 static_assert(!is_value(^TConcept));
 static_assert(!is_object(^TConcept));
+static_assert(!is_enumerator(^TConcept));
 
 static_assert(!is_type(substitute(^TConcept,{^int})));
 static_assert(!is_incomplete_type(substitute(^TConcept, {^int})));
@@ -265,6 +278,7 @@ static_assert(!is_concept(substitute(^TConcept, {^int})));
 static_assert(!is_base(substitute(^TConcept, {^int})));
 static_assert(is_value(substitute(^TConcept, {^int})));
 static_assert(!is_object(substitute(^TConcept, {^int})));
+static_assert(!is_enumerator(substitute(^TConcept, {^int})));
 
 static_assert(!is_type(^TVar));
 static_assert(!is_incomplete_type(^TVar));
@@ -281,6 +295,7 @@ static_assert(!is_concept(^TVar));
 static_assert(!is_base(^TVar));
 static_assert(!is_value(^TVar));
 static_assert(!is_object(^TVar));
+static_assert(!is_enumerator(^TVar));
 
 static_assert(!is_type(^TVar<int>));
 static_assert(!is_incomplete_type(^TVar<int>));
@@ -297,6 +312,7 @@ static_assert(!is_concept(^TVar<int>));
 static_assert(!is_base(^TVar<int>));
 static_assert(!is_value(^TVar<int>));
 static_assert(!is_object(^TVar<int>));
+static_assert(!is_enumerator(^TVar<int>));
 
 static_assert(!is_type(^TClsAlias));
 static_assert(!is_incomplete_type(^TClsAlias));
@@ -313,6 +329,7 @@ static_assert(!is_concept(^TClsAlias));
 static_assert(!is_base(^TClsAlias));
 static_assert(!is_value(^TClsAlias));
 static_assert(!is_object(^TClsAlias));
+static_assert(!is_enumerator(^TClsAlias));
 
 static_assert(is_type(^TClsAlias<int>));
 static_assert(!is_incomplete_type(^TClsAlias<int>));
@@ -329,6 +346,7 @@ static_assert(!is_concept(^TClsAlias<int>));
 static_assert(!is_base(^TClsAlias<int>));
 static_assert(!is_value(^TClsAlias<int>));
 static_assert(!is_object(^TClsAlias<int>));
+static_assert(!is_enumerator(^TClsAlias<int>));
 
 static_assert(!is_type(^::));
 static_assert(!is_incomplete_type(^::));
@@ -345,6 +363,7 @@ static_assert(!is_concept(^::));
 static_assert(!is_base(^::));
 static_assert(!is_value(^::));
 static_assert(!is_object(^::));
+static_assert(!is_enumerator(^::));
 
 static_assert(!is_type(^ns));
 static_assert(!is_incomplete_type(^ns));
@@ -361,6 +380,7 @@ static_assert(!is_concept(^ns));
 static_assert(!is_base(^ns));
 static_assert(!is_value(^ns));
 static_assert(!is_object(^ns));
+static_assert(!is_enumerator(^ns));
 
 static_assert(!is_type(^ns_alias));
 static_assert(!is_incomplete_type(^ns_alias));
@@ -377,6 +397,7 @@ static_assert(!is_concept(^ns_alias));
 static_assert(!is_base(^ns_alias));
 static_assert(!is_value(^ns_alias));
 static_assert(!is_object(^ns_alias));
+static_assert(!is_enumerator(^ns_alias));
 
 static_assert(is_type(^Enum));
 static_assert(!is_incomplete_type(^Enum));
@@ -393,6 +414,7 @@ static_assert(!is_concept(^Enum));
 static_assert(!is_base(^Enum));
 static_assert(!is_value(^Enum));
 static_assert(!is_object(^Enum));
+static_assert(!is_enumerator(^Enum));
 
 static_assert(!is_type(^Enum::A));
 static_assert(!is_incomplete_type(^Enum::A));
@@ -409,6 +431,7 @@ static_assert(!is_concept(^Enum::A));
 static_assert(!is_base(^Enum::A));
 static_assert(!is_value(^Enum::A));
 static_assert(!is_object(^Enum::A));
+static_assert(is_enumerator(^Enum::A));
 
 static_assert(is_type(^EnumCls));
 static_assert(!is_incomplete_type(^EnumCls));
@@ -425,6 +448,7 @@ static_assert(!is_concept(^EnumCls));
 static_assert(!is_base(^EnumCls));
 static_assert(!is_value(^EnumCls));
 static_assert(!is_object(^EnumCls));
+static_assert(!is_enumerator(^EnumCls));
 
 static_assert(!is_type(^EnumCls::A));
 static_assert(!is_incomplete_type(^EnumCls::A));
@@ -441,6 +465,7 @@ static_assert(!is_concept(^EnumCls::A));
 static_assert(!is_base(^EnumCls::A));
 static_assert(!is_value(^EnumCls::A));
 static_assert(!is_object(^EnumCls::A));
+static_assert(is_enumerator(^EnumCls::A));
 
 struct incomplete_type;
 using incomplete_alias = incomplete_type;
