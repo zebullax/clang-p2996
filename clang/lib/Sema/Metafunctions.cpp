@@ -804,6 +804,8 @@ static QualType desugarType(QualType QT, bool UnwrapAliases, bool DropCV,
       QT = RT->getPointeeType();
     else if (auto *STTP = dyn_cast<SubstTemplateTypeParmType>(QT))
       QT = STTP->getReplacementType();
+    else if (auto *RST = dyn_cast<ReflectionSpliceType>(QT))
+      QT = RST->desugar();
     else
       break;
   }
@@ -1208,7 +1210,8 @@ static bool isVolatileQualifiedType(QualType QT) {
 QualType Sema::ComputeResultType(QualType ExprTy, const APValue &V) {
   SplitQualType SQT;
 
-  if (V.isLValue() && !ExprTy->isPointerType()) {
+  if (V.isLValue() && !ExprTy->isPointerType() &&
+      !V.getLValueBase().isNull()) {
     SQT = V.getLValueBase().getType().split();
 
     for (auto p = V.getLValuePath().begin();

@@ -159,6 +159,8 @@ template <const float *> struct WithPtr {};
 template <const int &> struct WithRef {};
 template <std::meta::info> struct WithReflection {};
 
+template <std::meta::info> void FnWithReflection() {}
+
 constexpr float F = 4.5f;
 static_assert(!has_template_arguments(^WithFloat));
 static_assert(has_template_arguments(^WithFloat<F>));
@@ -186,6 +188,11 @@ static_assert(!has_template_arguments(^WithReflection));
 static_assert(has_template_arguments(^WithReflection<^int>));
 static_assert(template_arguments_of(^WithReflection<^int>).size() == 1);
 static_assert(template_arguments_of(^WithReflection<^int>)[0] == ^int);
+
+void instantiations() {
+  [[maybe_unused]] WithReflection<std::meta::reflect_value(nullptr)> wr;
+  FnWithReflection<std::meta::reflect_value(nullptr)>();
+}
 }  // namespace non_auto_non_types
 
                            // =======================

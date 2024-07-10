@@ -4694,7 +4694,10 @@ void CXXNameMangler::mangleReflection(const ReflectionValue &R) {
   }
   case ReflectionValue::RK_expr_result:
     Out << 'e';
-    mangleExpression(R.getAsExprResult());
+    if (R.getAsExprResult()->getType()->isNullPtrType())
+      mangleNullPointer(R.getAsExprResult()->getType());
+    else
+      mangleExpression(R.getAsExprResult());
     break;
   case ReflectionValue::RK_declaration: {
     Out << 'd';
