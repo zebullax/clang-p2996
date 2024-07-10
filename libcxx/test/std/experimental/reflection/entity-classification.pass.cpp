@@ -135,7 +135,7 @@ static_assert(!is_alias_template(^var));
 static_assert(!is_concept(^var));
 static_assert(!is_base(^var));
 static_assert(!is_value(^var));
-static_assert(is_object(^var));
+static_assert(!is_object(^var));
 
 static_assert(!is_type(^ref));
 static_assert(!is_incomplete_type(^ref));
@@ -296,7 +296,7 @@ static_assert(!is_alias_template(^TVar<int>));
 static_assert(!is_concept(^TVar<int>));
 static_assert(!is_base(^TVar<int>));
 static_assert(!is_value(^TVar<int>));
-static_assert(is_object(^TVar<int>));
+static_assert(!is_object(^TVar<int>));
 
 static_assert(!is_type(^TClsAlias));
 static_assert(!is_incomplete_type(^TClsAlias));

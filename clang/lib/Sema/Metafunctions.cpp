@@ -1122,7 +1122,7 @@ bool parentOf(APValue &Result, Decl *D) {
 
   auto *DC = D->getDeclContext();
   while (DC && !isa<NamespaceDecl>(DC) && !isa<RecordDecl>(DC) &&
-               !isa<TranslationUnitDecl>(DC))
+               !isa<FunctionDecl>(DC) && !isa<TranslationUnitDecl>(DC))
     DC = DC->getParent();
 
   if (!DC)
@@ -3711,8 +3711,6 @@ bool is_object(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
     Decl *D = R.getReflectedDecl();
     if (isa<TemplateParamObjectDecl>(D))
       IsObject = true;
-    else if (auto *VD = dyn_cast<VarDecl>(D))
-      IsObject = !VD->getType()->isReferenceType();
   }
 
   return SetAndSucceed(Result, makeBool(S.Context, IsObject));
