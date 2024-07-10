@@ -96,6 +96,10 @@ static_assert(template_arguments_of(^TAlias<int, 9, std::vector>)[0] == ^int);
 static_assert([:template_arguments_of(^TAlias<int, 9, std::vector>)[1]:] == 9);
 static_assert(template_arguments_of(^TAlias<int, 9, std::vector>)[2] ==
               ^std::vector);
+
+static_assert(
+        type_of(template_arguments_of(^TCls<int, false, std::vector>)[1]) ==
+        ^bool);
 }  // namespace all_template_kinds
 
                                 // =============

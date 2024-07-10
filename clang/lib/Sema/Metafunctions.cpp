@@ -953,7 +953,7 @@ static APValue getNthTemplateArgument(Sema &S,
       ConstantExpr *CE =
           ConstantExpr::CreateEmpty(S.Context,
                                     ConstantResultStorageKind::APValue);
-      CE->setType(S.Context.IntTy);
+      CE->setType(templArgument.getIntegralType());
       CE->setValueKind(VK_PRValue);
       CE->SetResult(APValue(templArgument.getAsIntegral()), S.Context);
 
