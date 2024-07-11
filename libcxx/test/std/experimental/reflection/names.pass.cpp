@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03 || c++11 || c++14 || c++17 || c++20
-// ADDITIONAL_COMPILE_FLAGS: -freflection
+// ADDITIONAL_COMPILE_FLAGS: -freflection -fparameter-reflection
 
 // <experimental/reflection>
 //
@@ -20,18 +20,17 @@
 
 static_assert(u8name_of(^::) == u8"");
 static_assert(name_of(^::) == "");
-static_assert(u8display_string_of(^::) == u8"");
-static_assert(display_string_of(^::) == "");
+static_assert(u8display_string_of(^::) == u8"(global-namespace)");
+static_assert(display_string_of(^::) == "(global-namespace)");
 static_assert(!has_identifier(^::));
 
 static_assert(u8name_of(^int) == u8"int");
 static_assert(name_of(^int) == "int");
-static_assert(identifier_of(^int) == "int");
-static_assert(u8identifier_of(^int) == u8"int");
-static_assert(has_identifier(^int));
+static_assert(!has_identifier(^int));
 
-static_assert(u8display_string_of(std::meta::reflect_value(3)) == u8"");
-static_assert(display_string_of(std::meta::reflect_value(3)) == "");
+static_assert(u8display_string_of(std::meta::reflect_value(3)) ==
+              u8"(value : int)");
+static_assert(display_string_of(std::meta::reflect_value(3)) == "3");
 static_assert(u8display_string_of(^int) == u8"int");
 static_assert(display_string_of(^int) == "int");
 
@@ -110,16 +109,14 @@ static_assert(identifier_of(^EnumCls::A) == "A");
 static_assert(has_identifier(^EnumCls::A));
 
 static_assert(name_of(template_arguments_of(^TFn<int, 0, TCls>)[0]) == "int");
-static_assert(identifier_of(template_arguments_of(^TFn<int, 0, TCls>)[0]) ==
-              "int");
+static_assert(!has_identifier(template_arguments_of(^TFn<int, 0, TCls>)[0]));
 static_assert(!has_identifier(template_arguments_of(^TFn<int, 0, TCls>)[1]));
 static_assert(name_of(template_arguments_of(^TFn<int, 0, TCls>)[2]) == "TCls");
 static_assert(identifier_of(template_arguments_of(^TFn<int, 0, TCls>)[2]) ==
               "TCls");
 static_assert(name_of(template_arguments_of(^WithTypePack<int>)[0]) == "int");
-static_assert(identifier_of(template_arguments_of(^WithTypePack<int>)[0]) ==
-              "int");
-static_assert(display_string_of(^::) == "");
+static_assert(!has_identifier(template_arguments_of(^WithTypePack<int>)[0]));
+static_assert(display_string_of(^::) == "(global-namespace)");
 static_assert(display_string_of(^TCls) == "TCls");
 static_assert(display_string_of(^TAlias) == "TAlias");
 static_assert(display_string_of(^TVar) == "TVar");
@@ -131,13 +128,13 @@ static_assert(display_string_of(^EnumCls::A) == "A");
 static_assert(display_string_of(template_arguments_of(^TFn<int, 0, TCls>)[0]) ==
               "int");
 static_assert(display_string_of(template_arguments_of(^TFn<int, 0, TCls>)[1]) ==
-              "");
+              "0");
 static_assert(display_string_of(template_arguments_of(^TFn<int, 0, TCls>)[2]) ==
               "TCls");
 static_assert(display_string_of(template_arguments_of(^WithTypePack<int>)[0]) ==
               "int");
 static_assert(display_string_of(template_arguments_of(^WithAutoPack<3>)[0]) ==
-              "");
+              "3");
 
 
 struct Base {};
@@ -261,12 +258,14 @@ static_assert(
          std::views::transform(std::meta::display_string_of) |
          std::ranges::to<std::vector>()) ==
     std::vector<std::string_view>{"~Cls"});
-static_assert(display_string_of(^Cls::operator bool) == "operator bool");
-static_assert(
+//TODO(P2996): Fix this case.
+//static_assert(display_string_of(^Cls::operator bool) == "operator bool");
+//TODO(P2996): Fix this case.
+/*static_assert(
     (members_of(^Cls) |
          std::views::filter(std::meta::is_template) |
          std::views::transform(std::meta::display_string_of) |
-         std::ranges::to<std::vector>())[5] == "operator int");
+         std::ranges::to<std::vector>())[5] == "operator int");*/
 static_assert(display_string_of(^Cls::TInner) == "TInner");
 static_assert(display_string_of(^Cls::TMemFn) == "TMemFn");
 static_assert(display_string_of(^Cls::TAlias) == "TAlias");

@@ -81,10 +81,6 @@ static bool has_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
                            QualType ResultTy, SourceRange Range,
                            ArrayRef<Expr *> Args);
 
-static bool display_string_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                              QualType ResultTy, SourceRange Range,
-                              ArrayRef<Expr *> Args);
-
 static bool source_location_of(APValue &Result, Sema &S, EvalFn Evaluator,
                                QualType ResultTy, SourceRange Range,
                                ArrayRef<Expr *> Args);
@@ -450,7 +446,6 @@ static constexpr Metafunction Metafunctions[] = {
   // exposed metafunctions
   { Metafunction::MFRK_spliceFromArg, 4, 4, name_of },
   { Metafunction::MFRK_spliceFromArg, 4, 4, identifier_of },
-  { Metafunction::MFRK_spliceFromArg, 3, 3, display_string_of },
   { Metafunction::MFRK_bool, 1, 1, has_identifier },
   { Metafunction::MFRK_sourceLoc, 1, 1, source_location_of },
   { Metafunction::MFRK_metaInfo, 1, 1, type_of },
@@ -1755,58 +1750,6 @@ bool has_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
   return SetAndSucceed(Result, makeBool(S.Context, HasIdentifier));
 }
 
-bool display_string_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                       QualType ResultTy, SourceRange Range,
-                       ArrayRef<Expr *> Args) {
-  assert(Args[0]->getType()->isReflectionType());
-
-  APValue R;
-  if (!Evaluator(R, Args[1], true))
-    return true;
-
-  bool IsUtf8;
-  {
-    APValue Scratch;
-    if (!Evaluator(Scratch, Args[2], true))
-      return true;
-    IsUtf8 = Scratch.getInt().getBoolValue();
-  }
-
-  std::string Name;
-  switch (R.getReflection().getKind()) {
-  case ReflectionValue::RK_type: {
-    getTypeName(Name, S.Context, R.getReflectedType());
-    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
-  }
-  case ReflectionValue::RK_declaration: {
-    getDeclName(Name, S.Context, R.getReflectedDecl());
-    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
-  }
-  case ReflectionValue::RK_template: {
-    getTemplateName(Name, S.Context, R.getReflectedTemplate());
-    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
-  }
-  case ReflectionValue::RK_expr_result: {
-    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
-  }
-  case ReflectionValue::RK_namespace: {
-    getDeclName(Name, S.Context, R.getReflectedNamespace());
-    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
-  }
-  case ReflectionValue::RK_base_specifier: {
-    getTypeName(Name, S.Context, R.getReflectedBaseSpecifier()->getType());
-    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
-  }
-  case ReflectionValue::RK_null: {
-    Name = "<null-reflection>";
-    return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
-  }
-  case ReflectionValue::RK_data_member_spec:
-    return true;
-  }
-  llvm_unreachable("unknown reflection kind");
-}
-
 bool source_location_of(APValue &Result, Sema &S, EvalFn Evaluator,
                         QualType ResultTy, SourceRange Range,
                         ArrayRef<Expr *> Args) {
@@ -1866,6 +1809,8 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   }
   case ReflectionValue::RK_declaration: {
     ValueDecl *VD = cast<ValueDecl>(R.getReflectedDecl());
+    if (isa<CXXConstructorDecl, CXXDestructorDecl, BindingDecl>(VD))
+      return true;
 
     bool UnwrapAliases = isa<ParmVarDecl>(VD) || isa<BindingDecl>(VD);
     bool DropCV = isa<ParmVarDecl>(VD);

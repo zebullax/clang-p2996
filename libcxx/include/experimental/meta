@@ -355,21 +355,13 @@ consteval auto return_type_of(info) -> info;
 
 } // namespace reflection_v2
 } // namespace meta
-
-template <>
-struct hash<meta::info> {
-  hash() = default;
-  hash(const hash<meta::info>&) = default;
-  hash(hash<meta::info>&&) = default;
-
-  consteval auto operator()(std::meta::info) -> size_t;
-};
-
 } // namespace std
 
  */
 
 #include <experimental/__config>
+#include <algorithm>
+#include <bit>
 #include <initializer_list>
 #include <optional>
 #include <ranges>
@@ -408,7 +400,6 @@ enum : unsigned {
   // exposed metafunctions
   __metafn_name_of,
   __metafn_identifier_of,
-  __metafn_display_string_of,
   __metafn_has_identifier,
   __metafn_source_location_of,
   __metafn_type_of,
@@ -522,8 +513,8 @@ class iterator {
   // The reflected entity passed to the underlying range
   info m_reflectedEntity{^sentinel};
   // The current meta::info within the range: e.g. if we are
-  // doing template_arguments_of(^std::vector<int, double, std::string>)
-  // m_currInfoItr can be either ^int, ^double and ^std::string
+  // doing template_arguments_of(^vector<int, double, string>)
+  // m_currInfoItr can be either ^int, ^double and ^string
   info m_currInfoItr{^sentinel};
 
   Pred m_pred;
@@ -682,7 +673,7 @@ constexpr struct front_base_of_fn {
 constexpr struct next_enumerator_of_fn {
   consteval info operator()(info currItrInfo, auto /* reflectedEntity */,
                             auto /* idx */ ) const {
-    
+
     return __metafunction(detail::__metafn_get_get_next_enumerator_decl_of,
                           currItrInfo, ^sentinel);
   }
@@ -746,16 +737,9 @@ consteval auto u8identifier_of(info r) -> u8string_view {
                         /*UTF8=*/true, /*EnforceConsistent=*/true);
 }
 
-// Returns a name for the reflected entity.
-consteval auto display_string_of(info r) -> string_view {
-  return __metafunction(detail::__metafn_display_string_of, ^const char *, r,
-                        /*UTF8=*/false);
-}
-
-consteval auto u8display_string_of(info r) -> u8string_view {
-  return __metafunction(detail::__metafn_display_string_of, ^const char8_t *, r,
-                        /*UTF8=*/true);
-}
+// Returns an implementation-defined name for the reflected entity.
+consteval auto display_string_of(info r) -> string_view;
+consteval auto u8display_string_of(info r) -> u8string_view;
 
 consteval auto has_identifier(info r) -> bool {
   return __metafunction(detail::__metafn_has_identifier, r);
@@ -977,7 +961,7 @@ consteval auto is_explicit(info r) -> bool {
   return __metafunction(detail::__metafn_is_explicit, r);
 }
 
-// Returns whether the reflected function type, function or member function 
+// Returns whether the reflected function type, function or member function
 // is noexcept.
 consteval auto is_noexcept(info r) -> bool {
   return __metafunction(detail::__metafn_is_noexcept, r);
@@ -1222,12 +1206,12 @@ template <reflection_range R = initializer_list<info>>
 consteval auto reflect_invoke(info target, R &&args) -> info {
   if constexpr (ranges::contiguous_range<R>) {
     return __metafunction(detail::__metafn_reflect_invoke, target,
-                          static_cast<std::meta::info *>(nullptr), 0,
+                          static_cast<info *>(nullptr), 0,
                           ranges::data(args), ranges::size(args));
   } else {
     vector vargs = args | ranges::to<vector>();
     return __metafunction(detail::__metafn_reflect_invoke, target,
-                          static_cast<std::meta::info *>(nullptr), 0,
+                          static_cast<info *>(nullptr), 0,
                           vargs.data(), vargs.size());
   }
 }
@@ -1264,13 +1248,13 @@ consteval auto reflect_invoke(info target, R1 &&targs, R2 &&args) -> info {
 // Representation of a data member which may be passed to 'data_member_spec'.
 struct data_member_options_t {
   struct name_type {
-    std::variant<u8string, string> impl;
+    variant<u8string, string> impl;
 
     template <typename T> requires constructible_from<u8string, T>
-    consteval name_type(T &&in) : impl(std::in_place_type<u8string>, in) {}
+    consteval name_type(T &&in) : impl(in_place_type<u8string>, in) {}
 
     template <typename T> requires constructible_from<string, T>
-    consteval name_type(T &&in) : impl(std::in_place_type<string>, in) {}
+    consteval name_type(T &&in) : impl(in_place_type<string>, in) {}
   };
 
   optional<name_type> name = nullopt;
@@ -1371,7 +1355,7 @@ consteval auto bit_size_of(info r) -> size_t {
 }
 
 // Returns a static string having the provided contents.
-consteval auto define_static_string(std::string_view in) -> const char * {
+consteval auto define_static_string(string_view in) -> const char * {
   if (in.empty())
     return "";
 
@@ -1380,7 +1364,7 @@ consteval auto define_static_string(std::string_view in) -> const char * {
                         /*IsUtf8=*/false);
 }
 
-consteval auto define_static_string(std::u8string_view in) -> const char8_t * {
+consteval auto define_static_string(u8string_view in) -> const char8_t * {
   if (in.empty())
     return u8"";
 
@@ -1538,7 +1522,7 @@ consteval auto type_is_scoped_enum(info r) -> bool {
 
 template <reflection_range R = initializer_list<info>>
 consteval auto type_is_constructible(info type, R &&type_args) {
-  std::vector<info> args(from_range, type_args);
+  vector<info> args(from_range, type_args);
   args.insert(args.begin(), type);
 
   return extract<bool>(substitute(^is_constructible_v, args));
@@ -1582,7 +1566,7 @@ consteval auto type_is_destructible(info r) -> bool {
 
 template <reflection_range R = initializer_list<info>>
 consteval auto type_is_trivially_constructible(info type, R &&type_args) {
-  std::vector<info> args(from_range, type_args);
+  vector<info> args(from_range, type_args);
   args.insert(args.begin(), type);
 
   return extract<bool>(substitute(^is_trivially_constructible_v, args));
@@ -1618,7 +1602,7 @@ consteval auto type_is_trivially_destructible(info r) -> bool {
 
 template <reflection_range R = initializer_list<info>>
 consteval auto type_is_nothrow_constructible(info type, R &&type_args) {
-  std::vector<info> args(from_range, type_args);
+  vector<info> args(from_range, type_args);
   args.insert(args.begin(), type);
 
   return extract<bool>(substitute(^is_nothrow_constructible_v, args));
@@ -1693,7 +1677,7 @@ consteval auto type_rank(info r) -> size_t {
 
 consteval auto type_extent(info r, unsigned i = 0) -> size_t {
   return extract<size_t>(substitute(^extent_v,
-                                    {r, std::meta::reflect_value(i)}));
+                                    {r, reflect_value(i)}));
 }
 
 consteval auto type_is_same(info r, info s) -> bool {
@@ -1726,7 +1710,7 @@ consteval auto type_is_nothrow_convertible(info r, info s) -> bool {
 
 template <reflection_range R = initializer_list<info>>
 consteval auto type_is_invocable(info type, R &&args) {
-  std::vector<info> targs(from_range, args);
+  vector<info> targs(from_range, args);
   targs.insert(targs.begin(), type);
 
   return extract<bool>(substitute(^is_invocable_v, targs));
@@ -1734,7 +1718,7 @@ consteval auto type_is_invocable(info type, R &&args) {
 
 template <reflection_range R = initializer_list<info>>
 consteval auto type_is_invocable_r(info type_result, info type, R &&args) {
-  std::vector<info> targs(from_range, args);
+  vector<info> targs(from_range, args);
   targs.insert(targs.begin(), type);
   targs.insert(targs.begin(), type_result);
 
@@ -1743,7 +1727,7 @@ consteval auto type_is_invocable_r(info type_result, info type, R &&args) {
 
 template <reflection_range R = initializer_list<info>>
 consteval auto type_is_nothrow_invocable(info type, R &&args) {
-  std::vector<info> targs(from_range, args);
+  vector<info> targs(from_range, args);
   targs.insert(targs.begin(), type);
 
   return extract<bool>(substitute(^is_nothrow_invocable_v, targs));
@@ -1752,7 +1736,7 @@ consteval auto type_is_nothrow_invocable(info type, R &&args) {
 template <reflection_range R = initializer_list<info>>
 consteval auto type_is_nothrow_invocable_r(info type_result, info type,
                                            R &&args) {
-  std::vector<info> targs(from_range, args);
+  vector<info> targs(from_range, args);
   targs.insert(targs.begin(), type);
   targs.insert(targs.begin(), type_result);
 
@@ -1859,7 +1843,7 @@ consteval auto type_underlying_type(info type) -> info {
 
 template <reflection_range R = initializer_list<info>>
 consteval auto type_invoke_result(info type, R &&type_args) -> info {
-  std::vector<info> targs(from_range, type_args);
+  vector<info> targs(from_range, type_args);
   targs.insert(targs.begin(), type);
 
   return dealias(substitute(^invoke_result_t, targs));
@@ -1876,7 +1860,7 @@ consteval auto type_unwrap_ref_decay(info type) -> info {
 // Proposed alternative P2996 accessibility API
 
 struct access_context {
-  const std::meta::info repr;
+  const info repr;
 
 public:
   consteval access_context()
@@ -2044,6 +2028,542 @@ template <reflection_range R = initializer_list<info>>
 [[deprecated("removed 'test_trait' in P2996R5")]]
 consteval auto test_trait(info templ, R &&args) -> bool {
   return extract<bool>(substitute(templ, args));
+}
+
+namespace detail {
+
+#define STRING_CONSTANT(X) \
+  [] { if constexpr(IsUtf8) return u8##X; else return X; }()
+
+template <typename CharT>
+struct pretty_printer {
+  static_assert(dealias(^CharT) == ^char || dealias(^CharT) == ^char8_t);
+  static constexpr bool IsUtf8 = type_is_same(^CharT, ^char8_t);
+
+  using string_t = basic_string<CharT>;
+
+  static consteval auto identifier_helper(info R) {
+    if constexpr (IsUtf8)
+      return u8identifier_of(R);
+    else
+      return identifier_of(R);
+  }
+
+  template <info R>
+  static consteval info type_of_object_from_memptr() {
+    return []<typename T,
+              typename C>(T C::*) { return ^C; }(typename [:R:]{});
+  };
+
+  template <info R>
+  static consteval info type_of_member_from_memptr() {
+    return []<typename T,
+              typename C>(T C::*) { return ^T; }(typename [:R:]{});
+  };
+
+  template<auto... vals>
+  struct replicator_type {
+    template<typename F>
+      constexpr void operator>>(F body) const {
+        (body.template operator()<vals>(), ...);
+      }
+  };
+
+  template<auto... vals>
+  static constexpr replicator_type<vals...> replicator = {};
+
+  template<typename R>
+  static consteval auto expand(R range) {
+    vector<info> args;
+    for (auto r : range) {
+      args.push_back(reflect_value(r));
+    }
+    return substitute(^replicator, args);
+  }
+
+  template <info R>
+      requires (has_template_arguments(R))
+    static consteval string_t render_template_argument_list_of();
+
+  template <info R>
+      requires (is_value(R))
+    static consteval string_t render_value_as_hex();
+
+  template <info R>
+    static consteval const CharT *tprint();
+
+  struct tprint_impl {
+    template <info R>  // Null reflection.
+        requires (R == info{})
+      static consteval string_t render() {
+        return STRING_CONSTANT("(null-reflection)");
+      }
+
+    template <info R>  // Values of fundamental type.
+        requires (is_value(R) && type_is_fundamental(type_of(R)))
+      static consteval string_t render();
+
+    template <info R>  // Values of aggregate type.
+        requires (is_value(R) && type_is_aggregate(type_of(R)))
+      static consteval string_t render();
+
+    template <info R>  // Values of pointer type.
+        requires (is_value(R) && type_is_pointer(type_of(R)))
+      static consteval string_t render();
+
+    template <info R>  // Objects.
+        requires (is_object(R))
+      static consteval string_t render();
+
+    template <info R>  // Variables, data members, enumerators.
+        requires (is_variable(R) || is_nonstatic_data_member(R) ||
+                  is_enumerator(R))
+      static consteval string_t render();
+
+    template <info R>  // Templates.
+        requires (is_template(R))
+      static consteval string_t render();
+
+    template <info R>  // Namespaces.
+        requires (is_namespace(R))
+      static consteval string_t render();
+
+    template <info R>  // Functions.
+        requires (is_function(R))
+      static consteval string_t render();
+
+    template <info R>  // Value types.
+        requires (is_type(R) && !(is_const(R) || is_volatile(R)) &&
+                  !type_is_pointer(R) && !type_is_function(R) &&
+                  !type_is_reference(R) && !type_is_member_pointer(R))
+      static consteval string_t render();
+
+    template <info R>  // CV-qualified non-function types.
+        requires (is_type(R) && (is_const(R) || is_volatile(R)) &&
+                  !type_is_function(R))
+      static consteval string_t render();
+
+    template <info R>  // Reference types.
+        requires (is_type(R) && !(is_const(R) || is_volatile(R)) &&
+                  type_is_reference(R))
+      static consteval string_t render();
+
+    template <info R>  // Function types.
+        requires (is_type(R) && type_is_function(R))
+      static consteval string_t render();
+
+    template <info R>  // Non-function, non-member pointer types.
+        requires (is_type(R) && type_is_pointer(R) &&
+                  !(is_const(R) || is_volatile(R)) &&
+                  !type_is_function(type_remove_pointer(R)))
+      static consteval string_t render();
+
+    template <info R>  // Function pointer types.
+        requires (is_type(R) && type_is_pointer(R) &&
+                  type_is_function(type_remove_pointer(R)))
+      static consteval string_t render();
+
+    template <info R>  // Pointer to data member types.
+        requires (is_type(R) && type_is_member_pointer(R) &&
+                  !(is_const(R) || is_volatile(R)) &&
+                  !type_is_member_function_pointer(R))
+      static consteval string_t render();
+
+    template <info R>  // Pointer to member function types.
+        requires (is_type(R) && type_is_member_function_pointer(R))
+      static consteval string_t render();
+
+    template <info R>  // Base specifiers.
+        requires (is_base(R))
+      static consteval string_t render();
+
+    template <info R>  // Fallback.
+      static consteval string_t render();
+  };
+
+  static consteval const CharT *print(info R);
+
+  friend consteval auto display_string_of(info) -> string_view;
+  friend consteval auto u8display_string_of(info) -> u8string_view;
+
+};
+
+template <typename CharT>
+consteval auto pretty_printer<CharT>::print(info R)
+      -> const CharT * {
+  return extract<const CharT *>(reflect_invoke(^tprint,
+                                               {reflect_value(R)}, {}));
+}
+
+template <typename CharT>
+template <info R>
+    requires (has_template_arguments(R))
+consteval auto pretty_printer<CharT>::render_template_argument_list_of()
+      -> string_t {
+  string_t result;
+
+  size_t Idx = 0;
+  [:expand(template_arguments_of(R)):] >> [&]<auto TArg> {
+    result += (Idx++ < 1 ? STRING_CONSTANT("<") : STRING_CONSTANT(", "));
+    result += tprint_impl::template render<TArg>();
+  };
+  return result + STRING_CONSTANT(">");
+}
+
+template <typename CharT>
+template <info R>
+    requires (is_value(R))
+consteval auto pretty_printer<CharT>::render_value_as_hex() -> string_t {
+  string_t result = STRING_CONSTANT("0x");
+
+  auto bytes = bit_cast<array<unsigned char, size_of(type_of(R))>>([:R:]);
+  if (endian::native == endian::little)
+    reverse(begin(bytes), end(bytes));
+
+  for (auto b : bytes) {
+    static constexpr char lookup[] = "0123456789ABCDEF";
+    result += lookup[(b & CharT(0xF0)) >> 4];
+    result += lookup[b & CharT(0x0F)];
+  }
+
+  return result;
+}
+
+template <typename CharT>
+template <info R>
+consteval auto pretty_printer<CharT>::tprint() -> const CharT * {
+  return define_static_string(tprint_impl::template render<R>());
+}
+
+template <typename CharT>
+template <info R>  // Values of fundamental type.
+    requires(is_value(R) && type_is_fundamental(type_of(R)))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  string_t result;
+  constexpr info Ty = dealias(type_of(R));
+
+  if constexpr (Ty == ^nullptr_t)
+    result = STRING_CONSTANT("nullptr");
+
+  if constexpr (type_is_same(Ty, ^bool)) {
+    if (extract<bool>(R))
+      result = STRING_CONSTANT("true");
+    else
+      result = STRING_CONSTANT("false");
+  }
+
+  else if constexpr (type_is_same(Ty, ^char)) {
+    result = STRING_CONSTANT("'");
+    result.append(1, extract<char>(R));
+    result += STRING_CONSTANT("'");
+  }
+
+  else if constexpr (type_is_integral(Ty) && dealias(^CharT) == ^char) {
+    CharT buffer[32] = {};
+    if (!to_chars(begin(buffer), end(buffer), [:R:]))
+      throw "'to_chars' failed to format integeral value";
+    result = buffer;
+  }
+
+  else if constexpr (type_is_floating_point(Ty)) {
+    result = render_value_as_hex<R>();
+  }
+
+  else {
+    result += STRING_CONSTANT("(value : ");
+    result += render<Ty>();
+    result += STRING_CONSTANT(")");
+  }
+
+  return result;
+}
+
+template <typename CharT>
+template <info R>  // Values of aggregate type.
+    requires(is_value(R) && type_is_aggregate(type_of(R)))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  string_t result = render<type_of(R)>() + STRING_CONSTANT("{");
+
+  size_t Idx = 0;
+  [:expand(nonstatic_data_members_of(type_of(R))):] >> [&]<auto Mem> {
+    if (Idx++ > 0) result += STRING_CONSTANT(", ");
+    result += tprint_impl::render<reflect_value([:R:].[:Mem:])>();
+  };
+  result += STRING_CONSTANT("}");
+
+  return result;
+}
+
+template <typename CharT>
+template <info R>  // Values of pointer type.
+    requires (is_value(R) && type_is_pointer(type_of(R)))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  return STRING_CONSTANT("(value : ") + render<type_of(R)>() +
+         STRING_CONSTANT(")");
+}
+
+template <typename CharT>
+template <info R>  // Objects.
+    requires (is_object(R))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  string_t result = STRING_CONSTANT("(object : ");
+  result += render<type_of(R)>();
+  return result + STRING_CONSTANT(")");
+}
+
+template <typename CharT>
+template <info R>  // Templates.
+    requires(is_template(R))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  if (is_constructor_template(R))
+    return render<parent_of(R)>();
+
+  return string_t {identifier_helper(R)};
+}
+
+template <typename CharT>
+template <info R>  // Namespaces.
+    requires(is_namespace(R))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  if (R == ^::)
+    return STRING_CONSTANT("(global-namespace)");
+  if (!has_identifier(R))
+    return STRING_CONSTANT("(anonymous-namespace)");
+
+  return string_t {identifier_helper(R)};
+}
+
+template <typename CharT>
+template <info R>  // Functions.
+    requires(is_function(R))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  string_t result;
+
+  if constexpr (has_template_arguments(R)) {
+    return render<template_of(R)>() + render_template_argument_list_of<R>();
+  } else if constexpr (is_destructor(R)) {
+    constexpr info P = parent_of(R);
+    return "~" + render<has_template_arguments(P) ? template_of(P) : P>();
+  } else if constexpr (is_constructor(R)) {
+    return render<parent_of(R)>();
+  }
+
+  return string_t {identifier_helper(R)};
+}
+
+template <typename CharT>
+template <info R>  // Value types.
+    requires (is_type(R) && !(is_const(R) || is_volatile(R)) &&
+              !type_is_pointer(R) && !type_is_function(R) &&
+              !type_is_reference(R) && !type_is_member_pointer(R))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  string_t result;
+
+  if constexpr (has_template_arguments(R)) {
+    return render<template_of(R)>() + render_template_argument_list_of<R>();
+  } else if constexpr (type_is_fundamental(R)) {
+    if (R == ^void) return STRING_CONSTANT("void");
+
+    if (R == ^decltype(nullptr) || R == ^nullptr_t)
+      return STRING_CONSTANT("std::nullptr_t");
+    if (R == ^decltype(^::) || R == ^info)
+      return STRING_CONSTANT("std::meta::info");
+
+    if (R == ^bool) return STRING_CONSTANT("bool");
+    if (R == ^signed char) return STRING_CONSTANT("signed char");
+    if (R == ^unsigned char) return STRING_CONSTANT("unsigned char");
+    if (R == ^char) return STRING_CONSTANT("char");
+
+    if (R == ^char8_t) return STRING_CONSTANT("char8_t");
+    if (R == ^char16_t) return STRING_CONSTANT("char16_t");
+    if (R == ^char32_t) return STRING_CONSTANT("char32_t");
+
+    if (R == ^float) return STRING_CONSTANT("float");
+    if (R == ^double) return STRING_CONSTANT("double");
+    if (R == ^long double) return STRING_CONSTANT("long double");
+
+    if (type_is_unsigned(R)) result += STRING_CONSTANT("unsigned ");
+    if constexpr (!is_alias(R)) {
+      auto U = type_make_signed(R);
+      if (U == ^short) return result + STRING_CONSTANT("short");
+      if (U == ^int) return result + STRING_CONSTANT("int");
+      if (U == ^long) return result + STRING_CONSTANT("long");
+      if (U == ^long long) return result + STRING_CONSTANT("long long");
+    }
+  }
+  return string_t {identifier_helper(R)};
+}
+
+template <typename CharT>
+template <info R>  // CV-qualified types.
+    requires (is_type(R) && (is_const(R) || is_volatile(R)) &&
+              !type_is_function(R))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  string_t result;
+  if (is_const(R))
+    result += STRING_CONSTANT("const ");
+  if (is_volatile(R))
+    result += STRING_CONSTANT("volatile ");
+  return result + render<type_remove_cv(R)>();
+}
+
+template <typename CharT>
+template <info R>  // Reference types.
+    requires (is_type(R) && !(is_const(R) || is_volatile(R)) &&
+              type_is_reference(R))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  string_t result = render<type_remove_reference(R)>() + STRING_CONSTANT(" &");
+  if (type_is_rvalue_reference(R))
+    result += STRING_CONSTANT("&");
+  return result;
+}
+
+template <typename CharT>
+template <info R>  // Non-function, non-member pointer types.
+    requires (is_type(R) && type_is_pointer(R) &&
+              !(is_const(R) || is_volatile(R)) &&
+              !type_is_function(type_remove_pointer(R)))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  return render<type_remove_pointer(R)>() + STRING_CONSTANT(" *");
+}
+
+template <typename CharT>
+template <info R>  // Function pointers.
+    requires (is_type(R) && type_is_pointer(R) &&
+              type_is_function(type_remove_pointer(R)))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+
+#if __has_feature(parameter_reflection)
+  constexpr auto FnTy = type_remove_pointer(R);
+  string_t result = render<return_type_of(FnTy)>() + STRING_CONSTANT("(*)(");
+  size_t Idx = 0;
+  [:expand(parameters_of(FnTy)):] >> [&]<auto Param> {
+    if (Idx++ > 0) result += STRING_CONSTANT(", ");
+    result += tprint_impl::render<Param>();
+  };
+  result += STRING_CONSTANT(")");
+
+  if (is_noexcept(FnTy))
+    result += STRING_CONSTANT(" noexcept");
+#else
+  string_t result = STRING_CONSTANT("(function-pointer-type)");
+#endif
+
+  return result;
+}
+
+template <typename CharT>
+template <info R>  // Function types.
+    requires (is_type(R) && type_is_function(R))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+#if __has_feature(parameter_reflection)
+  string_t result = render<return_type_of(R)>() + STRING_CONSTANT("(");
+  size_t Idx = 0;
+  [:expand(parameters_of(R)):] >> [&]<auto Param> {
+    if (Idx++ > 0) result += STRING_CONSTANT(", ");
+    result += tprint_impl::render<Param>();
+  };
+  result += STRING_CONSTANT(")");
+
+  if (is_const(R))
+    result += STRING_CONSTANT(" const");
+  if (is_volatile(R))
+    result += STRING_CONSTANT(" volatile");
+
+  if (is_lvalue_reference_qualified(R))
+    result += STRING_CONSTANT(" &");
+  else if (is_rvalue_reference_qualified(R))
+    result += STRING_CONSTANT(" &&");
+
+  if (is_noexcept(R))
+    result += STRING_CONSTANT(" noexcept");
+#else
+  string_t result = STRING_CONSTANT("(function-type)");
+#endif
+
+  return result;
+}
+
+template <typename CharT>
+template <info R>  // Pointer to data member types.
+    requires (is_type(R) && type_is_member_pointer(R) &&
+              !(is_const(R) || is_volatile(R)) &&
+              !type_is_member_function_pointer(R))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  string_t result = render<type_of_member_from_memptr<R>()>() +
+                    STRING_CONSTANT(" ");
+  result += render<type_of_object_from_memptr<R>()>() + STRING_CONSTANT("::*");
+
+  return result;
+}
+
+template <typename CharT>
+template <info R>  // Pointer to member function types.
+    requires (is_type(R) && type_is_member_function_pointer(R))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  constexpr auto FnTy = type_of_member_from_memptr<R>();
+
+#if __has_feature(parameter_reflection)
+  string_t result = render<return_type_of(FnTy)>() + STRING_CONSTANT("(");
+  result += render<type_of_object_from_memptr<R>()>() +
+            STRING_CONSTANT("::*)(");
+
+  size_t Idx = 0;
+  [:expand(parameters_of(FnTy)):] >> [&]<auto Param> {
+    if (Idx++ > 0) result += STRING_CONSTANT(", ");
+    result += tprint_impl::render<Param>();
+  };
+  result += STRING_CONSTANT(")");
+
+  if (is_const(FnTy))
+    result += STRING_CONSTANT(" const");
+  if (is_volatile(FnTy))
+    result += STRING_CONSTANT(" volatile");
+
+  if (is_lvalue_reference_qualified(FnTy))
+    result += STRING_CONSTANT(" &");
+  else if (is_rvalue_reference_qualified(FnTy))
+    result += STRING_CONSTANT(" &&");
+
+  if (is_noexcept(FnTy))
+    result += STRING_CONSTANT(" noexcept");
+#else
+  string_t result = STRING_CONSTANT("(member-function-pointer-type)");
+#endif
+
+  return result;
+}
+
+
+template <typename CharT>
+template <info R>  // Base specifiers.
+    requires (is_base(R))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  return string_t {render<type_of(R)>()};
+}
+
+template <typename CharT>
+template <info R>  // Fallback.
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  return STRING_CONSTANT("(unsupported-reflection)");
+}
+
+template <typename CharT>
+template <info R>
+    requires (is_variable(R) || is_nonstatic_data_member(R) || is_enumerator(R))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  return string_t {identifier_helper(R)};
+}
+
+#undef STRING_CONSTANT
+}  // namespace detail
+
+consteval auto display_string_of(info R) -> string_view {
+  return detail::pretty_printer<char>::print(R);
+}
+
+consteval auto u8display_string_of(info R) -> u8string_view {
+  return detail::pretty_printer<char8_t>::print(R);
 }
 
 _LIBCPP_END_NAMESPACE_META_V2

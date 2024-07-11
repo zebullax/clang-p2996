@@ -662,7 +662,6 @@ static_assert(!is_noexcept(type_of(^T::static_mem)));
 
 // a structured binding
 static_assert(!is_noexcept(^structured_binding1));
-static_assert(!is_noexcept(type_of(^structured_binding1)));
 
 // a non static data member
 static_assert(!is_noexcept(^T::non_static_mem));

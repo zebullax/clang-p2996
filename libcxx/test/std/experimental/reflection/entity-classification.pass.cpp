@@ -500,9 +500,6 @@ static_assert(is_structured_binding(^z1));
 static_assert(!is_variable(^x1));
 static_assert(!is_variable(^y1));
 static_assert(!is_variable(^z1));
-static_assert(type_of(^x1) == ^int);
-static_assert(type_of(^y1) == ^int);
-static_assert(type_of(^z1) == ^int);
 
 auto struct_binding_case2() { return std::make_tuple(1, 2, 3); }
 auto [x2, y2, z2] = struct_binding_case2();
@@ -514,9 +511,6 @@ static_assert(!is_variable(^y2));
 static_assert(!is_variable(^z2));
 // "wrapped" type of each element is 'std::tuple_element<I, std::tuple<int,int,int>>::type',
 // where I is index of tuple field
-static_assert(type_of(^x2) == ^int);
-static_assert(type_of(^y2) == ^int);
-static_assert(type_of(^z2) == ^int);
 
 struct StructBinding {
   const int a;
@@ -531,9 +525,6 @@ static_assert(is_structured_binding(^z3));
 static_assert(!is_variable(^x3));
 static_assert(!is_variable(^y3));
 static_assert(!is_variable(^z3));
-static_assert(type_of(^x3) == ^const int);
-static_assert(type_of(^y3) == ^int);
-static_assert(type_of(^z3) == ^volatile double);
 
 constexpr auto p = std::pair{1, 2};
 auto& [x4, y4] = p;
@@ -541,8 +532,6 @@ static_assert(is_structured_binding(^x4));
 static_assert(is_structured_binding(^y4));
 static_assert(!is_variable(^x4));
 static_assert(!is_variable(^y4));
-static_assert(type_of(^x4) == ^const int);
-static_assert(type_of(^y4) == ^const int);
 static_assert(extract<int>(^x4) == x4);
 static_assert(extract<int&>(^x4) == x4);
 static_assert(&extract<int&>(^x4) == &x4);
@@ -556,8 +545,6 @@ static_assert(is_structured_binding(^x5));
 static_assert(is_structured_binding(^y5));
 static_assert(!is_variable(^x5));
 static_assert(!is_variable(^y5));
-static_assert(type_of(^x5) == ^int&);
-static_assert(type_of(^y5) == ^int&);
 
 static_assert(!is_structured_binding(^var));
 static_assert(!is_structured_binding(std::meta::reflect_value(3)));
