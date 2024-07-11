@@ -1487,60 +1487,47 @@ ParsedTemplateArgument Parser::ParseTemplateReflectOperand() {
                                  /*EnteringContext=*/false);
 
   ParsedTemplateArgument Result;
-  SourceLocation EllipsisLoc;
-  if (SS.isSet() && Tok.is(tok::kw_template)) {
-    // Parse the optional 'template' keyword following the
-    // nested-name-specifier.
-    SourceLocation TemplateKWLoc = ConsumeToken();
 
-    if (Tok.is(tok::identifier)) {
-      // We appear to have a dependent template name.
-      UnqualifiedId Name;
-      Name.setIdentifier(Tok.getIdentifierInfo(), Tok.getLocation());
-      ConsumeToken(); // the identifier
+  SourceLocation TemplateKWLoc;
+  if (SS.isSet() && Tok.is(tok::kw_template))
+    TemplateKWLoc = ConsumeToken();
 
-      TryConsumeToken(tok::ellipsis, EllipsisLoc);
+  if (Tok.is(tok::identifier) || Tok.is(tok::kw_operator)) {
+    UnqualifiedId ParsedName;
+    if (ParseUnqualifiedId(SS, ParsedType{}, false, false, false, false, false,
+                           nullptr, ParsedName))
+      return ParsedTemplateArgument{};
 
-      // If the next token signals the end of a template argument, then we have
-      // a (possibly-dependent) template name that could be a reflect expression
-      // operand.
-      TemplateTy Template;
-      if (isEndOfTemplateReflectOperand(Tok) &&
-          Actions.ActOnTemplateName(getCurScope(), SS, TemplateKWLoc, Name,
-                                    /*ObjectType=*/nullptr,
-                                    /*EnteringContext=*/false, Template))
-        Result = ParsedTemplateArgument(SS, Template, Name.StartLocation);
-    }
-  } else if (Tok.is(tok::identifier)) {
-    // We may have a (non-dependent) template name.
-    TemplateTy Template;
-    UnqualifiedId Name;
-    Name.setIdentifier(Tok.getIdentifierInfo(), Tok.getLocation());
-    ConsumeToken(); // the identifier
-
+    SourceLocation EllipsisLoc;
     TryConsumeToken(tok::ellipsis, EllipsisLoc);
 
+    TemplateTy Template;
     if (isEndOfTemplateReflectOperand(Tok)) {
-      bool MemberOfUnknownSpecialization;
-      TemplateNameKind TNK = Actions.isTemplateName(
-          getCurScope(), SS,
-          /*hasTemplateKeyword=*/false, Name,
-          /*ObjectType=*/nullptr,
-          /*EnteringContext=*/false, Template, MemberOfUnknownSpecialization);
+      TemplateNameKind TNK;
+      if (SS.isSet() && SS.getScopeRep()->isDependent() &&
+          TemplateKWLoc.isValid()) {
+        TNK = Actions.ActOnTemplateName(
+            getCurScope(), SS, TemplateKWLoc, ParsedName,
+            /*ObjectType=*/nullptr, /*EnteringContext=*/false, Template);
+      } else {
+        bool UnusedMemberOfUnknownSpecialization;
+        TNK = Actions.isTemplateName(
+            getCurScope(), SS, false, ParsedName,
+            /*ObjectType=*/nullptr, /*EnteringContext=*/false, Template,
+            UnusedMemberOfUnknownSpecialization);
+      }
+
       if (TNK == TNK_Dependent_template_name || TNK == TNK_Type_template ||
           TNK == TNK_Function_template || TNK == TNK_Var_template ||
           TNK == TNK_Concept_template) {
-        // We have an id-expression that refers to a template usable as an
-        // operand to a reflect expression.
-        Result = ParsedTemplateArgument(SS, Template, Name.StartLocation);
+        Result = ParsedTemplateArgument(SS, Template, ParsedName.StartLocation);
       }
     }
+
+    // If this is a pack expansion, build it as such.
+    if (EllipsisLoc.isValid() && !Result.isInvalid())
+      Result = Actions.ActOnPackExpansion(Result, EllipsisLoc);
   }
-
-  // If this is a pack expansion, build it as such.
-  if (EllipsisLoc.isValid() && !Result.isInvalid())
-    Result = Actions.ActOnPackExpansion(Result, EllipsisLoc);
-
   return Result;
 }
 

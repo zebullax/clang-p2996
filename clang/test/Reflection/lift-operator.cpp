@@ -64,15 +64,36 @@ struct MemberTemplates {
     void template_func();
 
     template <typename T>
+    MemberTemplates &operator+(const T&);
+
+    template <typename T>
     static void template_static_func();
 
     template <typename T>
     static int template_var;
 };
 constexpr info info_nested_template_struct = ^MemberTemplates::NestedTemplateStruct;
+constexpr info info_nested_template_struct2 = ^MemberTemplates::template NestedTemplateStruct;
 constexpr info info_nested_template_func = ^MemberTemplates::template_func;
+constexpr info info_nested_template_func2 = ^MemberTemplates::template template_func;
 constexpr info info_nested_template_static_func = ^MemberTemplates::template_static_func;
+constexpr info info_nested_template_static_func2 = ^MemberTemplates::template template_static_func;
 constexpr info info_nested_template_var = ^MemberTemplates::template_var;
+constexpr info info_nested_template_var2 = ^MemberTemplates::template template_var;
+constexpr info info_nested_template_operator = ^MemberTemplates::operator+;
+constexpr info info_nested_template_operator2 = ^MemberTemplates::template operator+;
+
+template <typename T>
+void DepScope() {
+  constexpr info nested_struct = ^T::template NestedTemplateStruct;
+  constexpr info nested_func = ^T::template template_func;
+  constexpr info nested_static_func = ^T::template template_static_func;
+  constexpr info nested_var = ^T::template template_var;
+  constexpr info nested_operator = ^T::template operator+;
+}
+void InstantiateDepScope() {
+  DepScope<MemberTemplates>();
+}
 
 // Reflecting function scope variables
 void reflect_func_scope(int param) {
