@@ -1644,9 +1644,7 @@ bool identifier_of(APValue &Result, Sema &S, EvalFn Evaluator,
   switch (R.getReflection().getKind()) {
   case ReflectionValue::RK_type: {
     QualType QT = R.getReflectedType();
-    if (QT->isFundamentalType())
-      getTypeName(Name, S.Context, R.getReflectedType());
-    else if (auto *D = findTypeDecl(QT))
+    if (auto *D = findTypeDecl(QT))
       if (auto *ND = dyn_cast<NamedDecl>(D); ND && ND->getIdentifier())
         Name = ND->getIdentifier()->getName();
 
@@ -1708,10 +1706,6 @@ bool has_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
     QualType QT = R.getReflectedType();
     if (isTemplateSpecialization(QT))
       break;
-    else if (QT->isFundamentalType()) {
-      HasIdentifier = true;
-      break;
-    }
 
     if (auto *D = findTypeDecl(QT))
       if (auto *ND = dyn_cast<NamedDecl>(D); ND && ND->getIdentifier())

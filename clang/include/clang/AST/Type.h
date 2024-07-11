@@ -8068,6 +8068,7 @@ inline bool QualType::isCForbiddenLValueType() const {
 inline bool Type::isFundamentalType() const {
   return isVoidType() ||
          isNullPtrType() ||
+         isReflectionType() ||
          // FIXME: It's really annoying that we don't have an
          // 'isArithmeticType()' which agrees with the standard definition.
          (isArithmeticType() && !isEnumeralType());
