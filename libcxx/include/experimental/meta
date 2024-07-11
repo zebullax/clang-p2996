@@ -149,11 +149,15 @@ consteval auto is_function_template(info) -> bool;
 consteval auto is_variable_template(info) -> bool;
 consteval auto is_class_template(bool) -> bool;
 consteval auto is_alias_template(bool) -> bool;
+consteval auto is_conversion_function_template(bool) -> bool;
+consteval auto is_operator_function_template(bool) -> bool;
 consteval auto is_constructor_template(bool) -> bool;
 consteval auto is_concept(info) -> bool;
 consteval auto is_structured_binding(info) -> bool;
 consteval auto has_template_arguments(info) -> bool;
 consteval auto has_default_member_initializer(info) -> bool;
+consteval auto is_conversion_function(info) -> bool;
+consteval auto is_operator_function(info) -> bool;
 consteval auto is_constructor(info) -> bool;
 consteval auto is_default_constructor(info) -> bool;
 consteval auto is_copy_constructor(info) -> bool;
@@ -449,6 +453,8 @@ enum : unsigned {
   __metafn_is_variable_template,
   __metafn_is_class_template,
   __metafn_is_alias_template,
+  __metafn_is_conversion_function_template,
+  __metafn_is_operator_function_template,
   __metafn_is_constructor_template,
   __metafn_is_concept,
   __metafn_is_structured_binding,
@@ -456,6 +462,8 @@ enum : unsigned {
   __metafn_is_object,
   __metafn_has_template_arguments,
   __metafn_has_default_member_initializer,
+  __metafn_is_conversion_function,
+  __metafn_is_operator_function,
   __metafn_is_constructor,
   __metafn_is_default_constructor,
   __metafn_is_copy_constructor,
@@ -1077,6 +1085,16 @@ consteval auto is_alias_template(info r) -> bool {
   return __metafunction(detail::__metafn_is_alias_template, r);
 }
 
+// Returns true if 'r' represents a conversion function template.
+consteval auto is_conversion_function_template(info r) -> bool {
+  return __metafunction(detail::__metafn_is_conversion_function_template, r);
+}
+
+// Returns true if 'r' represents an operator function template.
+consteval auto is_operator_function_template(info r) -> bool {
+  return __metafunction(detail::__metafn_is_operator_function_template, r);
+}
+
 // Returns true if the reflected entity is a constructor template.
 consteval auto is_constructor_template(info r) -> bool {
   return __metafunction(detail::__metafn_is_constructor_template, r);
@@ -1110,6 +1128,16 @@ consteval auto has_template_arguments(info r) -> bool {
 // Returns if the reflected non-static data member has a default initializer.
 consteval auto has_default_member_initializer(info r) -> bool {
   return __metafunction(detail::__metafn_has_default_member_initializer, r);
+}
+
+// Returns whether 'r' represents a conversion function.
+consteval auto is_conversion_function(info r) -> bool {
+  return __metafunction(detail::__metafn_is_conversion_function, r);
+}
+
+// Returns whether 'r' represents an operator function.
+consteval auto is_operator_function(info r) -> bool {
+  return __metafunction(detail::__metafn_is_operator_function, r);
 }
 
 // Returns whether the reflected entity is a constructor.
@@ -2030,6 +2058,23 @@ consteval auto test_trait(info templ, R &&args) -> bool {
   return extract<bool>(substitute(templ, args));
 }
 
+                     // ==================================
+                     // (u8)display_name_of implementation
+                     // ==================================
+
+// For the sake of compile-times, this probably would be better off being
+// implemented as an intrinsic - but it ought to be possible to use P2996 to
+// implement something like it, and the exercise of implementing it as a
+// library has revealed both gaps in the paper and bugs in the implementation.
+//
+// For now, seeing as Clang/P2996 is still first and foremost a prototype, the
+// implementation stands as both a "test" of the power of the APIs proposed by
+// the paper, and a demonstratation of some reflection techniques.
+//
+// The use of the "STRING_CONSTANT" macro is....regrettable. Tools have been
+// proposed to make it easier to work with u8strings, but for now - this seemed
+// like the most immediate solution.
+
 namespace detail {
 
 #define STRING_CONSTANT(X) \
@@ -2317,6 +2362,9 @@ template <info R>  // Templates.
 consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
   if (is_constructor_template(R))
     return render<parent_of(R)>();
+  else if (is_operator_function_template(R) ||
+           is_conversion_function_template(R))
+    return STRING_CONSTANT("(operator-or-conversion-template)");
 
   return string_t {identifier_helper(R)};
 }
@@ -2343,9 +2391,12 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
     return render<template_of(R)>() + render_template_argument_list_of<R>();
   } else if constexpr (is_destructor(R)) {
     constexpr info P = parent_of(R);
-    return "~" + render<has_template_arguments(P) ? template_of(P) : P>();
+    return STRING_CONSTANT("~") +
+           render<has_template_arguments(P) ? template_of(P) : P>();
   } else if constexpr (is_constructor(R)) {
     return render<parent_of(R)>();
+  } else if constexpr (is_operator_function(R) || is_conversion_function(R)) {
+    return STRING_CONSTANT("(operator-or-conversion)");
   }
 
   return string_t {identifier_helper(R)};

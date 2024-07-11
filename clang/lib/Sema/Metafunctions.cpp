@@ -281,6 +281,16 @@ static bool is_alias_template(APValue &Result, Sema &S, EvalFn Evaluator,
                               QualType ResultTy, SourceRange Range,
                               ArrayRef<Expr *> Args);
 
+static bool is_conversion_function_template(APValue &Result, Sema &S,
+                                            EvalFn Evaluator, QualType ResultTy,
+                                            SourceRange Range,
+                                            ArrayRef<Expr *> Args);
+
+static bool is_operator_function_template(APValue &Result, Sema &S,
+                                          EvalFn Evaluator, QualType ResultTy,
+                                          SourceRange Range,
+                                          ArrayRef<Expr *> Args);
+
 static bool is_constructor_template(APValue &Result, Sema &S, EvalFn Evaluator,
                                     QualType ResultTy, SourceRange Range,
                                     ArrayRef<Expr *> Args);
@@ -309,6 +319,14 @@ static bool has_default_member_initializer(APValue &Result, Sema &S,
                                            EvalFn Evaluator,
                                            QualType ResultTy, SourceRange Range,
                                            ArrayRef<Expr *> Args);
+
+static bool is_conversion_function(APValue &Result, Sema &S, EvalFn Evaluator,
+                                   QualType ResultTy, SourceRange Range,
+                                   ArrayRef<Expr *> Args);
+
+static bool is_operator_function(APValue &Result, Sema &S, EvalFn Evaluator,
+                                 QualType ResultTy, SourceRange Range,
+                                 ArrayRef<Expr *> Args);
 
 static bool is_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
                            QualType ResultTy, SourceRange Range,
@@ -495,6 +513,8 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_variable_template },
   { Metafunction::MFRK_bool, 1, 1, is_class_template },
   { Metafunction::MFRK_bool, 1, 1, is_alias_template },
+  { Metafunction::MFRK_bool, 1, 1, is_conversion_function_template },
+  { Metafunction::MFRK_bool, 1, 1, is_operator_function_template },
   { Metafunction::MFRK_bool, 1, 1, is_constructor_template },
   { Metafunction::MFRK_bool, 1, 1, is_concept },
   { Metafunction::MFRK_bool, 1, 1, is_structured_binding },
@@ -502,6 +522,8 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_object },
   { Metafunction::MFRK_bool, 1, 1, has_template_arguments },
   { Metafunction::MFRK_bool, 1, 1, has_default_member_initializer },
+  { Metafunction::MFRK_bool, 1, 1, is_conversion_function },
+  { Metafunction::MFRK_bool, 1, 1, is_operator_function },
   { Metafunction::MFRK_bool, 1, 1, is_constructor },
   { Metafunction::MFRK_bool, 1, 1, is_default_constructor },
   { Metafunction::MFRK_bool, 1, 1, is_copy_constructor },
@@ -3587,6 +3609,45 @@ bool is_alias_template(APValue &Result, Sema &S, EvalFn Evaluator,
   return SetAndSucceed(Result, makeBool(S.Context, IsAliasTemplate));
 }
 
+bool is_conversion_function_template(APValue &Result, Sema &S, EvalFn Evaluator,
+                                     QualType ResultTy, SourceRange Range,
+                                     ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool IsConversionTemplate = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_template) {
+    const TemplateDecl *TD = R.getReflectedTemplate().getAsTemplateDecl();
+    if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TD))
+      IsConversionTemplate = isa<CXXConversionDecl>(FTD->getTemplatedDecl());
+  }
+  return SetAndSucceed(Result, makeBool(S.Context, IsConversionTemplate));
+}
+
+bool is_operator_function_template(APValue &Result, Sema &S, EvalFn Evaluator,
+                                   QualType ResultTy, SourceRange Range,
+                                   ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool IsOperatorTemplate = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_template) {
+    const TemplateDecl *TD = R.getReflectedTemplate().getAsTemplateDecl();
+    if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TD))
+      IsOperatorTemplate = (FTD->getTemplatedDecl()->getOverloadedOperator() !=
+                            OO_None);
+  }
+  return SetAndSucceed(Result, makeBool(S.Context, IsOperatorTemplate));
+}
+
 bool is_constructor_template(APValue &Result, Sema &S, EvalFn Evaluator,
                              QualType ResultTy, SourceRange Range,
                              ArrayRef<Expr *> Args) {
@@ -3731,6 +3792,41 @@ bool has_default_member_initializer(APValue &Result, Sema &S, EvalFn Evaluator,
       HasInitializer = FD->hasInClassInitializer();
 
   return SetAndSucceed(Result, makeBool(S.Context, HasInitializer));
+}
+
+bool is_conversion_function(APValue &Result, Sema &S, EvalFn Evaluator,
+                            QualType ResultTy, SourceRange Range,
+                            ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool IsConversion = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_declaration)
+    IsConversion = isa<CXXConversionDecl>(R.getReflectedDecl());
+
+  return SetAndSucceed(Result, makeBool(S.Context, IsConversion));
+}
+
+bool is_operator_function(APValue &Result, Sema &S, EvalFn Evaluator,
+                          QualType ResultTy, SourceRange Range,
+                          ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool IsOperator = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_declaration)
+    if (auto *FD = dyn_cast<FunctionDecl>(R.getReflectedDecl()))
+      IsOperator = (FD->getOverloadedOperator() != OO_None);
+
+  return SetAndSucceed(Result, makeBool(S.Context, IsOperator));
 }
 
 bool is_constructor(APValue &Result, Sema &S, EvalFn Evaluator,

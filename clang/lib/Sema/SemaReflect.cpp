@@ -447,7 +447,8 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
 
   // Use the 'auto' deduction machinery to infer the operand type.
   if (DeduceVariableDeclarationType(InventedVD, true, ULE)) {
-    Diag(E->getExprLoc(), diag::err_reflect_overload_set);
+    Diag(E->getExprLoc(), diag::err_reflect_overload_set)
+        << E->getSourceRange();
     return ExprError();
   }
 

@@ -260,12 +260,20 @@ static_assert(
     std::vector<std::string_view>{"~Cls"});
 //TODO(P2996): Fix this case.
 //static_assert(display_string_of(^Cls::operator bool) == "operator bool");
+static_assert(display_string_of(^Cls::operator bool) ==
+              "(operator-or-conversion)");
 //TODO(P2996): Fix this case.
 /*static_assert(
     (members_of(^Cls) |
          std::views::filter(std::meta::is_template) |
          std::views::transform(std::meta::display_string_of) |
          std::ranges::to<std::vector>())[5] == "operator int");*/
+static_assert(
+    (members_of(^Cls) |
+         std::views::filter(std::meta::is_template) |
+         std::views::transform(std::meta::display_string_of) |
+         std::ranges::to<std::vector>())[5] ==
+    "(operator-or-conversion-template)");
 static_assert(display_string_of(^Cls::TInner) == "TInner");
 static_assert(display_string_of(^Cls::TMemFn) == "TMemFn");
 static_assert(display_string_of(^Cls::TAlias) == "TAlias");
