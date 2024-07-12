@@ -151,6 +151,7 @@ consteval auto is_class_template(bool) -> bool;
 consteval auto is_alias_template(bool) -> bool;
 consteval auto is_conversion_function_template(bool) -> bool;
 consteval auto is_operator_function_template(bool) -> bool;
+consteval auto is_literal_operator_template(bool) -> bool;
 consteval auto is_constructor_template(bool) -> bool;
 consteval auto is_concept(info) -> bool;
 consteval auto is_structured_binding(info) -> bool;
@@ -158,6 +159,7 @@ consteval auto has_template_arguments(info) -> bool;
 consteval auto has_default_member_initializer(info) -> bool;
 consteval auto is_conversion_function(info) -> bool;
 consteval auto is_operator_function(info) -> bool;
+consteval auto is_literal_operator(info) -> bool;
 consteval auto is_constructor(info) -> bool;
 consteval auto is_default_constructor(info) -> bool;
 consteval auto is_copy_constructor(info) -> bool;
@@ -455,6 +457,7 @@ enum : unsigned {
   __metafn_is_alias_template,
   __metafn_is_conversion_function_template,
   __metafn_is_operator_function_template,
+  __metafn_is_literal_operator_template,
   __metafn_is_constructor_template,
   __metafn_is_concept,
   __metafn_is_structured_binding,
@@ -464,6 +467,7 @@ enum : unsigned {
   __metafn_has_default_member_initializer,
   __metafn_is_conversion_function,
   __metafn_is_operator_function,
+  __metafn_is_literal_operator,
   __metafn_is_constructor,
   __metafn_is_default_constructor,
   __metafn_is_copy_constructor,
@@ -1095,6 +1099,11 @@ consteval auto is_operator_function_template(info r) -> bool {
   return __metafunction(detail::__metafn_is_operator_function_template, r);
 }
 
+// Returns true if 'r' represents a literal operator template.
+consteval auto is_literal_operator_template(info r) -> bool {
+  return __metafunction(detail::__metafn_is_literal_operator_template, r);
+}
+
 // Returns true if the reflected entity is a constructor template.
 consteval auto is_constructor_template(info r) -> bool {
   return __metafunction(detail::__metafn_is_constructor_template, r);
@@ -1138,6 +1147,11 @@ consteval auto is_conversion_function(info r) -> bool {
 // Returns whether 'r' represents an operator function.
 consteval auto is_operator_function(info r) -> bool {
   return __metafunction(detail::__metafn_is_operator_function, r);
+}
+
+// Returns whether 'r' represents a literal operator.
+consteval auto is_literal_operator(info r) -> bool {
+  return __metafunction(detail::__metafn_is_literal_operator, r);
 }
 
 // Returns whether the reflected entity is a constructor.
@@ -2365,6 +2379,8 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
   else if (is_operator_function_template(R) ||
            is_conversion_function_template(R))
     return STRING_CONSTANT("(operator-or-conversion-template)");
+  else if (is_literal_operator_template(R))
+    return STRING_CONSTANT(R"(operator"")") + string_t {identifier_helper(R) };
 
   return string_t {identifier_helper(R)};
 }
@@ -2397,6 +2413,8 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
     return render<parent_of(R)>();
   } else if constexpr (is_operator_function(R) || is_conversion_function(R)) {
     return STRING_CONSTANT("(operator-or-conversion)");
+  } else if constexpr (is_literal_operator(R)) {
+    return STRING_CONSTANT(R"(operator"")") + string_t {identifier_helper(R) };
   }
 
   return string_t {identifier_helper(R)};

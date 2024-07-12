@@ -291,6 +291,11 @@ static bool is_operator_function_template(APValue &Result, Sema &S,
                                           SourceRange Range,
                                           ArrayRef<Expr *> Args);
 
+static bool is_literal_operator_template(APValue &Result, Sema &S,
+                                         EvalFn Evaluator, QualType ResultTy,
+                                         SourceRange Range,
+                                         ArrayRef<Expr *> Args);
+
 static bool is_constructor_template(APValue &Result, Sema &S, EvalFn Evaluator,
                                     QualType ResultTy, SourceRange Range,
                                     ArrayRef<Expr *> Args);
@@ -327,6 +332,10 @@ static bool is_conversion_function(APValue &Result, Sema &S, EvalFn Evaluator,
 static bool is_operator_function(APValue &Result, Sema &S, EvalFn Evaluator,
                                  QualType ResultTy, SourceRange Range,
                                  ArrayRef<Expr *> Args);
+
+static bool is_literal_operator(APValue &Result, Sema &S, EvalFn Evaluator,
+                                QualType ResultTy, SourceRange Range,
+                                ArrayRef<Expr *> Args);
 
 static bool is_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
                            QualType ResultTy, SourceRange Range,
@@ -515,6 +524,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_alias_template },
   { Metafunction::MFRK_bool, 1, 1, is_conversion_function_template },
   { Metafunction::MFRK_bool, 1, 1, is_operator_function_template },
+  { Metafunction::MFRK_bool, 1, 1, is_literal_operator_template },
   { Metafunction::MFRK_bool, 1, 1, is_constructor_template },
   { Metafunction::MFRK_bool, 1, 1, is_concept },
   { Metafunction::MFRK_bool, 1, 1, is_structured_binding },
@@ -524,6 +534,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, has_default_member_initializer },
   { Metafunction::MFRK_bool, 1, 1, is_conversion_function },
   { Metafunction::MFRK_bool, 1, 1, is_operator_function },
+  { Metafunction::MFRK_bool, 1, 1, is_literal_operator },
   { Metafunction::MFRK_bool, 1, 1, is_constructor },
   { Metafunction::MFRK_bool, 1, 1, is_default_constructor },
   { Metafunction::MFRK_bool, 1, 1, is_copy_constructor },
@@ -1675,9 +1686,12 @@ bool identifier_of(APValue &Result, Sema &S, EvalFn Evaluator,
       break;
     }
 
-    if (auto *ND = dyn_cast<NamedDecl>(R.getReflectedDecl());
-        ND && ND->getIdentifier())
-      Name = ND->getIdentifier()->getName();
+    if (auto *ND = dyn_cast<NamedDecl>(R.getReflectedDecl())) {
+      if (auto *II = ND->getIdentifier())
+        Name = II->getName();
+      else if (auto *II = ND->getDeclName().getCXXLiteralIdentifier())
+        Name = II->getName();
+    }
 
     break;
   }
@@ -1687,8 +1701,10 @@ bool identifier_of(APValue &Result, Sema &S, EvalFn Evaluator,
       if (isa<CXXConstructorDecl>(FTD->getTemplatedDecl()))
         break;
 
-    if (TD->getIdentifier())
-      Name = TD->getIdentifier()->getName();
+    if (auto *II = TD->getIdentifier())
+      Name = II->getName();
+    else if (auto *II = TD->getDeclName().getCXXLiteralIdentifier())
+      Name = II->getName();
 
     break;
   }
@@ -3648,6 +3664,26 @@ bool is_operator_function_template(APValue &Result, Sema &S, EvalFn Evaluator,
   return SetAndSucceed(Result, makeBool(S.Context, IsOperatorTemplate));
 }
 
+bool is_literal_operator_template(APValue &Result, Sema &S, EvalFn Evaluator,
+                                  QualType ResultTy, SourceRange Range,
+                                  ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool IsLiteralOperator = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_template) {
+    const TemplateDecl *TD = R.getReflectedTemplate().getAsTemplateDecl();
+    if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TD))
+      IsLiteralOperator = FTD->getDeclName().getNameKind() ==
+                          DeclarationName::CXXLiteralOperatorName;
+  }
+  return SetAndSucceed(Result, makeBool(S.Context, IsLiteralOperator));
+}
+
 bool is_constructor_template(APValue &Result, Sema &S, EvalFn Evaluator,
                              QualType ResultTy, SourceRange Range,
                              ArrayRef<Expr *> Args) {
@@ -3827,6 +3863,25 @@ bool is_operator_function(APValue &Result, Sema &S, EvalFn Evaluator,
       IsOperator = (FD->getOverloadedOperator() != OO_None);
 
   return SetAndSucceed(Result, makeBool(S.Context, IsOperator));
+}
+
+bool is_literal_operator(APValue &Result, Sema &S, EvalFn Evaluator,
+                         QualType ResultTy, SourceRange Range,
+                         ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  bool IsLiteralOperator = false;
+  if (R.getReflection().getKind() == ReflectionValue::RK_declaration)
+    if (auto *FD = dyn_cast<FunctionDecl>(R.getReflectedDecl()))
+      IsLiteralOperator = FD->getDeclName().getNameKind() ==
+                          DeclarationName::CXXLiteralOperatorName;
+
+  return SetAndSucceed(Result, makeBool(S.Context, IsLiteralOperator));
 }
 
 bool is_constructor(APValue &Result, Sema &S, EvalFn Evaluator,

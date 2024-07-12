@@ -937,32 +937,81 @@ struct T {
   template <typename T>
   operator T();
 };
+
+bool operator&&(const S&, const S&);
+
+template <typename T>
+bool operator||(const S&, const T&);
+
+int operator""_a(const char *);
+
+template<char...>
+int operator""_b();
+
+
 constexpr auto conversion_template =
     (members_of(^T) | std::views::filter(std::meta::is_template)).front();
 
 static_assert(is_operator_function(^S::operator+));
+static_assert(is_operator_function(^operator&&));
+static_assert(!is_operator_function(^operator||));
 static_assert(!is_operator_function(^S::operator-));
 static_assert(is_operator_function(^S::operator-<int>));
 static_assert(!is_operator_function(conversion_template));
 static_assert(!is_operator_function(^S::fn));
+static_assert(!is_operator_function(^operator""_a));
+static_assert(!is_operator_function(^operator""_b));
 
 static_assert(!is_operator_function_template(^S::operator+));
+static_assert(!is_operator_function_template(^operator&&));
+static_assert(is_operator_function_template(^operator||));
 static_assert(is_operator_function_template(^S::operator-));
 static_assert(!is_operator_function_template(^S::operator int));
 static_assert(!is_operator_function_template(conversion_template));
 static_assert(!is_operator_function_template(^S::fn));
+static_assert(!is_operator_function_template(^operator""_a));
+static_assert(!is_operator_function_template(^operator""_b));
 
 static_assert(!is_conversion_function(^S::operator+));
+static_assert(!is_conversion_function(^operator&&));
+static_assert(!is_conversion_function(^operator||));
 static_assert(!is_conversion_function(^S::operator-));
 static_assert(is_conversion_function(^S::operator int));
 static_assert(!is_conversion_function(conversion_template));
 static_assert(!is_conversion_function(^S::fn));
+static_assert(!is_conversion_function(^operator""_a));
+static_assert(!is_conversion_function(^operator""_b));
 
 static_assert(!is_conversion_function_template(^S::operator+));
+static_assert(!is_conversion_function_template(^operator&&));
+static_assert(!is_conversion_function_template(^operator||));
 static_assert(!is_conversion_function_template(^S::operator-));
 static_assert(!is_conversion_function_template(^S::operator int));
 static_assert(is_conversion_function_template(conversion_template));
 static_assert(!is_conversion_function_template(^S::fn));
+static_assert(!is_conversion_function_template(^operator""_a));
+static_assert(!is_conversion_function_template(^operator""_b));
+
+static_assert(!is_literal_operator(^S::operator+));
+static_assert(!is_literal_operator(^operator&&));
+static_assert(!is_literal_operator(^operator||));
+static_assert(!is_literal_operator(^S::operator-));
+static_assert(!is_literal_operator(^S::operator-<int>));
+static_assert(!is_literal_operator(conversion_template));
+static_assert(!is_literal_operator(^S::fn));
+static_assert(is_literal_operator(^operator""_a));
+static_assert(!is_literal_operator(^operator""_b));
+
+static_assert(!is_literal_operator_template(^S::operator+));
+static_assert(!is_literal_operator_template(^operator&&));
+static_assert(!is_literal_operator_template(^operator||));
+static_assert(!is_literal_operator_template(^S::operator-));
+static_assert(!is_literal_operator_template(^S::operator-<int>));
+static_assert(!is_literal_operator_template(conversion_template));
+static_assert(!is_literal_operator_template(^S::fn));
+static_assert(!is_literal_operator_template(^operator""_a));
+static_assert(is_literal_operator_template(^operator""_b));
+
 }  // namespace operators_and_conversion_functions
 
 int main() { }
