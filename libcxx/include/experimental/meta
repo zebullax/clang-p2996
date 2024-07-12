@@ -41,6 +41,9 @@ consteval auto u8display_string_of(info) -> u8string_view;
 
 consteval auto has_identifier(info) -> bool;
 
+enum class operators;
+consteval auto operator_of(info) -> operators;
+
 consteval auto source_location_of(info r) -> source_location;
 
 // type queries
@@ -407,6 +410,7 @@ enum : unsigned {
   __metafn_name_of,
   __metafn_identifier_of,
   __metafn_has_identifier,
+  __metafn_operator_of,
   __metafn_source_location_of,
   __metafn_type_of,
   __metafn_parent_of,
@@ -739,6 +743,9 @@ consteval auto u8name_of(info r) -> u8string_view {
                         /*UTF8=*/true, /*EnforceConsistent=*/true);
 }
 
+// Returns the identifier for the represented entity. If the entity is a
+// literal operator or literal operator template, then this is the identifier
+// suffix for the literal operator.
 consteval auto identifier_of(info r) -> string_view {
   return __metafunction(detail::__metafn_identifier_of, ^const char *, r,
                         /*UTF8=*/false, /*EnforceConsistent=*/true);
@@ -753,6 +760,27 @@ consteval auto u8identifier_of(info r) -> u8string_view {
 consteval auto display_string_of(info r) -> string_view;
 consteval auto u8display_string_of(info r) -> u8string_view;
 
+// Enumeration of all overloadable operators.
+enum class operators {
+  op_new = 1, op_delete, op_array_new, op_array_delete, op_co_await,
+  op_parentheses, op_square_brackets, op_arrow, op_arrow_asterisk, op_tilde,
+  op_exclamation_mark, op_plus, op_minus, op_asterisk, op_solidus, op_percent,
+  op_caret, op_ampersand, op_pipe, op_equals, op_plus_equals, op_minus_equals,
+  op_asterisk_equals, op_solidus_equals, op_percent_equals, op_caret_equals,
+  op_ampersand_equals, op_pipe_equals, op_equals_equals, op_exclamation_equals,
+  op_less, op_greater, op_less_equals, op_greater_equals, op_three_way_compare,
+  op_ampersand_ampersand, op_pipe_pipe, op_less_less, op_greater_greater,
+  op_less_less_equals, op_greater_greater_equals, op_plus_plus, op_minus_minus,
+  op_comma,
+};
+
+// Returns the operator overloaded by the represented operator function or
+// operator function template.
+consteval auto operator_of(info r) -> operators {
+  return operators(__metafunction(detail::__metafn_operator_of, r));
+}
+
+// Returns whether the reflected entity has an associated identifier.
 consteval auto has_identifier(info r) -> bool {
   return __metafunction(detail::__metafn_has_identifier, r);
 }
@@ -2101,6 +2129,24 @@ struct pretty_printer {
 
   using string_t = basic_string<CharT>;
 
+  static constexpr basic_string_view<CharT> op_names[44] = {
+      {}, STRING_CONSTANT("new"), STRING_CONSTANT("delete"),
+      STRING_CONSTANT("new[]"), STRING_CONSTANT("delete[]"),
+      STRING_CONSTANT("coawait"), STRING_CONSTANT("()"), STRING_CONSTANT("[]"),
+      STRING_CONSTANT("->"), STRING_CONSTANT("->*"), STRING_CONSTANT("~"),
+      STRING_CONSTANT("!"), STRING_CONSTANT("+"), STRING_CONSTANT("-"),
+      STRING_CONSTANT("/"), STRING_CONSTANT("%"), STRING_CONSTANT("^"),
+      STRING_CONSTANT("&"), STRING_CONSTANT("|"), STRING_CONSTANT("="),
+      STRING_CONSTANT("+="), STRING_CONSTANT("-="), STRING_CONSTANT("*="),
+      STRING_CONSTANT("/="), STRING_CONSTANT("%="), STRING_CONSTANT("^"),
+      STRING_CONSTANT("&="), STRING_CONSTANT("|="), STRING_CONSTANT("=="),
+      STRING_CONSTANT("!="), STRING_CONSTANT("<"), STRING_CONSTANT(">"),
+      STRING_CONSTANT("<="), STRING_CONSTANT(">="), STRING_CONSTANT("<=>"),
+      STRING_CONSTANT("&&"), STRING_CONSTANT("||"), STRING_CONSTANT("<<"),
+      STRING_CONSTANT(">>"), STRING_CONSTANT("<<="), STRING_CONSTANT(">>="),
+      STRING_CONSTANT("++"), STRING_CONSTANT("--"), STRING_CONSTANT(","),
+  };
+
   static consteval auto identifier_helper(info R) {
     if constexpr (IsUtf8)
       return u8identifier_of(R);
@@ -2376,9 +2422,11 @@ template <info R>  // Templates.
 consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
   if (is_constructor_template(R))
     return render<parent_of(R)>();
-  else if (is_operator_function_template(R) ||
-           is_conversion_function_template(R))
-    return STRING_CONSTANT("(operator-or-conversion-template)");
+  else if (is_operator_function_template(R))
+    return STRING_CONSTANT("operator ") +
+           string_t {op_names[int(operator_of(R))]};
+  else if (is_conversion_function_template(R))
+    return STRING_CONSTANT("(conversion-function-template)");
   else if (is_literal_operator_template(R))
     return STRING_CONSTANT(R"(operator"")") + string_t {identifier_helper(R) };
 
@@ -2411,8 +2459,15 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
            render<has_template_arguments(P) ? template_of(P) : P>();
   } else if constexpr (is_constructor(R)) {
     return render<parent_of(R)>();
-  } else if constexpr (is_operator_function(R) || is_conversion_function(R)) {
-    return STRING_CONSTANT("(operator-or-conversion)");
+  } else if constexpr (is_operator_function(R)) {
+    return STRING_CONSTANT("operator ") +
+           string_t {op_names[int(operator_of(R))]};
+  } else if constexpr (is_conversion_function(R)) {
+#if __has_feature(parameter_reflection)
+    return STRING_CONSTANT("operator ") + render<return_type_of(R)>();
+#else
+    return STRING_CONSTANT("conversion-function");
+#endif
   } else if constexpr (is_literal_operator(R)) {
     return STRING_CONSTANT(R"(operator"")") + string_t {identifier_helper(R) };
   }

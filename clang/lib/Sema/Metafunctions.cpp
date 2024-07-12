@@ -81,6 +81,10 @@ static bool has_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
                            QualType ResultTy, SourceRange Range,
                            ArrayRef<Expr *> Args);
 
+static bool operator_of(APValue &Result, Sema &S, EvalFn Evaluator,
+                        QualType ResultTy, SourceRange Range,
+                        ArrayRef<Expr *> Args);
+
 static bool source_location_of(APValue &Result, Sema &S, EvalFn Evaluator,
                                QualType ResultTy, SourceRange Range,
                                ArrayRef<Expr *> Args);
@@ -474,6 +478,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_spliceFromArg, 4, 4, name_of },
   { Metafunction::MFRK_spliceFromArg, 4, 4, identifier_of },
   { Metafunction::MFRK_bool, 1, 1, has_identifier },
+  { Metafunction::MFRK_sizeT, 1, 1, operator_of },
   { Metafunction::MFRK_sourceLoc, 1, 1, source_location_of },
   { Metafunction::MFRK_metaInfo, 1, 1, type_of },
   { Metafunction::MFRK_metaInfo, 1, 1, parent_of },
@@ -1786,6 +1791,53 @@ bool has_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
   }
 
   return SetAndSucceed(Result, makeBool(S.Context, HasIdentifier));
+}
+
+bool operator_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
+                 SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.getSizeType());
+
+  static constexpr OverloadedOperatorKind OperatorIndices[] = {
+    OO_None, OO_New, OO_Delete, OO_Array_New, OO_Array_Delete, OO_Coawait,
+    OO_Call, OO_Subscript, OO_Arrow, OO_ArrowStar, OO_Tilde, OO_Exclaim,
+    OO_Plus, OO_Minus, OO_Star, OO_Slash, OO_Percent, OO_Caret, OO_Amp, OO_Pipe,
+    OO_Equal, OO_PlusEqual, OO_MinusEqual, OO_StarEqual, OO_SlashEqual,
+    OO_PercentEqual, OO_CaretEqual, OO_AmpEqual, OO_PipeEqual, OO_EqualEqual,
+    OO_ExclaimEqual, OO_Less, OO_Greater, OO_LessEqual, OO_GreaterEqual,
+    OO_Spaceship, OO_AmpAmp, OO_PipePipe, OO_LessLess, OO_GreaterGreater,
+    OO_LessLessEqual, OO_GreaterGreaterEqual, OO_PlusPlus, OO_MinusMinus,
+    OO_Comma,
+  };
+
+  auto findOperatorOf = [](FunctionDecl *FD) -> size_t {
+    OverloadedOperatorKind OO = FD->getOverloadedOperator();
+    if (OO == OO_None)
+      return 0;
+
+    auto *OpPtr = std::find(std::begin(OperatorIndices),
+                            std::end(OperatorIndices), OO);
+    assert(OpPtr < std::end(OperatorIndices));
+
+    return (OpPtr - OperatorIndices);
+  };
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  size_t OperatorId = 1;
+  if (R.getReflection().getKind() == ReflectionValue::RK_template) {
+    const TemplateDecl *TD = R.getReflectedTemplate().getAsTemplateDecl();
+    if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TD))
+      OperatorId = findOperatorOf(FTD->getTemplatedDecl());
+  } else if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
+    if (auto *FD = dyn_cast<FunctionDecl>(R.getReflectedDecl()))
+      OperatorId = findOperatorOf(FD);
+  }
+  return SetAndSucceed(
+          Result,
+          APValue(S.Context.MakeIntValue(OperatorId, S.Context.getSizeType())));
 }
 
 bool source_location_of(APValue &Result, Sema &S, EvalFn Evaluator,
