@@ -1477,8 +1477,8 @@ ParsedTemplateArgument Parser::ParseTemplateTemplateArgument() {
 
 /// Parse a C++ template operand to a reflect expression (C++2c, P2996).
 ParsedTemplateArgument Parser::ParseTemplateReflectOperand() {
-  if (!Tok.is(tok::identifier) && !Tok.is(tok::coloncolon) &&
-      !Tok.is(tok::annot_cxxscope))
+  if (!Tok.isOneOf(tok::identifier, tok::kw_operator, tok::coloncolon,
+                   tok::annot_cxxscope))
     return ParsedTemplateArgument();
 
   CXXScopeSpec SS; // nested-name-specifier, if present
