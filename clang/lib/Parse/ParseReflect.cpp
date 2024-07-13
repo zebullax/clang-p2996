@@ -120,7 +120,7 @@ ExprResult Parser::ParseCXXReflectExpression() {
   {
     EnterExpressionEvaluationContext EvalContext(
         Actions, Sema::ExpressionEvaluationContext::ReflectionContext);
-    E = ParseCastExpression(AnyCastExpr, true);
+    E = ParseCastExpression(PrimaryExprOnly, true);
   }
   if (E.isInvalid() || !E.get())
     return ExprError();

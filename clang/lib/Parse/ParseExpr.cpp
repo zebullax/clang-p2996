@@ -157,7 +157,7 @@ Parser::ParseExpressionWithLeadingExtension(SourceLocation ExtLoc) {
     // Silence extension warnings in the sub-expression
     ExtensionRAIIObject O(Diags);
 
-    LHS = ParseCastExpression(PrimaryExprOnly);
+    LHS = ParseCastExpression(AnyCastExpr);
   }
 
   if (!LHS.isInvalid())
