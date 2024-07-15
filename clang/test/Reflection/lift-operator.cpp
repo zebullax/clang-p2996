@@ -136,3 +136,28 @@ namespace bb_clang_p2996_issue_35_regression_test {
 template <auto R = ^::> class S {};
 S s;
 }  // namespace bb_clang_p2996_issue_35_regression_test
+
+                   // =======================================
+                   // bb_clang_p2996_issue_73_regression_test
+                   // =======================================
+
+namespace bb_clang_p2996_issue_73_regression_test {
+namespace foo {
+struct foo {
+  static_assert(^foo == ^::bb_clang_p2996_issue_73_regression_test::foo::foo);
+};
+static_assert(^foo == ^::bb_clang_p2996_issue_73_regression_test::foo::foo);
+}  // namespace foo
+
+namespace tfoo {
+template <typename T> struct tfoo {
+  static_assert(^tfoo == ^tfoo<T>);
+};
+static_assert(^tfoo == ^::bb_clang_p2996_issue_73_regression_test::tfoo::tfoo);
+
+tfoo<int> instantiation;
+}  // namespace tfoo
+
+static_assert(^foo == ^::bb_clang_p2996_issue_73_regression_test::foo);
+static_assert(^tfoo == ^::bb_clang_p2996_issue_73_regression_test::tfoo);
+}  // namespace bb_clang_p2996_issue_73_regression_test

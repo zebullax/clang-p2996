@@ -106,6 +106,9 @@ static IMAKind ClassifyImplicitMemberAccess(Sema &SemaRef,
   bool couldInstantiateToStatic = false;
   bool isStaticOrExplicitContext = SemaRef.CXXThisTypeOverride.isNull();
 
+  if (SemaRef.isReflectionContext())
+    return IMA_Reflection_Operand;
+
   if (auto *MD = dyn_cast<CXXMethodDecl>(DC)) {
     if (MD->isImplicitObjectMemberFunction()) {
       isStaticOrExplicitContext = false;
@@ -167,13 +170,11 @@ static IMAKind ClassifyImplicitMemberAccess(Sema &SemaRef,
       AbstractInstanceResult = IMA_Field_Uneval_Context;
     break;
 
-  case Sema::ExpressionEvaluationContext::ReflectionContext:
-    return IMA_Reflection_Operand;
-
   case Sema::ExpressionEvaluationContext::UnevaluatedAbstract:
     AbstractInstanceResult = IMA_Abstract;
     break;
 
+  case Sema::ExpressionEvaluationContext::ReflectionContext:
   case Sema::ExpressionEvaluationContext::DiscardedStatement:
   case Sema::ExpressionEvaluationContext::ConstantEvaluated:
   case Sema::ExpressionEvaluationContext::ImmediateFunctionContext:

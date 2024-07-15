@@ -25,9 +25,7 @@ namespace myns {
                                  // ===========
 
 namespace idempotency {
-static_assert(^[:^myns::TCls:] == ^myns::TCls);
-static_assert(^[:^myns:] == ^myns);
-static_assert(^[:^:::] == ^::);
+static_assert(^template [:^myns::TCls:] == ^myns::TCls);
 
 static_assert(^[:^myns:]::Cls == ^myns::Cls);
 static_assert(^[:^myns:]::TCls<int> == ^myns::TCls<int>);
@@ -38,3 +36,36 @@ static_assert(^[:^myns::TCls<int>:]::memfn != ^myns::TCls<bool>::memfn);
 static_assert(^[:^myns:]::TCls == ^myns::TCls);
 static_assert(^[:^myns:]::Inner == ^myns::Inner);
 }  // namespace idempotency
+
+                              // =================
+                              // dependent_splices
+                              // =================
+
+namespace dependent_splices {
+template <template <typename> class TCls, auto RTMemFn, auto RCls>
+void test() {
+  { constexpr auto r = ^typename [:RCls:]; }
+  { constexpr auto r = ^template [:^TCls:]; }
+  { constexpr auto r = ^typename [:^TCls:]<int>; }
+  { constexpr auto r = ^template [:RTMemFn:]; }
+  { constexpr auto r = ^template [:RTMemFn:]<int>; }
+
+  { constexpr auto r = ^[:RCls:]::fn; }
+  { constexpr auto r = ^[:RCls:]::template tfn; }
+  { constexpr auto r = ^[:RCls:]::template tfn<int>; }
+
+  { constexpr auto r = ^typename [:RCls:]; }
+  { constexpr auto r = ^typename [:^TCls:]<int>; }
+}
+
+template <typename> struct S {
+  void fn();
+  template <typename> void tfn();
+};
+
+
+void instantiator() {
+  test<S, ^S<int>::template tfn, ^S<int>>();
+}
+
+}  // namespace dependent_splices

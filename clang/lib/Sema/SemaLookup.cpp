@@ -293,6 +293,12 @@ static inline unsigned getIDNS(Sema::LookupNameKind NameKind,
     IDNS = Decl::IDNS_OMPMapper;
     break;
 
+  case Sema::LookupReflectOperandName:
+    IDNS = Decl::IDNS_Tag | Decl::IDNS_Type | Decl::IDNS_Member |
+           Decl::IDNS_Namespace | Decl::IDNS_Ordinary |
+           Decl::IDNS_NonMemberOperator | Decl::IDNS_LocalExtern;
+    break;
+
   case Sema::LookupAnyName:
     IDNS = Decl::IDNS_Ordinary | Decl::IDNS_Tag | Decl::IDNS_Member
       | Decl::IDNS_Using | Decl::IDNS_Namespace | Decl::IDNS_ObjCProtocol

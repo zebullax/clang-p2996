@@ -1388,15 +1388,6 @@ static bool isEndOfTemplateArgument(Token Tok) {
                      tok::greatergreatergreater);
 }
 
-/// Determine whether the given token can end a template reflection operand.
-static bool isEndOfTemplateReflectOperand(Token Tok) {
-  // The set of tokens that can follow a reflection operand is far more general
-  // than the set of tokens that can conclude a template template argument. For
-  // now, just assume that -any- token can conclude such an operand. Revisit
-  // this if the parsing turns out to be more involved.
-  return true;
-}
-
 /// Parse a C++ template template argument.
 ParsedTemplateArgument Parser::ParseTemplateTemplateArgument() {
   if (!Tok.is(tok::identifier) && !Tok.is(tok::coloncolon) &&
@@ -1472,62 +1463,6 @@ ParsedTemplateArgument Parser::ParseTemplateTemplateArgument() {
   if (EllipsisLoc.isValid() && !Result.isInvalid())
     Result = Actions.ActOnPackExpansion(Result, EllipsisLoc);
 
-  return Result;
-}
-
-/// Parse a C++ template operand to a reflect expression (C++2c, P2996).
-ParsedTemplateArgument Parser::ParseTemplateReflectOperand() {
-  if (!Tok.isOneOf(tok::identifier, tok::kw_operator, tok::coloncolon,
-                   tok::annot_cxxscope))
-    return ParsedTemplateArgument();
-
-  CXXScopeSpec SS; // nested-name-specifier, if present
-  ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
-                                 /*ObjectHasErrors=*/false,
-                                 /*EnteringContext=*/false);
-
-  ParsedTemplateArgument Result;
-
-  SourceLocation TemplateKWLoc;
-  if (SS.isSet() && Tok.is(tok::kw_template))
-    TemplateKWLoc = ConsumeToken();
-
-  if (Tok.is(tok::identifier) || Tok.is(tok::kw_operator)) {
-    UnqualifiedId ParsedName;
-    if (ParseUnqualifiedId(SS, ParsedType{}, false, false, false, false, false,
-                           nullptr, ParsedName))
-      return ParsedTemplateArgument{};
-
-    SourceLocation EllipsisLoc;
-    TryConsumeToken(tok::ellipsis, EllipsisLoc);
-
-    TemplateTy Template;
-    if (isEndOfTemplateReflectOperand(Tok)) {
-      TemplateNameKind TNK;
-      if (SS.isSet() && SS.getScopeRep()->isDependent() &&
-          TemplateKWLoc.isValid()) {
-        TNK = Actions.ActOnTemplateName(
-            getCurScope(), SS, TemplateKWLoc, ParsedName,
-            /*ObjectType=*/nullptr, /*EnteringContext=*/false, Template);
-      } else {
-        bool UnusedMemberOfUnknownSpecialization;
-        TNK = Actions.isTemplateName(
-            getCurScope(), SS, false, ParsedName,
-            /*ObjectType=*/nullptr, /*EnteringContext=*/false, Template,
-            UnusedMemberOfUnknownSpecialization);
-      }
-
-      if (TNK == TNK_Dependent_template_name || TNK == TNK_Type_template ||
-          TNK == TNK_Function_template || TNK == TNK_Var_template ||
-          TNK == TNK_Concept_template) {
-        Result = ParsedTemplateArgument(SS, Template, ParsedName.StartLocation);
-      }
-    }
-
-    // If this is a pack expansion, build it as such.
-    if (EllipsisLoc.isValid() && !Result.isInvalid())
-      Result = Actions.ActOnPackExpansion(Result, EllipsisLoc);
-  }
   return Result;
 }
 

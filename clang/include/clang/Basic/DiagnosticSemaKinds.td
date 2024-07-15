@@ -3118,6 +3118,9 @@ def err_splice_operand_not_reflection : Error<
   "splice operand must be a reflection">;
 def err_splice_operand_not_constexpr : Error<
   "splice operand must be a constant expression">;
+def err_unexpected_reflection_kind_in_splice : Error<
+  "reflection not usable in a splice of %select{a|an|a|a}0 "
+  "%select{type|expression|namespace|template}0">;
 def err_unexpected_reflection_kind : Error<
   "expected a reflection of %select{a|an|a|a}0 "
   "%select{type|expression|namespace|template}0">;

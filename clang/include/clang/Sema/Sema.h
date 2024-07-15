@@ -9074,6 +9074,8 @@ public:
     /// Look up a friend of a local class. This lookup does not look
     /// outside the innermost non-class scope. See C++11 [class.friend]p11.
     LookupLocalFriendName,
+    /// Look up any operand of the reflection operator.
+    LookupReflectOperandName,
     /// Look up the name of an Objective-C protocol.
     LookupObjCProtocolName,
     /// Look up implicit 'self' parameter of an objective-c method.
@@ -9083,7 +9085,7 @@ public:
     /// Look up the name of an OpenMP user-defined mapper.
     LookupOMPMapperName,
     /// Look up any declaration with any name.
-    LookupAnyName
+    LookupAnyName,
   };
 
   /// The possible outcomes of name lookup for a literal operator.
@@ -15111,8 +15113,11 @@ public:
   };
   bool suppressDiagnostics() const { return SuppressDiagnostics; }
 
+  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc,
+                                 SourceLocation TemplateKWLoc,
+                                 CXXScopeSpec &SS, UnqualifiedId &Id);
+
   ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc, TypeResult T);
-  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc, Expr *E);
   ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc,
                                  SourceLocation ArgLoc, Decl *D);
   ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc,
@@ -15162,7 +15167,8 @@ public:
 
   ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
                                  SourceLocation OperandLoc, QualType T);
-  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc, Expr *E);
+  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
+                                 SourceLocation OperandLoc, Expr *E);
   ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
                                  SourceLocation OperandLoc, Decl *D);
   ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,

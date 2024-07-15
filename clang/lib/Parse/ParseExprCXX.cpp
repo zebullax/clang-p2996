@@ -3085,7 +3085,8 @@ bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, ParsedType ObjectType,
       // argument list or refer to a class template or an alias template.
       if ((TNK == TNK_Function_template || TNK == TNK_Dependent_template_name ||
            TNK == TNK_Var_template) &&
-          !Tok.is(tok::less))
+          !Tok.is(tok::less) &&
+          !Actions.isReflectionContext())
         Diag(IdLoc, diag::missing_template_arg_list_after_template_kw);
     }
     return false;

@@ -6743,16 +6743,21 @@ ASTContext::getNameForTemplate(TemplateName Name,
   case TemplateName::DependentTemplate: {
     DependentTemplateName *DTN = Name.getAsDependentTemplateName();
     DeclarationName DName;
+
     if (DTN->isIdentifier()) {
       DName = DeclarationNames.getIdentifier(DTN->getIdentifier());
       return DeclarationNameInfo(DName, NameLoc);
-    } else {
+    } else if (DTN->isOverloadedOperator()) {
       DName = DeclarationNames.getCXXOperatorName(DTN->getOperator());
       // DNInfo work in progress: FIXME: source locations?
       DeclarationNameLoc DNLoc =
           DeclarationNameLoc::makeCXXOperatorNameLoc(SourceRange());
       return DeclarationNameInfo(DName, NameLoc, DNLoc);
+    } else if (DTN->isIndeterminateSplice()) {
+      return DeclarationNameInfo(DName, NameLoc);
     }
+
+    llvm_unreachable("unknown dependent template kind");
   }
 
   case TemplateName::SubstTemplateTemplateParm: {

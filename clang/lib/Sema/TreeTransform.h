@@ -4704,8 +4704,10 @@ TemplateName TreeTransform<Derived>::TransformTemplateName(
 
     if (!getDerived().AlwaysRebuild() &&
         SS.getScopeRep() == DTN->getQualifier() &&
-        ObjectType.isNull())
+        ObjectType.isNull() &&
+        !DTN->isIndeterminateSplice()) {
       return Name;
+    }
 
     // FIXME: Preserve the location of the "template" keyword.
     SourceLocation TemplateKWLoc = NameLoc;
@@ -4715,7 +4717,13 @@ TemplateName TreeTransform<Derived>::TransformTemplateName(
           SS, TemplateKWLoc, *DTN->getIdentifier(), NameLoc, ObjectType,
           AllowInjectedClassName, MayBeNNS);
     } else if (DTN->isIndeterminateSplice()) {
-      return getDerived().RebuildTemplateName(DTN->getIndeterminateSplice());
+      ExprResult E = getDerived().TransformExpr(
+            const_cast<CXXIndeterminateSpliceExpr *>(
+                DTN->getIndeterminateSplice()));
+      if (E.isInvalid())
+        return TemplateName();
+      return getDerived().RebuildTemplateName(
+            cast<CXXIndeterminateSpliceExpr>(E.get()));
     }
 
     return getDerived().RebuildTemplateName(SS, TemplateKWLoc,
@@ -8752,6 +8760,9 @@ ExprResult
 TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
   const ReflectionValue &Refl = E->getOperand();
 
+  EnterExpressionEvaluationContext Context(
+      getSema(), Sema::ExpressionEvaluationContext::ReflectionContext);
+
   switch (Refl.getKind()) {
   case ReflectionValue::RK_type: {
     QualType Old = Refl.getAsType();
@@ -8773,7 +8784,8 @@ TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
     if (Result.isInvalid())
       return ExprError();
 
-    return getSema().BuildCXXReflectExpr(E->getOperatorLoc(), Result.get());
+    return getSema().BuildCXXReflectExpr(E->getOperatorLoc(), E->getArgLoc(),
+                                         Result.get());
   }
   case ReflectionValue::RK_declaration: {
     Decl *Transformed = getDerived().TransformDecl(E->getExprLoc(),

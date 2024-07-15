@@ -2431,13 +2431,17 @@ TemplateInstantiator::TransformCXXReflectExpr(CXXReflectExpr *E) {
     if (NonTypeTemplateParmDecl *NTTP = dyn_cast<NonTypeTemplateParmDecl>(D);
         NTTP && NTTP->getDepth() < TemplateArgs.getNumLevels()) {
       ExprResult Result = TransformTemplateParmRefExpr(E, NTTP);
-      return getSema().BuildCXXReflectExpr(E->getOperatorLoc(), Result.get());
+      return getSema().BuildCXXReflectExpr(E->getOperatorLoc(),
+                                           Result.get()->getExprLoc(),
+                                           Result.get());
     }
 
     // Handle references to function parameter packs.
     if (VarDecl *PD = dyn_cast<VarDecl>(D); PD && PD->isParameterPack()) {
       ExprResult Result = TransformFunctionParmPackRefExpr(E, PD);
-      return getSema().BuildCXXReflectExpr(E->getOperatorLoc(), Result.get());
+      return getSema().BuildCXXReflectExpr(E->getOperatorLoc(),
+                                           Result.get()->getExprLoc(),
+                                           Result.get());
     }
   }
 

@@ -16,8 +16,9 @@
 #include "clang/AST/DeclBase.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
-#include "clang/Sema/ParsedTemplate.h"
+#include "clang/Sema/Lookup.h"
 #include "clang/Sema/Metafunction.h"
+#include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Sema.h"
 
 using namespace clang;
@@ -87,15 +88,117 @@ Expr *CreateRefToDecl(Sema &S, ValueDecl *D,
 }
 }  // anonymous namespace
 
+ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OpLoc,
+                                     SourceLocation TemplateKWLoc,
+                                     CXXScopeSpec &SS, UnqualifiedId &Id) {
+  TemplateArgumentListInfo TArgBuffer;
+
+  DeclarationNameInfo NameInfo;
+  const TemplateArgumentListInfo *TArgs;
+  DecomposeUnqualifiedId(Id, TArgBuffer, NameInfo, TArgs);
+
+  LookupResult Found(*this, NameInfo, LookupReflectOperandName);
+
+  if (Id.getKind() == UnqualifiedIdKind::IK_TemplateId &&
+      Id.TemplateId->Template.get().getKind() == TemplateName::Template) {
+    Found.addDecl(Id.TemplateId->Template.get().getAsTemplateDecl());
+  } else if (Id.getKind() == UnqualifiedIdKind::IK_TemplateId &&
+             Id.TemplateId->Template.get().getKind() ==
+                    TemplateName::DependentTemplate &&
+             Id.TemplateId->Template.get().getAsDependentTemplateName()
+                                          ->isIndeterminateSplice()) {
+    auto *Splice = const_cast<CXXIndeterminateSpliceExpr *>(
+        Id.TemplateId->Template.get().getAsDependentTemplateName()
+                                     ->getIndeterminateSplice());
+    ExprResult Result = BuildReflectionSpliceExpr(
+            TemplateKWLoc, Splice->getLSpliceLoc(), Splice,
+            Splice->getRSpliceLoc(), TArgs, false);
+    assert(!Result.isInvalid());  // Should never fail for dependent operands.
+
+    return BuildCXXReflectExpr(OpLoc, Splice->getExprLoc(), Result.get());
+  } else if (TemplateKWLoc.isValid() && !TArgs) {
+    TemplateTy Template;
+    TemplateNameKind TNK = ActOnTemplateName(getCurScope(), SS, TemplateKWLoc,
+                                             Id, ParsedType(), false, Template);
+    // The other kinds are "undeclared templates" and "non-templates".
+    // As far as I can tell, neither can reach this point.
+    assert(TNK == TNK_Dependent_template_name || TNK == TNK_Function_template ||
+           TNK == TNK_Type_template || TNK == TNK_Var_template ||
+           TNK == TNK_Concept_template);
+
+    return BuildCXXReflectExpr(OpLoc, TemplateKWLoc, Template.get());
+  } else if (SS.isSet() && SS.getScopeRep()->isDependent()) {
+    ExprResult Result = BuildDependentDeclRefExpr(SS, TemplateKWLoc, NameInfo,
+                                                  TArgs);
+    // This should only fail if 'SS' is invalid, but that should already have
+    // been diagnosed.
+    assert(!Result.isInvalid());
+
+    return BuildCXXReflectExpr(OpLoc, Result.get()->getExprLoc(), Result.get());
+  } else if (!LookupParsedName(Found, getCurScope(), &SS, QualType()) ||
+             Found.empty()) {
+    CXXScopeSpec SS;
+    DeclFilterCCC<VarDecl> CCC{};
+    DiagnoseEmptyLookup(CurScope, SS, Found, CCC);
+    return ExprError();
+  }
+
+  // Make sure the lookup was neither ambiguous nor resulting in an overload set
+  // having more than one candidate.
+  if (Found.isAmbiguous()) {
+    return ExprError();
+  } else if (Found.isOverloadedResult() && Found.end() - Found.begin() > 1) {
+    Diag(Id.StartLocation, diag::err_reflect_overload_set);
+    return ExprError();
+  }
+
+  // Unwrap any 'UsingShadowDecl'-nodes.
+  NamedDecl *ND = Found.getRepresentativeDecl();
+  while (auto *USD = dyn_cast<UsingShadowDecl>(ND))
+    ND = USD->getTargetDecl();
+
+  if (auto *TD = dyn_cast<TypeDecl>(ND)) {
+    QualType QT = Context.getTypeDeclType(TD);
+    return BuildCXXReflectExpr(OpLoc, NameInfo.getBeginLoc(), QT);
+  }
+
+  if (TArgs) {
+    assert(isa<TemplateDecl>(ND) && !isa<ClassTemplateDecl>(ND) &&
+           !isa<TypeAliasTemplateDecl>(ND));
+
+    ExprResult Result = BuildTemplateIdExpr(SS, TemplateKWLoc, Found,
+                                            /*RequiresADL=*/false, TArgs);
+    if (Result.isInvalid())
+      return ExprError();
+
+    return BuildCXXReflectExpr(OpLoc, Result.get()->getExprLoc(), Result.get());
+  }
+
+  if (isa<NamespaceDecl, NamespaceAliasDecl, TranslationUnitDecl>(ND))
+    return BuildCXXReflectExpr(OpLoc, NameInfo.getBeginLoc(), ND);
+
+  if (isa<VarDecl, BindingDecl, FunctionDecl, FieldDecl, EnumConstantDecl,
+          NonTypeTemplateParmDecl>(ND)) {
+    ExprResult Result = BuildDeclarationNameExpr(SS, Found, false, false);
+    if (Result.isInvalid())
+      return ExprError();
+
+    return BuildCXXReflectExpr(OpLoc, Result.get()->getExprLoc(), Result.get());
+  }
+
+  if (auto *TD = dyn_cast<TemplateDecl>(ND)) {
+    return BuildCXXReflectExpr(OpLoc, NameInfo.getBeginLoc(),
+                               TemplateName(TD));
+  }
+
+  llvm_unreachable("unknown reflection operand!");
+}
+
 ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OpLoc, TypeResult T) {
   ParsedTemplateArgument Arg = ActOnTemplateTypeArgument(T);
   assert(Arg.getKind() == ParsedTemplateArgument::Type);
 
   return BuildCXXReflectExpr(OpLoc, Arg.getLocation(), T.get().get());
-}
-
-ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OpLoc, Expr *E) {
-  return BuildCXXReflectExpr(OpLoc, E);
 }
 
 ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OpLoc,
@@ -142,7 +245,7 @@ ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OpLoc,
   case ReflectionValue::RK_type:
     return BuildCXXReflectExpr(OpLoc, E->getExprLoc(), RV.getAsType());
   case ReflectionValue::RK_expr_result:
-    return BuildCXXReflectExpr(OpLoc, RV.getAsExprResult());
+    return BuildCXXReflectExpr(OpLoc, E->getExprLoc(), RV.getAsExprResult());
   case ReflectionValue::RK_declaration:
     return BuildCXXReflectExpr(OpLoc, E->getExprLoc(), RV.getAsDecl());
   case ReflectionValue::RK_template:
@@ -307,7 +410,7 @@ ParsedTemplateArgument Sema::ActOnTemplateIndeterminateSpliceArgument(
   if (Splice->getTemplateKWLoc().isValid() &&
      RV.getKind() != ReflectionValue::RK_template) {
     Diag(Splice->getOperand()->getExprLoc(),
-         diag::err_unexpected_reflection_kind) << 3;
+         diag::err_unexpected_reflection_kind_in_splice) << 3;
     return ParsedTemplateArgument();
   }
 
@@ -369,9 +472,8 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
   return CXXReflectExpr::Create(Context, OperatorLoc, OperandLoc, T);
 }
 
-ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc, Expr *E) {
-  E = E->IgnoreExprSplices();
-
+ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
+                                     SourceLocation OperandLoc, Expr *E) {
   // Check if this is a reference to a declared entity.
   if (auto *DRE = dyn_cast<DeclRefExpr>(E))
     return BuildCXXReflectExpr(OperatorLoc, DRE->getExprLoc(), DRE->getDecl());
@@ -412,10 +514,13 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc, Expr *E) {
     return BuildCXXReflectExpr(OperatorLoc, ULE);
   }
 
+  if (auto *ESE = dyn_cast<CXXExprSpliceExpr>(E))
+    return CXXReflectExpr::Create(Context, OperatorLoc, ESE);
+
   if (auto *DSDRE = dyn_cast<DependentScopeDeclRefExpr>(E))
     return CXXReflectExpr::Create(Context, OperatorLoc, DSDRE);
 
-  Diag(E->getExprLoc(), diag::err_reflect_general_expression);
+  Diag(OperandLoc, diag::err_reflect_general_expression);
   return ExprError();
 }
 
@@ -467,7 +572,7 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
   ExprResult ER = FixOverloadedFunctionReference(E, FoundOverload, FoundDecl);
   assert(!ER.isInvalid() && "could not fix overloaded function reference");
 
-  return BuildCXXReflectExpr(OperatorLoc, ER.get());
+  return BuildCXXReflectExpr(OperatorLoc, E->getExprLoc(), ER.get());
 }
 
 ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
@@ -607,7 +712,8 @@ QualType Sema::BuildReflectionSpliceType(SourceLocation LSplice,
                                                         false);
   } else if (R.getKind() != ReflectionValue::RK_type) {
     if (Complain)
-      Diag(Operand->getExprLoc(), diag::err_unexpected_reflection_kind) << 0;
+      Diag(Operand->getExprLoc(),
+           diag::err_unexpected_reflection_kind_in_splice) << 0;
     return QualType();
   }
 
@@ -666,6 +772,8 @@ ExprResult Sema::BuildReflectionSpliceExpr(
       bool AllowMemberReference) {
   if (isa<CXXIndeterminateSpliceExpr>(Operand) &&
       !Operand->isTypeDependent() && !Operand->isValueDependent()) {
+    auto *SpliceOp = cast<CXXIndeterminateSpliceExpr>(Operand);
+
     SmallVector<PartialDiagnosticAt, 4> Diags;
     Expr::EvalResult ER;
     ER.Diag = &Diags;
@@ -686,7 +794,8 @@ ExprResult Sema::BuildReflectionSpliceExpr(
     bool RequireTemplate = TemplateKWLoc.isValid() ||
                            TArgs->getLAngleLoc().isValid();
     if (RequireTemplate && RV.getKind() != ReflectionValue::RK_template) {
-      Diag(Operand->getExprLoc(), diag::err_unexpected_reflection_kind) << 3;
+      Diag(Operand->getExprLoc(),
+           diag::err_unexpected_reflection_kind_in_splice) << 3;
       return ExprError();
     }
 
@@ -726,6 +835,13 @@ ExprResult Sema::BuildReflectionSpliceExpr(
       break;
     }
     case ReflectionValue::RK_template: {
+      if (SpliceOp->getTemplateKWLoc().isInvalid()) {
+        Diag(SpliceOp->getOperand()->getExprLoc(),
+             diag::err_unexpected_reflection_kind_in_splice)
+          << 1 << SpliceOp->getOperand()->getSourceRange();
+        return ExprError();
+      }
+
       TemplateName TName = RV.getAsTemplate();
       assert(!TName.isDependent());
 
@@ -741,7 +857,17 @@ ExprResult Sema::BuildReflectionSpliceExpr(
                   Operand->getExprLoc());
       }
 
-      if (auto *VTD = dyn_cast<VarTemplateDecl>(TDecl)) {
+      if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TDecl); FTD && TArgs) {
+        SmallVector<TemplateArgument> Ignored;
+
+        bool ConstraintFailure = false;
+        if (CheckTemplateArgumentList(
+                FTD, TemplateKWLoc,
+                *const_cast<TemplateArgumentListInfo *>(TArgs), true, Ignored,
+                Ignored, false, &ConstraintFailure) ||
+            ConstraintFailure)
+          return ExprError();
+      } else if (auto *VTD = dyn_cast<VarTemplateDecl>(TDecl)) {
         ExprResult ER = CheckVarTemplateId(SS, DeclNameInfo, VTD, VTD,
                                            Operand->getExprLoc(), TArgs);
         if (ER.isInvalid())
@@ -795,7 +921,9 @@ ExprResult Sema::BuildReflectionSpliceExpr(
     case ReflectionValue::RK_namespace:
     case ReflectionValue::RK_base_specifier:
     case ReflectionValue::RK_data_member_spec:
-      Diag(Operand->getExprLoc(), diag::err_unexpected_reflection_kind) << 1;
+      Diag(SpliceOp->getOperand()->getExprLoc(),
+           diag::err_unexpected_reflection_kind_in_splice)
+          << 1 << SpliceOp->getOperand()->getSourceRange();
       return ExprError();
     }
     return Operand;
@@ -847,6 +975,7 @@ Sema::TemplateTy Sema::BuildReflectionSpliceTemplate(SourceLocation LSplice,
                                                      SourceLocation RSplice,
                                                      bool Complain) {
   assert(isa<CXXIndeterminateSpliceExpr>(Operand));
+  auto *SpliceOp = cast<CXXIndeterminateSpliceExpr>(Operand);
 
   if (Operand->isValueDependent())
     return TemplateTy::make(
@@ -858,21 +987,25 @@ Sema::TemplateTy Sema::BuildReflectionSpliceTemplate(SourceLocation LSplice,
   ER.Diag = &Diags;
 
   if (!Operand->EvaluateAsRValue(ER, Context, true)) {
-    Diag(Operand->getExprLoc(), diag::err_splice_operand_not_constexpr);
+    Diag(SpliceOp->getOperand()->getExprLoc(),
+        diag::err_splice_operand_not_constexpr) << SpliceOp->getOperand();
     for (PartialDiagnosticAt PD : Diags)
       Diag(PD.first, PD.second);
     return TemplateTy();
   }
 
   if (!ER.Val.isReflection()) {
-    Diag(Operand->getExprLoc(), diag::err_splice_operand_not_reflection);
+    Diag(SpliceOp->getOperand()->getExprLoc(),
+         diag::err_splice_operand_not_reflection) << SpliceOp->getSourceRange();
     return TemplateTy();
   }
   ReflectionValue &R = ER.Val.getReflection();
 
   if (R.getKind() != ReflectionValue::RK_template) {
     if (Complain)
-      Diag(Operand->getExprLoc(), diag::err_unexpected_reflection_kind) << 3;
+      Diag(SpliceOp->getOperand()->getExprLoc(),
+           diag::err_unexpected_reflection_kind)
+          << 3 << SpliceOp->getSourceRange();
     return TemplateTy();
   }
 

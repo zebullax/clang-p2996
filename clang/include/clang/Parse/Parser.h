@@ -3872,7 +3872,6 @@ private:
   ParsedTemplateArgument ParseTemplateTemplateArgument();
   ParsedTemplateArgument ParseIndeterminateSpliceTemplateArgument();
   ParsedTemplateArgument ParseTemplateArgument();
-  ParsedTemplateArgument ParseTemplateReflectOperand();
   DeclGroupPtrTy ParseExplicitInstantiation(DeclaratorContext Context,
                                             SourceLocation ExternLoc,
                                             SourceLocation TemplateLoc,

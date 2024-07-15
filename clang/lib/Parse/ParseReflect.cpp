@@ -21,111 +21,131 @@ using namespace clang;
 ExprResult Parser::ParseCXXReflectExpression() {
   assert(Tok.is(tok::caret) && "expected '^'");
   SourceLocation OpLoc = ConsumeToken();
+  SourceLocation OperandLoc = Tok.getLocation();
 
-  // Handle case of '^[: ... :]' specially.
-  if (Tok.is(tok::l_splice)) {
-    // Try to parse the splice as a part of a nested-name-specifier.
-    CXXScopeSpec SS;
+  EnterExpressionEvaluationContext EvalContext(
+        Actions, Sema::ExpressionEvaluationContext::ReflectionContext);
+
+  // ^ template [:splice-specifier:]
+  //
+  SourceLocation TemplateKWLoc;
+  if (Tok.is(tok::kw_template)) {
+    TemplateKWLoc = ConsumeToken();
+
+    if (!Tok.is(tok::l_splice)) {
+      Diag(TemplateKWLoc, diag::err_unexpected_template_in_unqualified_id);
+      SkipUntil(tok::semi, StopAtSemi | StopBeforeMatch);
+      return ExprError();
+    }
+
+    if (ParseCXXIndeterminateSplice(TemplateKWLoc)) {
+      SkipUntil(tok::semi, StopAtSemi | StopBeforeMatch);
+      return ExprError();
+    }
+
+    if (!NextToken().is(tok::less)) {
+      Token Splice = Tok;
+      TemplateTy Template = ParseCXXSpliceAsTemplate();
+      if (Template)
+        return Actions.BuildCXXReflectExpr(OpLoc, Splice.getLocation(),
+                                           Template.get());
+      SkipUntil(tok::semi, StopAtSemi | StopBeforeMatch);
+      return ExprError();
+    }
+
+    if (ParseTemplateAnnotationFromSplice(SourceLocation(), false, false,
+                                                 /*Complain=*/true)) {
+      SkipUntil(tok::semi, StopAtSemi | StopBeforeMatch);
+      return ExprError();
+    }
+  }
+
+
+  // Parse a leading nested-name-specifier, e.g.,
+  //
+  CXXScopeSpec SS;
+  if (TemplateKWLoc.isInvalid()) {
     if (ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
                                        /*ObjectHasErrors=*/false,
-                                       /*EnteringContext=*/false))
+                                       /*EnteringContext=*/false)) {
+      SkipUntil(tok::semi, StopAtSemi | StopBeforeMatch);
       return ExprError();
-
-    // If 'SS' is empty but parsing did not fail, we should have an
-    // 'annot_splice'. This is a lone splice token without a leading qualifier.
-    if (SS.isEmpty()) {
-      assert(Tok.is(tok::annot_splice));
-
-      if (!NextToken().is(tok::less)) {
-        ExprResult ER = getExprAnnotation(Tok);
-        assert(!ER.isInvalid());
-        ConsumeAnnotationToken();
-
-        return Actions.ActOnCXXReflectExpr(
-              OpLoc, cast<CXXIndeterminateSpliceExpr>(ER.get()));
-      }
-    } else {
-      // Otherwise, insert 'SS' back into the token stream as an 'annot_scope',
-      // and continue to parse as usual.
-      AnnotateScopeToken(SS, true);
     }
   }
 
-  // Try parsing as a template name.
-  {
-    TentativeParsingAction TentativeAction(*this);
+  // Start the tentative parse: This will be reverted if the operand is found
+  // to be a type (or rather: a type whose name is more complicated than a
+  // single identifier).
+  //
+  TentativeParsingAction TentativeAction(*this);
 
-    // Special handling for a template-id for a type.
-    if (Tok.is(tok::annot_splice) && NextToken().is(tok::less)) {
-      if (ParseTemplateAnnotationFromSplice(SourceLocation(), false, false,
-                                            /*Complain=*/true)) {
-        TentativeAction.Commit();
-        return ExprError();
-      }
-      if (takeTemplateIdAnnotation(Tok)->Kind == TNK_Type_template)
-        TentativeAction.Commit();
-      else
-        TentativeAction.Revert();
-    } else {
-      ParsedTemplateArgument Template;
-      {
-        EnterExpressionEvaluationContext EvalContext(
-            Actions, Sema::ExpressionEvaluationContext::ReflectionContext);
-        Template = ParseTemplateReflectOperand();
-      }
+  // ^ [:splice-specifier:]
+  //
+  if (!SS.isSet() && Tok.is(tok::annot_splice)) {
+    assert(TemplateKWLoc.isInvalid());
 
-      if (Template.isInvalid()) {
-        TentativeAction.Revert();
-      } else {
-        TentativeAction.Commit();
-        return Actions.ActOnCXXReflectExpr(OpLoc, Template);
-      }
+    ExprResult ER = getExprAnnotation(Tok);
+    assert(!ER.isInvalid());
+    if (ParseCXXSpliceAsExpr(true).isInvalid()) {
+      TentativeAction.Commit();
+      SkipUntil(tok::semi, StopAtSemi | StopBeforeMatch);
+      return ExprError();
     }
+
+    TentativeAction.Commit();
+    return Actions.ActOnCXXReflectExpr(
+          OpLoc, cast<CXXIndeterminateSpliceExpr>(ER.get()));
   }
 
-  // Try parsing as a namespace name.
-  {
-    TentativeParsingAction TentativeAction(*this);
-    Decl *NSDecl;
-    {
-      EnterExpressionEvaluationContext EvalContext(
-          Actions, Sema::ExpressionEvaluationContext::ReflectionContext);
-      CXXScopeSpec SS;
-      SourceLocation IdLoc;
-      NSDecl = ParseNamespaceName(SS, IdLoc);
-      if (NSDecl) {
+  // Next, check for an unqualified-id.
+  if (Tok.isOneOf(tok::identifier, tok::kw_operator, tok::kw_template,
+                  tok::tilde, tok::annot_template_id)) {
+    // Try parsing the operand name as an 'unqualified-id'.
+
+    SourceLocation TemplateKWLoc;
+    UnqualifiedId UnqualName;
+    if (!ParseUnqualifiedId(SS, ParsedType{}, /*ObjectHadError=*/false,
+                            /*EnteringContext=*/false,
+                            /*AllowDestructorName=*/true,
+                            /*AllowConstructorName=*/false,
+                            /*AllowDeductionGuide=*/false,
+                            SS.isSet() ? &TemplateKWLoc : nullptr,
+                            UnqualName)) {
+      bool AssumeType = false;
+      if (UnqualName.getKind() == UnqualifiedIdKind::IK_TemplateId &&
+          UnqualName.TemplateId->Kind == TNK_Type_template)
+        AssumeType = true;
+      else if (Tok.isOneOf(tok::l_square, tok::l_paren, tok::star, tok::amp,
+                           tok::ampamp))
+        AssumeType = true;
+
+      if (!AssumeType) {
         TentativeAction.Commit();
-        return Actions.ActOnCXXReflectExpr(OpLoc, IdLoc, NSDecl);
+        return Actions.ActOnCXXReflectExpr(OpLoc, TemplateKWLoc, SS,
+                                           UnqualName);
       }
     }
-    TentativeAction.Revert();
-  }
+  } else if (SS.isValid() &&
+             SS.getScopeRep()->getKind() == NestedNameSpecifier::Global) {
+    // Check for '^::'.
+    TentativeAction.Commit();
 
-  // Try parsing as type-id.
+    Decl *TUDecl = Actions.getASTContext().getTranslationUnitDecl();
+    return Actions.ActOnCXXReflectExpr(OpLoc, SourceLocation(), TUDecl);
+  }
+  TentativeAction.Revert();
+
+  // Anything else must be a type-id (e.g., 'const int', 'Cls(*)(int)'.
   if (isCXXTypeId(TypeIdAsReflectionOperand)) {
-    TypeResult TR;
-    {
-      EnterExpressionEvaluationContext EvalContext(
-          Actions, Sema::ExpressionEvaluationContext::ReflectionContext);
-      TR = ParseTypeName(nullptr, DeclaratorContext::ReflectOperator);
-    }
-    if (TR.isInvalid()) {
+    TypeResult TR = ParseTypeName(nullptr, DeclaratorContext::ReflectOperator);
+    if (TR.isInvalid())
       return ExprError();
-    }
+
     return Actions.ActOnCXXReflectExpr(OpLoc, TR);
   }
 
-  // Otherwise, parse as an expression.
-  ExprResult E;
-  {
-    EnterExpressionEvaluationContext EvalContext(
-        Actions, Sema::ExpressionEvaluationContext::ReflectionContext);
-    E = ParseCastExpression(PrimaryExprOnly, true);
-  }
-  if (E.isInvalid() || !E.get())
-    return ExprError();
-
-  return Actions.ActOnCXXReflectExpr(OpLoc, E.get());
+  Diag(OperandLoc, diag::err_cannot_reflect_operand);
+  return ExprError();
 }
 
 ExprResult Parser::ParseCXXMetafunctionExpression() {
@@ -275,6 +295,7 @@ Parser::TemplateTy Parser::ParseCXXSpliceAsTemplate() {
   assert(Tok.is(tok::annot_splice) && "expected annot_splice");
 
   Token Splice = Tok;
+  ConsumeAnnotationToken();
 
   ExprResult ER = getExprAnnotation(Splice);
   assert(!ER.isInvalid());
