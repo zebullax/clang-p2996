@@ -246,7 +246,7 @@ template <S &P> void fn_cls_ref() {
 template <void(&P)()> void fn_fn_ref_param() {
   static_assert(is_function(^P));
   static_assert(type_of(^P) == ^void());
-  static_assert(name_of(^P) == "instantiations");
+  static_assert(identifier_of(^P) == "instantiations");
 }
 
 template <void(*P)()> void fn_fn_ptr_param() {

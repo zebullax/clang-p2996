@@ -22,7 +22,7 @@ struct S { unsigned i:2, j:6; };
 
 consteval auto member_named(std::string_view name) {
   for (std::meta::info field : nonstatic_data_members_of(^S)) {
-    if (name_of(field) == name) return field;
+    if (identifier_of(field) == name) return field;
   }
   std::unreachable();
 }

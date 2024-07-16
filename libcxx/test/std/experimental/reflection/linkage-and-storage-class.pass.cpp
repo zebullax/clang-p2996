@@ -109,10 +109,10 @@ static_assert(!has_internal_linkage(^external_linkage_type));
 static_assert(!has_module_linkage(^external_linkage_type));
 static_assert(has_external_linkage(^external_linkage_type));
 
-static_assert(has_linkage(^Alias));
+static_assert(!has_linkage(^Alias));
 static_assert(!has_internal_linkage(^Alias));
 static_assert(!has_module_linkage(^Alias));
-static_assert(has_external_linkage(^Alias));
+static_assert(!has_external_linkage(^Alias));
 
 static_assert(has_linkage(^fn));
 static_assert(!has_internal_linkage(^fn));

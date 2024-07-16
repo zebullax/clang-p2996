@@ -73,7 +73,7 @@ consteval auto spec_to_opts(std::meta::info opts,
   for (auto member : nonstatic_data_members_of(spec)) {
     auto new_type = template_arguments_of(type_of(member))[0];
     new_members.push_back(
-        data_member_spec(new_type, {.name=name_of(member)}));
+        data_member_spec(new_type, {.name=identifier_of(member)}));
   }
   return define_class(opts, new_members);
 }
@@ -103,7 +103,7 @@ struct Clap {
         v.push_back({.spec=spec_members[i], .opt=opts_members[i]});
       }
       return v;
-    }()):] >> [&]<auto Pair>{
+    }()):] >> [&]<auto Pair> {
       constexpr auto sm = Pair.spec;
       constexpr auto om = Pair.opt;
 
@@ -113,9 +113,9 @@ struct Clap {
       auto it = std::find_if(cmdline.begin(), cmdline.end(),
           [&](std::string_view arg){
             return (cur.use_short && arg.size() == 2 && arg[0] == '-' &&
-                   arg[1] == name_of(sm)[0])
+                   arg[1] == identifier_of(sm)[0])
                 || (cur.use_long && arg.starts_with("--") &&
-                    arg.substr(2) == name_of(sm));
+                    arg.substr(2) == identifier_of(sm));
           });
 
       if (it == cmdline.end()) {
@@ -133,11 +133,12 @@ struct Clap {
           opts.[:om:] = *cur.initializer;
           return;
         } else {
-          std::cerr << "Missing required option " << name_of(sm) << '\n';
+          std::cerr << "Missing required option "
+                    << display_string_of(sm) << '\n';
           std::exit(EXIT_FAILURE);
         }
       } else if (it + 1 == cmdline.end()) {
-        std::cout << "Option " << *it << " for " << name_of(sm)
+        std::cout << "Option " << *it << " for " << display_string_of(sm)
                   << " is missing a value\n";
         std::exit(EXIT_FAILURE);
       }
@@ -147,7 +148,8 @@ struct Clap {
       iss << it[1];
       if (iss >> opts.[:om:]; !iss) {
         std::cerr << "Failed to parse " << it[1] << " into option "
-                  << name_of(sm) << " of type " << name_of(type_of(om)) << '\n';
+                  << display_string_of(sm) << " of type "
+                  << display_string_of(type_of(om)) << '\n';
         std::exit(EXIT_FAILURE);
       }
     };

@@ -53,7 +53,7 @@ constexpr std::string enum_to_string(E value) {
     std::string result = "<unnamed>";
     [:expand(enumerators_of(^E)):] >> [&] <auto e> {
         if (value == [:e:]) {
-            result = std::string(name_of(e));
+            result = std::string(identifier_of(e));
         }
     };
     return result;
@@ -64,7 +64,7 @@ template <typename E>
 constexpr std::optional<E> string_to_enum(std::string_view name) {
   std::optional<E> result = std::nullopt;
   [:expand(enumerators_of(^E)):] >> [&] <auto e> {
-    if (name == name_of(e)) {
+    if (name == identifier_of(e)) {
       result = [:e:];
     }
   };

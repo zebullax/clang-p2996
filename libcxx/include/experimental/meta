@@ -31,11 +31,9 @@ template <typename R>
 concept reflection_range = see below;
 
 // name and location
-consteval auto name_of(info) -> string_view;
 consteval auto identifier_of(info) -> string_view;
 consteval auto display_string_of(info) -> string_view;
 
-consteval auto u8name_of(info) -> u8string_view;
 consteval auto u8identifier_of(info) -> u8string_view;
 consteval auto u8display_string_of(info) -> u8string_view;
 
@@ -351,9 +349,7 @@ consteval auto type_unwrap_ref_decay(info) -> info;
 
 // function parameters (P3096)
 consteval auto parameters_of(info) -> vector<info>;
-consteval auto has_consistent_name(info) -> bool;
-consteval auto any_name_of(info) -> string_view;
-consteval auto u8any_name_of(info) -> u8string_view;
+consteval auto has_consistent_identifier(info) -> bool;
 consteval auto any_identifier_of(info) -> string_view;
 consteval auto u8any_identifier_of(info) -> u8string_view;
 consteval auto has_ellipsis_parameter(info) -> bool;
@@ -407,7 +403,6 @@ enum : unsigned {
   __metafn_map_decl_to_entity,
 
   // exposed metafunctions
-  __metafn_name_of,
   __metafn_identifier_of,
   __metafn_has_identifier,
   __metafn_operator_of,
@@ -498,7 +493,7 @@ enum : unsigned {
 
   // P3096 metafunctions
   __metafn_get_ith_parameter_of,
-  __metafn_has_consistent_name,
+  __metafn_has_consistent_identifier,
   __metafn_has_ellipsis_parameter,
   __metafn_has_default_argument,
   __metafn_is_explicit_object_parameter,
@@ -730,17 +725,6 @@ struct front_parameter_of_fn {
 // Returns a reflection of the canonical type for the reflected type.
 consteval auto dealias(info r) -> info {
   return __metafunction(detail::__metafn_dealias, r);
-}
-
-// Returns the name of the reflected entity, or the empty string if it has none.
-consteval auto name_of(info r) -> string_view {
-  return __metafunction(detail::__metafn_name_of, ^const char *, r,
-                        /*UTF8=*/false, /*EnforceConsistent=*/true);
-}
-
-consteval auto u8name_of(info r) -> u8string_view {
-  return __metafunction(detail::__metafn_name_of, ^const char8_t *, r,
-                        /*UTF8=*/true, /*EnforceConsistent=*/true);
 }
 
 // Returns the identifier for the represented entity. If the entity is a
@@ -2018,18 +2002,8 @@ consteval auto parameters_of(info r) -> vector<info> {
   return vector<info>{rng.begin(), rng.end()};
 }
 
-consteval auto has_consistent_name(info r) -> bool {
-  return __metafunction(detail::__metafn_has_consistent_name, r);
-}
-
-consteval auto any_name_of(info r) -> string_view {
-  return __metafunction(detail::__metafn_name_of, ^const char *, r,
-                        /*UTF8=*/false, /*EnforceConsistent=*/false);
-}
-
-consteval auto u8any_name_of(info r) -> u8string_view {
-  return __metafunction(detail::__metafn_name_of, ^const char8_t *, r,
-                        /*UTF8=*/true, /*EnforceConsistent=*/false);
+consteval auto has_consistent_identifier(info r) -> bool {
+  return __metafunction(detail::__metafn_has_consistent_identifier, r);
 }
 
 consteval auto any_identifier_of(info r) -> string_view {
@@ -2100,9 +2074,9 @@ consteval auto test_trait(info templ, R &&args) -> bool {
   return extract<bool>(substitute(templ, args));
 }
 
-                     // ==================================
-                     // (u8)display_name_of implementation
-                     // ==================================
+                    // ====================================
+                    // (u8)display_string_of implementation
+                    // ====================================
 
 // For the sake of compile-times, this probably would be better off being
 // implemented as an intrinsic - but it ought to be possible to use P2996 to
@@ -2239,18 +2213,23 @@ struct pretty_printer {
 
     template <info R>  // Value types.
         requires (is_type(R) && !(is_const(R) || is_volatile(R)) &&
-                  !type_is_pointer(R) && !type_is_function(R) &&
-                  !type_is_reference(R) && !type_is_member_pointer(R))
+                  !type_is_pointer(R) && !type_is_array(R) &&
+                  !type_is_function(R) && !type_is_reference(R) &&
+                  !type_is_member_pointer(R))
       static consteval string_t render();
 
-    template <info R>  // CV-qualified non-function types.
+    template <info R>  // CV-qualified non-function, non-arry types.
         requires (is_type(R) && (is_const(R) || is_volatile(R)) &&
-                  !type_is_function(R))
+                  !type_is_array(R) && !type_is_function(R))
       static consteval string_t render();
 
     template <info R>  // Reference types.
         requires (is_type(R) && !(is_const(R) || is_volatile(R)) &&
                   type_is_reference(R))
+      static consteval string_t render();
+
+    template <info R>  // Unqualified array types.
+        requires (is_type(R) && type_is_array(R))
       static consteval string_t render();
 
     template <info R>  // Function types.
@@ -2478,8 +2457,9 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
 template <typename CharT>
 template <info R>  // Value types.
     requires (is_type(R) && !(is_const(R) || is_volatile(R)) &&
-              !type_is_pointer(R) && !type_is_function(R) &&
-              !type_is_reference(R) && !type_is_member_pointer(R))
+              !type_is_pointer(R) && !type_is_array(R) &&
+              !type_is_function(R) && !type_is_reference(R) &&
+              !type_is_member_pointer(R))
 consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
   string_t result;
 
@@ -2519,9 +2499,9 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
 }
 
 template <typename CharT>
-template <info R>  // CV-qualified types.
+template <info R>  // CV-qualified non-function, non-array types.
     requires (is_type(R) && (is_const(R) || is_volatile(R)) &&
-              !type_is_function(R))
+              !type_is_array(R) && !type_is_function(R))
 consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
   string_t result;
   if (is_const(R))
@@ -2539,6 +2519,22 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
   string_t result = render<type_remove_reference(R)>() + STRING_CONSTANT(" &");
   if (type_is_rvalue_reference(R))
     result += STRING_CONSTANT("&");
+  return result;
+}
+
+template <typename CharT>
+template <info R>  // Array types.
+    requires (is_type(R) && type_is_array(R))
+consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
+  string_t result = render<type_remove_all_extents(R)>();
+
+  for (size_t k = 0; k < type_rank(R); ++k) {
+    CharT buffer[32] = {};
+    if (!to_chars(begin(buffer), end(buffer), type_extent(R, k)))
+      throw "'to_chars' failed to format integeral value";
+
+    result += "[" + string_t {buffer} + "]";
+  }
   return result;
 }
 

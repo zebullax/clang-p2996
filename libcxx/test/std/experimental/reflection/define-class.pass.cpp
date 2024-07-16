@@ -240,20 +240,21 @@ static_assert(type_of(^foo::b) == ^bool);
 static_assert(nonstatic_data_members_of(^foo).size() == 2);
 }  // namespace with_non_contiguous_range
 
-                           // =======================
-                           // utf8_name_of_roundtrips
-                           // =======================
+                        // =============================
+                        // utf8_identifier_of_roundtrips
+                        // =============================
 
-namespace utf8_name_of_roundtrip {
+namespace utf8_identifier_of_roundtrip {
 class Kühl { };
 
 class Cls1;
-static_assert(
-    is_type(define_class(^Cls1,
-                         {data_member_spec(^int, {.name=u8name_of(^Kühl)})})));
-static_assert(u8name_of(nonstatic_data_members_of(^Cls1)[0]) == u8"Kühl");
-static_assert(name_of(nonstatic_data_members_of(^Cls1)[0]) == "Kühl");
-}  // namespace utf8_name_of_roundtrip
+static_assert(is_type(define_class(^Cls1, {
+  data_member_spec(^int, {.name=u8identifier_of(^Kühl)})
+})));
+static_assert(u8identifier_of(nonstatic_data_members_of(^Cls1)[0]) ==
+              u8"Kühl");
+static_assert(identifier_of(nonstatic_data_members_of(^Cls1)[0]) == "Kühl");
+}  // namespace utf8_identifier_of_roundtrip
 
                          // ===========================
                          // data_member_spec_comparison
