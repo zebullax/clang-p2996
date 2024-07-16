@@ -40,6 +40,8 @@ consteval auto u8display_string_of(info) -> u8string_view;
 consteval auto has_identifier(info) -> bool;
 
 enum class operators;
+using enum operators;
+
 consteval auto operator_of(info) -> operators;
 
 consteval auto source_location_of(info r) -> source_location;
@@ -757,6 +759,7 @@ enum class operators {
   op_less_less_equals, op_greater_greater_equals, op_plus_plus, op_minus_minus,
   op_comma,
 };
+using enum operators;
 
 // Returns the operator overloaded by the represented operator function or
 // operator function template.
