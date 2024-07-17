@@ -816,6 +816,12 @@ ExprResult Sema::BuildReflectionSpliceExpr(
         return ExprError();
       }
 
+      if (auto *FD = dyn_cast<FieldDecl>(TheDecl);
+          FD && FD->isUnnamedBitField()) {
+        Diag(Operand->getExprLoc(), diag::err_splice_unnamed_bit_field);
+        return ExprError();
+      }
+
       // Create a new DeclRefExpr, since the operand of the reflect expression
       // was parsed in an unevaluated context (but a splice expression is not
       // necessarily, and frequently not, in such a context).

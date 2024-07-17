@@ -3132,6 +3132,8 @@ def err_splice_global_scope_as_namespace : Error<
 def err_member_access_splice_not_class_member : Error<
   "use of splice as qualified member access requires the reflection to be a "
   "member of a class">;
+def err_splice_unnamed_bit_field : Error<
+  "cannot splice a reflection of an unnamed bit-field">;
 def err_unsupported_splice_kind : Error<
   "splicing %0 %select{as template arguments is|is}1 %select{not|not yet}2 "
   "%select{supported|implemented}2">;
