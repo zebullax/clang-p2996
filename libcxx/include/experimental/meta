@@ -141,6 +141,7 @@ consteval auto is_namespace_member(info) -> bool;
 consteval auto is_nonstatic_data_member(info) -> bool;
 consteval auto is_static_member(info) -> bool;
 consteval auto is_base(info) -> bool;
+consteval auto is_data_member_spec(info) -> bool;
 consteval auto is_namespace(info) -> bool;
 consteval auto is_function(info) -> bool;
 consteval auto is_variable(info) -> bool;
@@ -445,6 +446,7 @@ enum : unsigned {
   __metafn_is_nonstatic_data_member,
   __metafn_is_static_member,
   __metafn_is_base,
+  __metafn_is_data_member_spec,
   __metafn_is_namespace,
   __metafn_is_function,
   __metafn_is_variable,
@@ -835,6 +837,11 @@ consteval auto is_static_member(info r) -> bool {
 // Returns whether the reflected entity is a base class specifier.
 consteval auto is_base(info r) -> bool {
   return __metafunction(detail::__metafn_is_base, r);
+}
+
+// Returns whether the reflected entity is a description of a data member.
+consteval auto is_data_member_spec(info r) -> bool {
+  return __metafunction(detail::__metafn_is_data_member_spec, r);
 }
 
 consteval auto members_of(info r) -> vector<info> {
@@ -1337,34 +1344,43 @@ consteval auto data_member_spec(info member_type,
   int width = options.width.value_or(0);
   bool no_unique_address = options.no_unique_address;
 
-  if (width) {
-    if (alignment)
-      throw "Cannot specify both width and alignment for a data member";
-    if (no_unique_address)
-      throw "Cannot specify both width and no_unique_address for a data member";
-  }
+  auto validate = [&](auto name_string) {
+    if (width) {
+      if (alignment)
+        throw "Cannot specify both width and alignment for data member";
+      if (no_unique_address)
+        throw "Cannot specify both width and no_unique_address for data member";
+    } else {
+      if (options.width.has_value() && !name_string.empty())
+        throw "Bit-fields of zero width must be unnamed";
+    }
 
-  if (alignment) {
-    if (alignment < alignment_of(member_type))
-      throw "Cannot specify an alignment less strict that the member type";
-    if (alignment <= 0 || ((alignment - 1) & alignment))
-      throw "Alignment specifier must be a non-negative power of 2";
-  }
+    if (alignment) {
+      if (alignment < int(alignment_of(member_type)))
+        throw "Cannot specify an alignment less strict that the member type";
+      if (alignment <= 0 || ((alignment - 1) & alignment))
+        throw "Alignment specifier must be a non-negative power of 2";
+    }
+  };
 
   if (holds_alternative<u8string>(name)) {
     const u8string &s = get<u8string>(name);
+    validate(s);
     return __metafunction(detail::__metafn_data_member_spec,
-                          member_type, options.name.has_value(),
-                          s.size(), ^const char8_t, s.data(),
+                          member_type,
+                          !s.empty(), s.size(), ^const char8_t, s.data(),
                           options.alignment.has_value(), alignment,
-                          options.width.has_value(), width, no_unique_address);
+                          options.width.has_value(), width,
+                          no_unique_address);
   } else {
     const string &s = get<string>(name);
+    validate(s);
     return __metafunction(detail::__metafn_data_member_spec,
-                          member_type, options.name.has_value(),
-                          s.size(), ^const char, s.data(),
+                          member_type,
+                          !s.empty(), s.size(), ^const char, s.data(),
                           options.alignment.has_value(), alignment,
-                          options.width.has_value(), width, no_unique_address);
+                          options.width.has_value(), width,
+                          no_unique_address);
   }
 }
 
@@ -2106,22 +2122,23 @@ struct pretty_printer {
 
   using string_t = basic_string<CharT>;
 
-  static constexpr basic_string_view<CharT> op_names[44] = {
+  static constexpr basic_string_view<CharT> op_names[45] = {
       {}, STRING_CONSTANT("new"), STRING_CONSTANT("delete"),
       STRING_CONSTANT("new[]"), STRING_CONSTANT("delete[]"),
       STRING_CONSTANT("coawait"), STRING_CONSTANT("()"), STRING_CONSTANT("[]"),
       STRING_CONSTANT("->"), STRING_CONSTANT("->*"), STRING_CONSTANT("~"),
       STRING_CONSTANT("!"), STRING_CONSTANT("+"), STRING_CONSTANT("-"),
-      STRING_CONSTANT("/"), STRING_CONSTANT("%"), STRING_CONSTANT("^"),
-      STRING_CONSTANT("&"), STRING_CONSTANT("|"), STRING_CONSTANT("="),
-      STRING_CONSTANT("+="), STRING_CONSTANT("-="), STRING_CONSTANT("*="),
-      STRING_CONSTANT("/="), STRING_CONSTANT("%="), STRING_CONSTANT("^"),
-      STRING_CONSTANT("&="), STRING_CONSTANT("|="), STRING_CONSTANT("=="),
-      STRING_CONSTANT("!="), STRING_CONSTANT("<"), STRING_CONSTANT(">"),
-      STRING_CONSTANT("<="), STRING_CONSTANT(">="), STRING_CONSTANT("<=>"),
-      STRING_CONSTANT("&&"), STRING_CONSTANT("||"), STRING_CONSTANT("<<"),
-      STRING_CONSTANT(">>"), STRING_CONSTANT("<<="), STRING_CONSTANT(">>="),
-      STRING_CONSTANT("++"), STRING_CONSTANT("--"), STRING_CONSTANT(","),
+      STRING_CONSTANT("*"), STRING_CONSTANT("/"), STRING_CONSTANT("%"),
+      STRING_CONSTANT("^"), STRING_CONSTANT("&"), STRING_CONSTANT("|"),
+      STRING_CONSTANT("="), STRING_CONSTANT("+="), STRING_CONSTANT("-="),
+      STRING_CONSTANT("*="), STRING_CONSTANT("/="), STRING_CONSTANT("%="),
+      STRING_CONSTANT("^"), STRING_CONSTANT("&="), STRING_CONSTANT("|="),
+      STRING_CONSTANT("=="), STRING_CONSTANT("!="), STRING_CONSTANT("<"),
+      STRING_CONSTANT(">"), STRING_CONSTANT("<="), STRING_CONSTANT(">="),
+      STRING_CONSTANT("<=>"), STRING_CONSTANT("&&"), STRING_CONSTANT("||"),
+      STRING_CONSTANT("<<"), STRING_CONSTANT(">>"), STRING_CONSTANT("<<="),
+      STRING_CONSTANT(">>="), STRING_CONSTANT("++"), STRING_CONSTANT("--"),
+      STRING_CONSTANT(","),
   };
 
   static consteval auto identifier_helper(info R) {
@@ -2404,10 +2421,22 @@ template <info R>  // Templates.
 consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
   if (is_constructor_template(R))
     return render<parent_of(R)>();
-  else if (is_operator_function_template(R))
-    return STRING_CONSTANT("operator ") +
-           string_t {op_names[int(operator_of(R))]};
-  else if (is_conversion_function_template(R))
+  else if (is_operator_function_template(R)) {
+    std::meta::operators op = operator_of(R);
+
+    string_t result = "operator";
+    switch (op) {
+    case std::meta::op_new:
+    case std::meta::op_delete:
+    case std::meta::op_array_new:
+    case std::meta::op_array_delete:
+    case std::meta::op_co_await:
+      result += " ";
+      [[fallthrough]];
+    default:
+      return result + string_t {op_names[int(operator_of(R))]};
+    }
+  } else if (is_conversion_function_template(R))
     return STRING_CONSTANT("(conversion-function-template)");
   else if (is_literal_operator_template(R))
     return STRING_CONSTANT(R"(operator"")") + string_t {identifier_helper(R) };
@@ -2442,8 +2471,20 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
   } else if constexpr (is_constructor(R)) {
     return render<parent_of(R)>();
   } else if constexpr (is_operator_function(R)) {
-    return STRING_CONSTANT("operator ") +
-           string_t {op_names[int(operator_of(R))]};
+    std::meta::operators op = operator_of(R);
+
+    result = "operator";
+    switch (op) {
+    case std::meta::op_new:
+    case std::meta::op_delete:
+    case std::meta::op_array_new:
+    case std::meta::op_array_delete:
+    case std::meta::op_co_await:
+      result += " ";
+      [[fallthrough]];
+    default:
+      return result + string_t {op_names[int(operator_of(R))]};
+    }
   } else if constexpr (is_conversion_function(R)) {
 #if __has_feature(parameter_reflection)
     return STRING_CONSTANT("operator ") + render<return_type_of(R)>();

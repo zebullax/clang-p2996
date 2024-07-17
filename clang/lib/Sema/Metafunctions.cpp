@@ -237,6 +237,10 @@ static bool is_base(APValue &Result, Sema &S, EvalFn Evaluator,
                     QualType ResultTy, SourceRange Range,
                     ArrayRef<Expr *> Args);
 
+static bool is_data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
+                                QualType ResultTy, SourceRange Range,
+                                ArrayRef<Expr *> Args);
+
 static bool is_namespace(APValue &Result, Sema &S, EvalFn Evaluator,
                          QualType ResultTy, SourceRange Range,
                          ArrayRef<Expr *> Args);
@@ -511,6 +515,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_nonstatic_data_member },
   { Metafunction::MFRK_bool, 1, 1, is_static_member },
   { Metafunction::MFRK_bool, 1, 1, is_base },
+  { Metafunction::MFRK_bool, 1, 1, is_data_member_spec },
   { Metafunction::MFRK_bool, 1, 1, is_namespace },
   { Metafunction::MFRK_bool, 1, 1, is_function },
   { Metafunction::MFRK_bool, 1, 1, is_variable },
@@ -1653,10 +1658,15 @@ bool identifier_of(APValue &Result, Sema &S, EvalFn Evaluator,
     getDeclName(Name, S.Context, R.getReflectedNamespace());
     break;
   }
+  case ReflectionValue::RK_data_member_spec: {
+    TagDataMemberSpec *TDMS = R.getReflectedDataMemberSpec();
+    if (TDMS->Name)
+      Name = *TDMS->Name;
+    break;
+  }
   case ReflectionValue::RK_null:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_expr_result:
-  case ReflectionValue::RK_data_member_spec:
     return true;
   }
   if (Name.empty())
@@ -1719,10 +1729,14 @@ bool has_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
       HasIdentifier = (ND->getIdentifier() != nullptr);
     break;
   }
+  case ReflectionValue::RK_data_member_spec: {
+    TagDataMemberSpec *TDMS = R.getReflectedDataMemberSpec();
+    HasIdentifier = TDMS->Name && !TDMS->Name->empty();
+    break;
+  }
   case ReflectionValue::RK_null:
   case ReflectionValue::RK_base_specifier:
   case ReflectionValue::RK_expr_result:
-  case ReflectionValue::RK_data_member_spec:
     break;
   }
 
@@ -1824,7 +1838,6 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   case ReflectionValue::RK_type:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
-  case ReflectionValue::RK_data_member_spec:
     return true;
   case ReflectionValue::RK_expr_result: {
     ConstantExpr *E = R.getReflectedExprResult();
@@ -1846,6 +1859,13 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   }
   case ReflectionValue::RK_base_specifier: {
     QualType QT = R.getReflectedBaseSpecifier()->getType();
+    QT = desugarType(QT, /*UnwrapAliases=*/false, /*DropCV=*/false,
+                     /*DropRefs=*/false);
+    return SetAndSucceed(Result, makeReflection(QT));
+  }
+  case ReflectionValue::RK_data_member_spec:
+  {
+    QualType QT = R.getReflectedDataMemberSpec()->Ty;
     QT = desugarType(QT, /*UnwrapAliases=*/false, /*DropCV=*/false,
                      /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
@@ -3006,6 +3026,9 @@ bool is_bit_field(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   if (R.getReflection().getKind() == ReflectionValue::RK_declaration) {
     if (const auto *FD = dyn_cast<FieldDecl>(R.getReflectedDecl()))
       result = FD->isBitField();
+  } else if (R.getReflection().getKind() ==
+             ReflectionValue::RK_data_member_spec) {
+    result = R.getReflectedDataMemberSpec()->BitWidth.has_value();
   }
   return SetAndSucceed(Result, makeBool(S.Context, result));
 }
@@ -3410,6 +3433,22 @@ bool is_base(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
                        makeBool(S.Context,
                                 R.getReflection().getKind() ==
                                       ReflectionValue::RK_base_specifier));
+}
+
+bool is_data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
+                         QualType ResultTy, SourceRange Range,
+                         ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue R;
+  if (!Evaluator(R, Args[0], true))
+    return true;
+
+  return SetAndSucceed(Result,
+                       makeBool(S.Context,
+                                R.getReflection().getKind() ==
+                                      ReflectionValue::RK_data_member_spec));
 }
 
 bool is_namespace(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
@@ -4651,10 +4690,12 @@ bool define_class(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
 
     Declarator MemberDeclarator(DS, MemberAttrs, DeclaratorContext::Member);
 
-    std::string MemberName = TDMS->Name.value_or(
-            "__" + llvm::toString(llvm::APSInt::get(anonMemCtr++), 10));
-    IdentifierInfo &II = S.PP.getIdentifierTable().get(MemberName);
-    MemberDeclarator.SetIdentifier(&II, Tag->getBeginLoc());
+    if (!TDMS->BitWidth || *TDMS->BitWidth > 0) {
+      std::string MemberName = TDMS->Name.value_or(
+              "__" + llvm::toString(llvm::APSInt::get(anonMemCtr++), 10));
+      IdentifierInfo &II = S.PP.getIdentifierTable().get(MemberName);
+      MemberDeclarator.SetIdentifier(&II, Tag->getBeginLoc());
+    }
 
     // Create an expression for bit width, if specified.
     ConstantExpr *BitWidthCE = nullptr;
@@ -4735,15 +4776,22 @@ bool size_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
             APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
   }
   case ReflectionValue::RK_expr_result: {
-    const Expr *E = R.getReflectedExprResult();
+    Expr *E = R.getReflectedExprResult();
     size_t Sz = S.Context.getTypeSizeInChars(E->getType()).getQuantity();
     return SetAndSucceed(
             Result,
             APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
   }
   case ReflectionValue::RK_declaration: {
-    const ValueDecl *VD = cast<ValueDecl>(R.getReflectedDecl());
+    ValueDecl *VD = R.getReflectedDecl();
     size_t Sz = S.Context.getTypeSizeInChars(VD->getType()).getQuantity();
+    return SetAndSucceed(
+            Result,
+            APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
+  }
+  case ReflectionValue::RK_data_member_spec: {
+    TagDataMemberSpec *TDMS = R.getReflectedDataMemberSpec();
+    size_t Sz = S.Context.getTypeSizeInChars(TDMS->Ty).getQuantity();
     return SetAndSucceed(
             Result,
             APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
@@ -4752,7 +4800,6 @@ bool size_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
-  case ReflectionValue::RK_data_member_spec:
     return true;
   }
   llvm_unreachable("unknown reflection kind");
@@ -4827,11 +4874,19 @@ bool bit_size_of(APValue &Result, Sema &S, EvalFn Evaluator, QualType ResultTy,
             Result,
             APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
   }
+  case ReflectionValue::RK_data_member_spec: {
+    TagDataMemberSpec *TDMS = R.getReflectedDataMemberSpec();
+    
+    size_t Sz = TDMS->BitWidth.value_or(S.Context.getTypeSize(TDMS->Ty));
+    return SetAndSucceed(
+            Result,
+            APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
+  }
+
   case ReflectionValue::RK_null:
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
-  case ReflectionValue::RK_data_member_spec:
     return true;
   }
   llvm_unreachable("unknown reflection kind");
@@ -4866,8 +4921,23 @@ bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator,
     const ValueDecl *VD = cast<ValueDecl>(R.getReflectedDecl());
     size_t Align = S.Context.getTypeAlignInChars(VD->getType()).getQuantity();
 
-    if (const FieldDecl *FD = dyn_cast<const FieldDecl>(VD))
+    if (const FieldDecl *FD = dyn_cast<const FieldDecl>(VD)) {
+      if (FD->isBitField())
+        return true;
       Align = S.Context.getDeclAlign(FD, true).getQuantity();
+    }
+
+    return SetAndSucceed(
+            Result,
+            APValue(S.Context.MakeIntValue(Align, S.Context.getSizeType())));
+  }
+  case ReflectionValue::RK_data_member_spec: {
+    TagDataMemberSpec *TDMS = R.getReflectedDataMemberSpec();
+    if (TDMS->BitWidth)
+      return true;
+
+    size_t Align = TDMS->Alignment.value_or(
+          S.Context.getTypeAlignInChars(TDMS->Ty).getQuantity());
 
     return SetAndSucceed(
             Result,
@@ -4877,7 +4947,6 @@ bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionValue::RK_template:
   case ReflectionValue::RK_namespace:
   case ReflectionValue::RK_base_specifier:
-  case ReflectionValue::RK_data_member_spec:
     return true;
   }
   llvm_unreachable("unknown reflection kind");

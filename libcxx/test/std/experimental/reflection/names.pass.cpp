@@ -284,11 +284,32 @@ struct S {
   template <typename T> S& operator-(T &);
 };
 int operator+(const S&, const S&);
+int operator,(const S&, const S&);
 
-static_assert(display_string_of(^operator+) == "operator +");
-static_assert(display_string_of(^S::operator-) == "operator -");
+static_assert(display_string_of(^operator+) == "operator+");
+static_assert(display_string_of(^operator,) == "operator,");
+static_assert(display_string_of(^S::operator-) == "operator-");
 static_assert(display_string_of(^S::operator new) == "operator new");
 }  // namespace Ops
+
+namespace DataMemberSpecs {
+constexpr auto a = data_member_spec(^int, {});
+constexpr auto b = data_member_spec(^int, {.name=""});
+constexpr auto c = data_member_spec(^int, {.name="ident"});
+constexpr auto d = data_member_spec(^int, {.name=u8"ident"});
+
+static_assert(!has_identifier(a));
+static_assert(!has_identifier(b));
+static_assert(has_identifier(c));
+static_assert(has_identifier(d));
+
+static_assert(identifier_of(c) == "ident");
+static_assert(identifier_of(d) == "ident");
+
+static_assert(u8identifier_of(c) == u8"ident");
+static_assert(u8identifier_of(d) == u8"ident");
+
+}  // namespace DataMemberSpecs
 
 
 int main() { }

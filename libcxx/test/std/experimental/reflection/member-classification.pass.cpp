@@ -701,6 +701,10 @@ static_assert(!is_bit_field(^S));
 static_assert(!is_bit_field(^int));
 static_assert(!is_bit_field(std::meta::reflect_value(4)));
 static_assert(!is_bit_field(^std::meta::extract));
+
+static_assert(!is_bit_field(data_member_spec(^int, {})));
+static_assert(is_bit_field(data_member_spec(^int, {.width=0})));
+static_assert(is_bit_field(data_member_spec(^int, {.width=5})));
 }  // namespace bitfield_members
 
                            // =======================

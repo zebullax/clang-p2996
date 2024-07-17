@@ -60,17 +60,18 @@ static_assert(is_incomplete_type(^S));
 static_assert(is_type(define_class(^S, {
                 data_member_spec(^int, {.name="count", .alignment=16}),
                 data_member_spec(^bool, {.name="flag"}),
+                data_member_spec(^int, {.width=0}),
                 data_member_spec(^int, {.width=5}),
               })));
 static_assert(!is_incomplete_type(^S));
-static_assert(nonstatic_data_members_of(^S).size() == 3);
+static_assert(nonstatic_data_members_of(^S).size() == 4);
 static_assert(alignment_of(^S::count) == 16);
-static_assert(bit_size_of(nonstatic_data_members_of(^S)[2]) == 5);
+static_assert(bit_size_of(nonstatic_data_members_of(^S)[3]) == 5);
 
 constexpr S s = {14, true, 11};
 static_assert(s.count == 14);
 static_assert(s.flag);
-static_assert(s.[:nonstatic_data_members_of(^S)[2]:] == 11);
+static_assert(s.[:nonstatic_data_members_of(^S)[3]:] == 11);
 
 struct Empty {};
 struct WithEmpty;
@@ -269,6 +270,7 @@ static_assert(data_member_spec(^int, {.name=u8"i"}) ==
               data_member_spec(^int, {.name="i"}));
 static_assert(data_member_spec(^int, {.name="i", .alignment=4}) !=
               data_member_spec(^int, {.name="i"}));
+static_assert(data_member_spec(^int, {.name=""}) == data_member_spec(^int, {}));
 
 using Alias = int;
 static_assert(data_member_spec(^Alias, {}) != data_member_spec(^int, {}));
