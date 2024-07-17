@@ -89,6 +89,8 @@ static_assert(has_identifier(^EnumCls));
 static_assert(identifier_of(^EnumCls::A) == "A");
 static_assert(has_identifier(^EnumCls::A));
 
+static_assert(!has_identifier(^decltype([] {})));
+
 static_assert(!has_identifier(template_arguments_of(^TFn<int, 0, TCls>)[0]));
 static_assert(!has_identifier(template_arguments_of(^TFn<int, 0, TCls>)[1]));
 static_assert(identifier_of(template_arguments_of(^TFn<int, 0, TCls>)[2]) ==
@@ -113,6 +115,7 @@ static_assert(display_string_of(template_arguments_of(^WithTypePack<int>)[0]) ==
               "int");
 static_assert(display_string_of(template_arguments_of(^WithAutoPack<3>)[0]) ==
               "3");
+static_assert(display_string_of(^decltype([] {})) == "(anonymous type)");
 
 
 struct Base {};
@@ -142,6 +145,7 @@ struct Cls : Base {
 static_assert(identifier_of(^Cls) == "Cls");
 static_assert(!has_identifier(bases_of(^Cls)[0]));
 static_assert(identifier_of(^Cls::Alias) == "Alias");
+static_assert(has_identifier(^Cls::Alias));
 static_assert(identifier_of(^Cls::mem) == "mem");
 static_assert(identifier_of(^Cls::memfn) == "memfn");
 static_assert(identifier_of(^Cls::sfn) == "sfn");

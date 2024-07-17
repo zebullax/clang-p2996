@@ -2539,7 +2539,12 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
       if (U == ^long long) return result + STRING_CONSTANT("long long");
     }
   }
-  return string_t {identifier_helper(R)};
+
+  if (has_identifier(R)) {
+    return string_t {identifier_helper(R)};
+  } else {
+    return STRING_CONSTANT("(anonymous type)");
+  }
 }
 
 template <typename CharT>
