@@ -39,6 +39,7 @@ namespace clang {
       DIAG_SIZE_AST           =  300,
       DIAG_SIZE_COMMENT       =  100,
       DIAG_SIZE_CROSSTU       =  100,
+      DIAG_SIZE_METAFN        =  300,
       DIAG_SIZE_SEMA          = 4500,
       DIAG_SIZE_ANALYSIS      =  100,
       DIAG_SIZE_REFACTORING   = 1000,
@@ -59,7 +60,8 @@ namespace clang {
       DIAG_START_ANALYSIS      = DIAG_START_SEMA          + static_cast<int>(DIAG_SIZE_SEMA),
       DIAG_START_REFACTORING   = DIAG_START_ANALYSIS      + static_cast<int>(DIAG_SIZE_ANALYSIS),
       DIAG_START_INSTALLAPI    = DIAG_START_REFACTORING   + static_cast<int>(DIAG_SIZE_REFACTORING),
-      DIAG_UPPER_LIMIT         = DIAG_START_INSTALLAPI    + static_cast<int>(DIAG_SIZE_INSTALLAPI)
+      DIAG_START_METAFN        = DIAG_START_INSTALLAPI    + static_cast<int>(DIAG_SIZE_INSTALLAPI),
+      DIAG_UPPER_LIMIT         = DIAG_START_METAFN        + static_cast<int>(DIAG_SIZE_METAFN)
     };
 
     class CustomDiagInfo;

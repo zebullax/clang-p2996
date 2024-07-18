@@ -8428,6 +8428,17 @@ bool ExprEvaluatorBase<Derived>::VisitCXXMetafunctionExpr(
     return true;
   };
 
+  std::vector<PartialDiagnosticAt> Diagnostics;
+  auto Diagnoser = [&](SourceLocation Loc,
+                           diag::kind DiagID) -> PartialDiagnostic & {
+    auto &D = Diagnostics.emplace_back(
+        std::piecewise_construct,
+        std::make_tuple(Loc),
+        std::make_tuple(DiagID, std::ref(Info.Ctx.getDiagAllocator())));
+
+    return D.second;
+  };
+
   // Construct array of arguments.
   SmallVector<Expr *, 2> Args(E->getNumArgs() - 1);
   for (std::size_t I = 1; I < E->getNumArgs(); ++I) {
@@ -8440,9 +8451,12 @@ bool ExprEvaluatorBase<Derived>::VisitCXXMetafunctionExpr(
   // Evaluate the metafunction.
   APValue Result;
   const CXXMetafunctionExpr::ImplFn &Implementation = E->getImpl();
-  if (Implementation(Result, Evaluator, E->getResultType(), E->getSourceRange(),
-                     Args)) {
-    return Error(E);
+  if (Implementation(Result, Evaluator, Diagnoser, E->getResultType(),
+                     Info.CurrentCall->CallRange, Args)) {
+    bool Result = Error(E);
+    Info.addNotes(Diagnostics);
+
+    return Result;
   }
   return DerivedSuccess(Result, E);
 }

@@ -2661,7 +2661,8 @@ public:
     STK_Floating,
     STK_IntegralComplex,
     STK_FloatingComplex,
-    STK_FixedPoint
+    STK_FixedPoint,
+    STK_Reflection,
   };
 
   /// Given that this is a scalar type, classify it.

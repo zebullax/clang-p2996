@@ -50,6 +50,7 @@ struct StaticDiagInfoDescriptionStringTable {
 #include "clang/Basic/DiagnosticAnalysisKinds.inc"
 #include "clang/Basic/DiagnosticRefactoringKinds.inc"
 #include "clang/Basic/DiagnosticInstallAPIKinds.inc"
+#include "clang/Basic/DiagnosticMetafnKinds.inc"
   // clang-format on
 #undef DIAG
 };
@@ -72,6 +73,7 @@ const StaticDiagInfoDescriptionStringTable StaticDiagInfoDescriptions = {
 #include "clang/Basic/DiagnosticAnalysisKinds.inc"
 #include "clang/Basic/DiagnosticRefactoringKinds.inc"
 #include "clang/Basic/DiagnosticInstallAPIKinds.inc"
+#include "clang/Basic/DiagnosticMetafnKinds.inc"
 // clang-format on
 #undef DIAG
 };
@@ -98,6 +100,7 @@ const uint32_t StaticDiagInfoDescriptionOffsets[] = {
 #include "clang/Basic/DiagnosticAnalysisKinds.inc"
 #include "clang/Basic/DiagnosticRefactoringKinds.inc"
 #include "clang/Basic/DiagnosticInstallAPIKinds.inc"
+#include "clang/Basic/DiagnosticMetafnKinds.inc"
 // clang-format on
 #undef DIAG
 };
@@ -177,6 +180,7 @@ VALIDATE_DIAG_SIZE(SEMA)
 VALIDATE_DIAG_SIZE(ANALYSIS)
 VALIDATE_DIAG_SIZE(REFACTORING)
 VALIDATE_DIAG_SIZE(INSTALLAPI)
+VALIDATE_DIAG_SIZE(METAFN)
 #undef VALIDATE_DIAG_SIZE
 #undef STRINGIFY_NAME
 
@@ -209,6 +213,7 @@ const StaticDiagInfoRec StaticDiagInfo[] = {
 #include "clang/Basic/DiagnosticAnalysisKinds.inc"
 #include "clang/Basic/DiagnosticRefactoringKinds.inc"
 #include "clang/Basic/DiagnosticInstallAPIKinds.inc"
+#include "clang/Basic/DiagnosticMetafnKinds.inc"
 // clang-format on
 #undef DIAG
 };
@@ -252,6 +257,7 @@ CATEGORY(SEMA, CROSSTU)
 CATEGORY(ANALYSIS, SEMA)
 CATEGORY(REFACTORING, ANALYSIS)
 CATEGORY(INSTALLAPI, REFACTORING)
+CATEGORY(METAFN, INSTALLAPI)
 #undef CATEGORY
 
   // Avoid out of bounds reads.
@@ -266,6 +272,7 @@ CATEGORY(INSTALLAPI, REFACTORING)
   // the diagID space.
   if (Found->DiagID != DiagID)
     return nullptr;
+
   return Found;
 }
 
@@ -702,9 +709,11 @@ static bool getDiagnosticsInGroup(diag::Flavor Flavor,
 bool
 DiagnosticIDs::getDiagnosticsInGroup(diag::Flavor Flavor, StringRef Group,
                                      SmallVectorImpl<diag::kind> &Diags) const {
-  if (std::optional<diag::Group> G = getGroupForWarningOption(Group))
-    return ::getDiagnosticsInGroup(
+  if (std::optional<diag::Group> G = getGroupForWarningOption(Group)) {
+    auto result = ::getDiagnosticsInGroup(
         Flavor, &OptionTable[static_cast<unsigned>(*G)], Diags);
+    return result;
+  }
   return true;
 }
 

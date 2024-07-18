@@ -152,6 +152,8 @@ static_assert(dealias(^::) == ^::);
 static_assert(dealias(^dealiasing) == ^dealiasing);
 static_assert(dealias(^NSAlias) == ^dealiasing);
 static_assert(dealias(^NSAliasAlias) == ^dealiasing);
+
+static_assert(dealias(std::meta::info{}) == std::meta::info{});
 }  // namespace dealiasing
 
 

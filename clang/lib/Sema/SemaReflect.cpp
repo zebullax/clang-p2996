@@ -329,10 +329,10 @@ ExprResult Sema::ActOnCXXMetafunction(SourceLocation KwLoc,
         std::make_unique<CXXMetafunctionExpr::ImplFn>(std::function(
           [this, Metafn](
               APValue &Result, CXXMetafunctionExpr::EvaluateFn EvalFn,
-              QualType ResultTy, SourceRange Range,
-              ArrayRef<Expr *> Args) -> bool {
-            return Metafn->evaluate(Result, *this, EvalFn, ResultTy, Range,
-                                    Args);
+              CXXMetafunctionExpr::DiagnoseFn DiagFn, QualType ResultTy,
+              SourceRange Range, ArrayRef<Expr *> Args) -> bool {
+            return Metafn->evaluate(Result, *this, EvalFn, DiagFn, ResultTy,
+                                    Range, Args);
         }));
     ImplIt = MetafunctionImplCbs.try_emplace(FnID, std::move(MetafnImpl)).first;
   }

@@ -38,11 +38,13 @@ public:
   };
 
   using EvaluateFn = CXXMetafunctionExpr::EvaluateFn;
+  using DiagnoseFn = CXXMetafunctionExpr::DiagnoseFn;
 
 private:
   using impl_fn_t = bool (*)(APValue &Result,
                              Sema &SemaRef,
                              EvaluateFn Evaluator,
+                             DiagnoseFn Diagnoser,
                              QualType ResultType,
                              SourceRange Range,
                              ArrayRef<Expr *> Args);
@@ -73,7 +75,7 @@ public:
   }
 
   bool evaluate(APValue &Result, Sema &S, EvaluateFn Evaluator,
-                QualType ResultType, SourceRange Range,
+                DiagnoseFn Diagnoser, QualType ResultType, SourceRange Range,
                 ArrayRef<Expr *> Args) const;
 
   // Get a pointer to the metafunction with the given ID.

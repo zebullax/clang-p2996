@@ -39,6 +39,7 @@
 #include "clang/Basic/Lambda.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/OperatorKinds.h"
+#include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TypeTraits.h"
@@ -5403,9 +5404,13 @@ public:
   using EvaluateFn = std::function<bool(APValue &, const Expr *,
                                         bool ConvertToRValue)>;
 
+  // Type of callback provided to report a diagnistc to the evaluation context.
+  using DiagnoseFn = std::function<PartialDiagnostic &(SourceLocation,
+                                                       unsigned)>;
+
   // Type of callback used to evaluate the metafunction during constant
   // evaluation. This will be a lambda with the bound 'Sema' object.
-  using ImplFn = std::function<bool(APValue &, EvaluateFn, QualType,
+  using ImplFn = std::function<bool(APValue &, EvaluateFn, DiagnoseFn, QualType,
                                     SourceRange, ArrayRef<Expr *>)>;
 
 private:

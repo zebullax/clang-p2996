@@ -577,12 +577,6 @@ static_assert(is_structured_binding(^x4));
 static_assert(is_structured_binding(^y4));
 static_assert(!is_variable(^x4));
 static_assert(!is_variable(^y4));
-static_assert(extract<int>(^x4) == x4);
-static_assert(extract<int&>(^x4) == x4);
-static_assert(&extract<int&>(^x4) == &x4);
-static_assert(extract<int>(^y4) == y4);
-static_assert(extract<int&>(^y4) == y4);
-static_assert(&extract<int&>(^y4) == &y4);
 
 int a = 1, b = 2;
 const auto& [x5, y5] = std::tie(a, b); // x5 and y5 are of type int&

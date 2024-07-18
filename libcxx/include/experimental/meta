@@ -1350,6 +1350,8 @@ consteval auto data_member_spec(info member_type,
         throw "Cannot specify both width and alignment for data member";
       if (no_unique_address)
         throw "Cannot specify both width and no_unique_address for data member";
+      if (width < 0)
+        throw "Cannot specify a negative width for data member";
     } else {
       if (options.width.has_value() && !name_string.empty())
         throw "Bit-fields of zero width must be unnamed";
@@ -1357,7 +1359,7 @@ consteval auto data_member_spec(info member_type,
 
     if (alignment) {
       if (alignment < int(alignment_of(member_type)))
-        throw "Cannot specify an alignment less strict that the member type";
+        throw "Cannot specify an alignment less than that of the member type";
       if (alignment <= 0 || ((alignment - 1) & alignment))
         throw "Alignment specifier must be a non-negative power of 2";
     }
@@ -2419,7 +2421,7 @@ template <typename CharT>
 template <info R>  // Templates.
     requires(is_template(R))
 consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
-  if (is_constructor_template(R))
+  if constexpr (is_constructor_template(R))
     return render<parent_of(R)>();
   else if (is_operator_function_template(R)) {
     std::meta::operators op = operator_of(R);
@@ -2718,7 +2720,7 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
 }
 
 template <typename CharT>
-template <info R>
+template <info R>  // Variables, data members, enumerators.
     requires (is_variable(R) || is_nonstatic_data_member(R) || is_enumerator(R))
 consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
   return string_t {identifier_helper(R)};
