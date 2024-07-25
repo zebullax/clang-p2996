@@ -2423,25 +2423,38 @@ TemplateInstantiator::TransformDeclRefExpr(DeclRefExpr *E) {
 
 ExprResult
 TemplateInstantiator::TransformCXXReflectExpr(CXXReflectExpr *E) {
-  if (E->getOperand().getKind() == ReflectionValue::RK_declaration) {
-    Decl *D = E->getOperand().getAsDecl();
+  EnterExpressionEvaluationContext Context(
+      getSema(), Sema::ExpressionEvaluationContext::ReflectionContext);
+
+  if (E->hasDependentSubExpr()) {
+    ExprResult Result = TransformExpr(E->getDependentSubExpr());
+    if (Result.isInvalid())
+      return ExprError();
+
+    return getSema().BuildCXXReflectExpr(E->getOperatorLoc(), Result.get());
+  }
+
+  if (E->getReflection().getKind() == ReflectionValue::RK_declaration) {
+    Decl *D = E->getReflection().getAsDecl();
 
     // Handle references to non-type template parameters and non-type template
     // parameter packs.
     if (NonTypeTemplateParmDecl *NTTP = dyn_cast<NonTypeTemplateParmDecl>(D);
         NTTP && NTTP->getDepth() < TemplateArgs.getNumLevels()) {
       ExprResult Result = TransformTemplateParmRefExpr(E, NTTP);
-      return getSema().BuildCXXReflectExpr(E->getOperatorLoc(),
-                                           Result.get()->getExprLoc(),
-                                           Result.get());
+      if (Result.isInvalid())
+        return ExprError();
+
+      return getSema().BuildCXXReflectExpr(E->getOperatorLoc(), Result.get());
     }
 
     // Handle references to function parameter packs.
     if (VarDecl *PD = dyn_cast<VarDecl>(D); PD && PD->isParameterPack()) {
       ExprResult Result = TransformFunctionParmPackRefExpr(E, PD);
-      return getSema().BuildCXXReflectExpr(E->getOperatorLoc(),
-                                           Result.get()->getExprLoc(),
-                                           Result.get());
+      if (Result.isInvalid())
+        return ExprError();
+
+      return getSema().BuildCXXReflectExpr(E->getOperatorLoc(), Result.get());
     }
   }
 

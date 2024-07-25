@@ -86,15 +86,16 @@ ExprResult Parser::ParseCXXReflectExpression() {
 
     ExprResult ER = getExprAnnotation(Tok);
     assert(!ER.isInvalid());
-    if (ParseCXXSpliceAsExpr(true).isInvalid()) {
+    ER = ParseCXXSpliceAsExpr(true);
+    if (ER.isInvalid()) {
       TentativeAction.Commit();
       SkipUntil(tok::semi, StopAtSemi | StopBeforeMatch);
       return ExprError();
     }
 
     TentativeAction.Commit();
-    return Actions.ActOnCXXReflectExpr(
-          OpLoc, cast<CXXIndeterminateSpliceExpr>(ER.get()));
+    return Actions.ActOnCXXReflectExpr(OpLoc,
+                                       cast<CXXExprSpliceExpr>(ER.get()));
   }
 
   // Next, check for an unqualified-id.

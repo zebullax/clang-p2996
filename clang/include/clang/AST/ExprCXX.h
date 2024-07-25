@@ -47,6 +47,7 @@
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
+#include "llvm/Support/AlignOf.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/TrailingObjects.h"
@@ -5334,53 +5335,54 @@ public:
 /// Represents a C++2c reflect expression (P2996). The operand of the expression
 /// is either a type, an expression, a template-name, or a namespace.
 class CXXReflectExpr : public Expr {
+  enum class OperandKind {
+    Reflection,
+    DependentExpr
+  };
+
   // The operand of the expression.
-  ReflectionValue Ref;
+  OperandKind Kind;
+  llvm::AlignedCharArrayUnion<ReflectionValue, Expr *> Operand;
 
   // Source locations.
-  SourceLocation OpLoc;
-  SourceLocation ArgLoc;
+  SourceLocation OperatorLoc;
+  SourceRange OperandRange;
 
-  CXXReflectExpr(const ASTContext &C, QualType T);
-  CXXReflectExpr(const ASTContext &C, QualType T, QualType Arg);
-  CXXReflectExpr(const ASTContext &C, QualType T, Expr *Arg);
-  CXXReflectExpr(const ASTContext &C, QualType T, Decl *Arg, bool IsNamespace);
-  CXXReflectExpr(const ASTContext &C, QualType T, TemplateName Arg);
-  CXXReflectExpr(const ASTContext &C, QualType T, CXXBaseSpecifier *Arg);
-  CXXReflectExpr(const ASTContext &C, QualType T, TagDataMemberSpec *Arg);
+  CXXReflectExpr(const ASTContext &C, QualType ExprTy, ReflectionValue RV);
+  CXXReflectExpr(const ASTContext &C, QualType ExprTy, Expr *DepSubExpr);
 
 public:
   static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
-                                SourceLocation OperandLoc);
+                                SourceRange OperandRange, ReflectionValue RV);
   static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
-                                SourceLocation ArgLoc, QualType Operand);
-  static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
-                                Expr *Operand);
-  static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
-                                SourceLocation OperandLoc, Decl *Operand);
-  static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
-                                SourceLocation OperandLoc,
-                                const TemplateName Operand);
-  static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
-                                SourceLocation OperandLoc,
-                                CXXBaseSpecifier *Operand);
-  static CXXReflectExpr *Create(ASTContext &C, SourceLocation OperatorLoc,
-                                SourceLocation OperandLoc,
-                                TagDataMemberSpec *Arg);
+                                Expr *DepSubExpr);
 
   /// Returns the operand of the reflection expression.
-  const ReflectionValue &getOperand() const { return Ref; }
+  ReflectionValue getReflection() const {
+    return *(const ReflectionValue *)(const char *)&Operand;
+  }
+  Expr *getDependentSubExpr() const {
+    return *(Expr **)const_cast<char *>((const char *)&Operand);
+  }
+  bool hasDependentSubExpr() const {
+    return Kind == OperandKind::DependentExpr;
+  }
 
-  SourceLocation getBeginLoc() const LLVM_READONLY { return OpLoc; }
-  SourceLocation getEndLoc() const LLVM_READONLY { return ArgLoc; }
+  SourceLocation getBeginLoc() const LLVM_READONLY { return OperatorLoc; }
+  SourceLocation getEndLoc() const LLVM_READONLY {
+    return OperandRange.getEnd();
+  }
+  SourceRange getSourceRange() const {
+    return SourceRange(getBeginLoc(), getEndLoc());
+  }
 
   /// Returns location of the '^'-operator.
-  SourceLocation getOperatorLoc() const { return OpLoc; }
-  SourceLocation getArgLoc() const { return ArgLoc; }
+  SourceLocation getOperatorLoc() const { return OperatorLoc; }
+  SourceRange getOperandRange() const { return OperandRange; }
 
   /// Sets the location of the '^'-operator.
-  void setOperatorLoc(SourceLocation L) { OpLoc = L; }
-  void setArgLoc(SourceLocation L) { ArgLoc = L; }
+  void setOperatorLoc(SourceLocation L) { OperatorLoc = L; }
+  void setOperandRange(SourceRange R) { OperandRange = R; }
 
   child_range children() {
     return child_range(child_iterator(), child_iterator());

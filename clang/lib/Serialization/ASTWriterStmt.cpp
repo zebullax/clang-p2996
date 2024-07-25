@@ -469,7 +469,10 @@ void ASTStmtWriter::VisitDependentCoawaitExpr(DependentCoawaitExpr *E) {
 void ASTStmtWriter::VisitCXXReflectExpr(CXXReflectExpr *E) {
   VisitExpr(E);
   Record.AddSourceLocation(E->getOperatorLoc());
-  Record.AddReflectionValue(E->getOperand());
+  if (E->hasDependentSubExpr())
+    Record.AddStmt(E->getDependentSubExpr());
+  else
+    Record.AddReflectionValue(E->getReflection());
   Code = serialization::EXPR_REFLECT;
 }
 

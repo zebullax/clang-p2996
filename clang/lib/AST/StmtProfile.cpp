@@ -2308,9 +2308,11 @@ void StmtProfiler::VisitOpaqueValueExpr(const OpaqueValueExpr *E) {
 void StmtProfiler::VisitCXXReflectExpr(const CXXReflectExpr *E) {
   VisitExpr(E);
 
-  const ReflectionValue &Operand = E->getOperand();
-  ID.AddInteger(Operand.getKind());
-  ID.AddInteger(reinterpret_cast<std::size_t>(Operand.getOpaqueValue()));
+  if (E->hasDependentSubExpr()) {
+    VisitExpr(E->getDependentSubExpr());
+  } else {
+    E->getReflection().Profile(ID);
+  }
 }
 
 void StmtProfiler::VisitCXXMetafunctionExpr(const CXXMetafunctionExpr *E) {

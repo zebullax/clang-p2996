@@ -942,12 +942,14 @@ ExprDependence clang::computeDependence(ConceptSpecializationExpr *E,
 
 ExprDependence clang::computeDependence(CXXReflectExpr *E,
                                         const ASTContext &Ctx) {
-  const ReflectionValue &Operand = E->getOperand();
+  if (E->hasDependentSubExpr())
+    return E->getDependentSubExpr()->getDependence();
 
+  ReflectionValue RV = E->getReflection();
   ExprDependence D = ExprDependence::None;
-  switch (Operand.getKind()) {
+  switch (RV.getKind()) {
   case ReflectionValue::RK_type: {
-    QualType T = Operand.getAsType();
+    QualType T = RV.getAsType();
 
     if (T->isDependentType())
       D |= ExprDependence::ValueInstantiation;
@@ -955,23 +957,16 @@ ExprDependence clang::computeDependence(CXXReflectExpr *E,
       D |= ExprDependence::UnexpandedPack;
     return D;
   }
-  case ReflectionValue::RK_expr_result:
-    return Operand.getAsExprResult()->getDependence();
   case ReflectionValue::RK_declaration: {
-    ValueDecl *VD = Operand.getAsDecl();
+    ValueDecl *VD = RV.getAsDecl();
     if (VD->getType()->isDependentType())
       D |= ExprDependence::ValueInstantiation;
     if (VD->getType()->containsUnexpandedParameterPack())
       D |= ExprDependence::UnexpandedPack;
     return D | computeDeclDependence(VD, Ctx);
   }
-  case ReflectionValue::RK_null:
-  case ReflectionValue::RK_namespace:
-  case ReflectionValue::RK_base_specifier:
-  case ReflectionValue::RK_data_member_spec:
-    return ExprDependence::None;
   case ReflectionValue::RK_template: {
-    const TemplateName Template = Operand.getAsTemplate();
+    const TemplateName Template = RV.getAsTemplate();
 
     if (Template.isDependent())
       D |= ExprDependence::ValueInstantiation;
@@ -981,6 +976,13 @@ ExprDependence clang::computeDependence(CXXReflectExpr *E,
       D |= ExprDependence::UnexpandedPack;
     return D;
   }
+  case ReflectionValue::RK_null:
+  case ReflectionValue::RK_object:
+  case ReflectionValue::RK_value:
+  case ReflectionValue::RK_namespace:
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+    return ExprDependence::None;
   }
   llvm_unreachable("unknown reflection kind while computing dependence");
 }

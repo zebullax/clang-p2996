@@ -8470,8 +8470,9 @@ bool ExprEvaluatorBase<Derived>::VisitStackLocationExpr(
   if (!Frame)
     return Error(E);
 
-  return DerivedSuccess(APValue(ReflectionValue::RK_declaration,
-                                Frame->Callee), E);
+  ReflectionValue RV(ReflectionValue::RK_declaration,
+                     const_cast<FunctionDecl *>(Frame->Callee));
+  return DerivedSuccess(APValue(RV), E);
 }
 
 } // namespace
@@ -15892,7 +15893,7 @@ public:
   }
 
   bool ZeroInitialization(const Expr *E) {
-    Result = APValue(ReflectionValue::RK_null, nullptr);
+    Result = APValue(ReflectionValue{});
     return true;
   }
 
@@ -15907,45 +15908,8 @@ public:
 };
 
 bool ReflectionEvaluator::VisitCXXReflectExpr(const CXXReflectExpr *E) {
-  const ReflectionValue &Ref = E->getOperand();
-  switch (Ref.getKind()) {
-  case ReflectionValue::RK_null: {
-    APValue Result(ReflectionValue::RK_null, nullptr);
-    return Success(Result, E);
-  }
-  case ReflectionValue::RK_type: {
-    APValue Result(ReflectionValue::RK_type, Ref.getAsType().getAsOpaquePtr());
-    return Success(Result, E);
-  }
-  case ReflectionValue::RK_expr_result: {
-    APValue Result(ReflectionValue::RK_expr_result, Ref.getAsExprResult());
-    return Success(Result, E);
-  }
-  case ReflectionValue::RK_declaration: {
-    APValue Result(ReflectionValue::RK_declaration, Ref.getAsDecl());
-    return Success(Result, E);
-  }
-  case ReflectionValue::RK_template: {
-    APValue Result(ReflectionValue::RK_template,
-                   Ref.getAsTemplate().getAsVoidPointer());
-    return Success(Result, E);
-  }
-  case ReflectionValue::RK_namespace: {
-    APValue Result(ReflectionValue::RK_namespace, Ref.getAsNamespace());
-    return Success(Result, E);
-  }
-  case ReflectionValue::RK_base_specifier: {
-    APValue Result(ReflectionValue::RK_base_specifier,
-                   Ref.getAsBaseSpecifier());
-    return Success(Result, E);
-  }
-  case ReflectionValue::RK_data_member_spec: {
-    APValue Result(ReflectionValue::RK_data_member_spec,
-                   Ref.getAsDataMemberSpec());
-    return Success(Result, E);
-  }
-  }
-  llvm_unreachable("invalid reflection");
+  APValue Result(E->getReflection());
+  return Success(Result, E);
 }
 
 bool ReflectionEvaluator::VisitCXXMetafunctionExpr(

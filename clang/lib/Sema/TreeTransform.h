@@ -4200,10 +4200,8 @@ ExprResult TreeTransform<Derived>::TransformInitializer(Expr *Init,
   if (!Init)
     return Init;
 
-  if (auto *FE = dyn_cast<FullExpr>(Init)) {
-    if (FE->getSubExpr())
-      Init = FE->getSubExpr();
-  }
+  if (auto *FE = dyn_cast<FullExpr>(Init))
+    Init = FE->getSubExpr();
 
   if (auto *AIL = dyn_cast<ArrayInitLoopExpr>(Init)) {
     OpaqueValueExpr *OVE = AIL->getCommonExpr();
@@ -8758,14 +8756,22 @@ TreeTransform<Derived>::TransformCoyieldExpr(CoyieldExpr *E) {
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
-  const ReflectionValue &Refl = E->getOperand();
-
   EnterExpressionEvaluationContext Context(
       getSema(), Sema::ExpressionEvaluationContext::ReflectionContext);
 
-  switch (Refl.getKind()) {
+  if (E->hasDependentSubExpr()) {
+    ExprResult Result = getDerived().TransformExpr(E->getDependentSubExpr());
+    if (Result.isInvalid())
+      return ExprError();
+
+    return getSema().BuildCXXReflectExpr(E->getOperatorLoc(),
+                                         Result.get());
+  }
+
+  ReflectionValue RV = E->getReflection();
+  switch (RV.getKind()) {
   case ReflectionValue::RK_type: {
-    QualType Old = Refl.getAsType();
+    QualType Old = RV.getAsType();
 
     // Adjust the type in case we get parsed type information.
     if (const LocInfoType *LIT = dyn_cast<LocInfoType>(Old)) {
@@ -8777,24 +8783,17 @@ TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
       return ExprError();
     }
     return getSema().BuildCXXReflectExpr(E->getOperatorLoc(),
-                                         E->getArgLoc(), New);
-  }
-  case ReflectionValue::RK_expr_result: {
-    ExprResult Result = getDerived().TransformExpr(Refl.getAsExprResult());
-    if (Result.isInvalid())
-      return ExprError();
-
-    return getSema().BuildCXXReflectExpr(E->getOperatorLoc(), E->getArgLoc(),
-                                         Result.get());
+                                         E->getOperandRange().getBegin(), New);
   }
   case ReflectionValue::RK_declaration: {
     Decl *Transformed = getDerived().TransformDecl(E->getExprLoc(),
-                                                   Refl.getAsDecl());
-    return getSema().BuildCXXReflectExpr(E->getOperatorLoc(), E->getArgLoc(),
+                                                   RV.getAsDecl());
+    return getSema().BuildCXXReflectExpr(E->getOperatorLoc(),
+                                         E->getOperandRange().getBegin(),
                                          cast<ValueDecl>(Transformed));
   }
   case ReflectionValue::RK_template: {
-    TemplateName TName = Refl.getAsTemplate();
+    TemplateName TName = RV.getAsTemplate();
 
     NestedNameSpecifier *NNS = nullptr;
     if (TName.getKind() == TemplateName::QualifiedTemplate)
@@ -8815,25 +8814,29 @@ TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
                      E->getSourceRange());
     }
 
-    TemplateName Template = getDerived().TransformTemplateName(SS, TName,
-                                                               E->getArgLoc());
+    TemplateName Template = getDerived().TransformTemplateName(
+            SS, TName, E->getOperandRange().getBegin());
     if (Template.isNull())
       return true;
 
-    return getSema().BuildCXXReflectExpr(E->getOperatorLoc(), E->getArgLoc(),
+    return getSema().BuildCXXReflectExpr(E->getOperatorLoc(),
+                                         E->getOperandRange().getBegin(),
                                          Template);
   }
   case ReflectionValue::RK_namespace: {
     Decl *Transformed =
-          getDerived().TransformDecl(E->getExprLoc(), Refl.getAsNamespace());
-    return getSema().BuildCXXReflectExpr(E->getOperatorLoc(), E->getArgLoc(),
+          getDerived().TransformDecl(E->getExprLoc(), RV.getAsNamespace());
+    return getSema().BuildCXXReflectExpr(E->getOperatorLoc(),
+                                         E->getOperandRange().getBegin(),
                                          Transformed);
   }
-  case ReflectionValue::RK_base_specifier:
-  case ReflectionValue::RK_data_member_spec:
+  case ReflectionValue::RK_object:
+  case ReflectionValue::RK_value:
     return E;
   case ReflectionValue::RK_null:
-    llvm_unreachable("reflect operand should never yield the null reflection");
+  case ReflectionValue::RK_base_specifier:
+  case ReflectionValue::RK_data_member_spec:
+    llvm_unreachable("reflect expression should not have this reflection kind");
   }
   llvm_unreachable("invalid reflection");
 }

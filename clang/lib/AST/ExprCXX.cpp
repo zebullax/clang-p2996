@@ -1902,124 +1902,41 @@ TypeTraitExpr *TypeTraitExpr::CreateDeserialized(const ASTContext &C,
   return new (Mem) TypeTraitExpr(EmptyShell());
 }
 
-CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T)
-    : Expr(CXXReflectExprClass, T, VK_PRValue, OK_Ordinary), Ref() {
+CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType ExprTy,
+                               ReflectionValue RV)
+    : Expr(CXXReflectExprClass, ExprTy, VK_PRValue, OK_Ordinary),
+      Kind(OperandKind::Reflection) {
+  new ((void *)(char *)&Operand) ReflectionValue(RV);
   setDependence(computeDependence(this, C));
 }
 
-CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T,
-                               QualType Operand)
-    : Expr(CXXReflectExprClass, T, VK_PRValue, OK_Ordinary),
-      Ref(ReflectionValue::RK_type, Operand.getAsOpaquePtr()) {
-  setDependence(computeDependence(this, C));
-}
+CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType ExprTy,
+                               Expr *DepSubExpr)
+    : Expr(CXXReflectExprClass, ExprTy, VK_PRValue, OK_Ordinary),
+      Kind(OperandKind::DependentExpr) {
+  new ((void *)(char *)&Operand) Expr *(DepSubExpr);
+  assert(DepSubExpr->isValueDependent() &&
+         "reflection operand must be a reflection or a dependent expression");
 
-CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T,
-                               Expr *Operand)
-    : Expr(CXXReflectExprClass, T, VK_PRValue, OK_Ordinary),
-      Ref(ReflectionValue::RK_expr_result, Operand) {
-  setDependence(computeDependence(this, C));
-}
-
-CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T, Decl *Operand,
-                               bool IsNamespace)
-    : Expr(CXXReflectExprClass, T, VK_PRValue, OK_Ordinary),
-      Ref(IsNamespace ? ReflectionValue::RK_namespace :
-                        ReflectionValue:: RK_declaration, Operand) {
-  setDependence(computeDependence(this, C));
-}
-
-CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T,
-                               const TemplateName Operand)
-    : Expr(CXXReflectExprClass, T, VK_PRValue, OK_Ordinary),
-      Ref(ReflectionValue::RK_template, Operand.getAsVoidPointer()) {
-  setDependence(computeDependence(this, C));
-}
-
-CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T,
-                               CXXBaseSpecifier *Operand)
-    : Expr(CXXReflectExprClass, T, VK_PRValue, OK_Ordinary),
-      Ref(ReflectionValue::RK_base_specifier, Operand) {
-  setDependence(computeDependence(this, C));
-}
-
-CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType T,
-                               TagDataMemberSpec *Operand)
-    : Expr(CXXReflectExprClass, T, VK_PRValue, OK_Ordinary),
-      Ref(ReflectionValue::RK_data_member_spec, Operand) {
   setDependence(computeDependence(this, C));
 }
 
 CXXReflectExpr *CXXReflectExpr::Create(ASTContext &C,
                                        SourceLocation OperatorLoc,
-                                       SourceLocation OperandLoc) {
-  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy);
+                                       SourceRange OperandRange,
+                                       ReflectionValue RV) {
+  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy, RV);
   E->setOperatorLoc(OperatorLoc);
-  E->setArgLoc(OperandLoc);
+  E->setOperandRange(OperandRange);
   return E;
 }
 
 CXXReflectExpr *CXXReflectExpr::Create(ASTContext &C,
                                        SourceLocation OperatorLoc,
-                                       SourceLocation OperandLoc,
-                                       QualType Operand) {
-  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy, Operand);
+                                       Expr *DepSubExpr) {
+  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy, DepSubExpr);
   E->setOperatorLoc(OperatorLoc);
-  E->setArgLoc(OperandLoc);
-  return E;
-}
-
-CXXReflectExpr *CXXReflectExpr::Create(ASTContext &C,
-                                       SourceLocation OperatorLoc,
-                                       Expr *Operand) {
-  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy, Operand);
-  E->setOperatorLoc(OperatorLoc);
-  E->setArgLoc(Operand->getExprLoc());
-  return E;
-}
-
-CXXReflectExpr *CXXReflectExpr::Create(ASTContext &C,
-                                       SourceLocation OperatorLoc,
-                                       SourceLocation OperandLoc,
-                                       Decl *Operand) {
-  bool IsNamespace = isa<NamespaceDecl>(Operand) ||
-                     isa<TranslationUnitDecl>(Operand) ||
-                     isa<NamespaceAliasDecl>(Operand);
-
-  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy, Operand,
-                                             IsNamespace);
-  E->setOperatorLoc(OperatorLoc);
-  E->setArgLoc(OperandLoc);
-  return E;
-}
-
-CXXReflectExpr *CXXReflectExpr::Create(ASTContext &C,
-                                       SourceLocation OperatorLoc,
-                                       SourceLocation OperandLoc,
-                                       const TemplateName Operand) {
-  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy, Operand);
-  E->setOperatorLoc(OperatorLoc);
-  E->setArgLoc(OperandLoc);
-  return E;
-}
-
-CXXReflectExpr *CXXReflectExpr::Create(ASTContext &C,
-                                       SourceLocation OperatorLoc,
-                                       SourceLocation OperandLoc,
-                                       CXXBaseSpecifier *Operand) {
-  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy, Operand);
-  E->setOperatorLoc(OperatorLoc);
-  E->setArgLoc(OperandLoc);
-  return E;
-}
-
-CXXReflectExpr *CXXReflectExpr::Create(ASTContext &C,
-                                       SourceLocation OperatorLoc,
-                                       SourceLocation OperandLoc,
-                                       TagDataMemberSpec *Operand) {
-  CXXReflectExpr *E = new (C) CXXReflectExpr(C, C.MetaInfoTy, Operand);
-  E->setOperatorLoc(OperatorLoc);
-  E->setArgLoc(OperandLoc);
+  E->setOperandRange(DepSubExpr->getSourceRange());
   return E;
 }
 

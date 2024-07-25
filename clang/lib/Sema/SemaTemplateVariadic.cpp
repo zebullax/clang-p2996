@@ -106,12 +106,15 @@ namespace {
     // Record occurrences of function and non-type template parameters packs in
     // an expression.
     bool VisitCXXReflectExpr(CXXReflectExpr *E) {
-      if (E->getOperand().getKind() == ReflectionValue::RK_declaration) {
-        ValueDecl *VD = E->getOperand().getAsDecl();
+      if (E->hasDependentSubExpr())
+        return true;
+
+      if (E->getReflection().getKind() == ReflectionValue::RK_declaration) {
+        ValueDecl *VD = E->getReflection().getAsDecl();
         if (VD->isParameterPack())
           addUnexpanded(VD, E->getExprLoc());
-      } else if (E->getOperand().getKind() == ReflectionValue::RK_template) {
-        TemplateName TName = E->getOperand().getAsTemplate();
+      } else if (E->getReflection().getKind() == ReflectionValue::RK_template) {
+        TemplateName TName = E->getReflection().getAsTemplate();
         if (TName.containsUnexpandedParameterPack()) {
           addUnexpanded(TName.getAsTemplateDecl());
         }
@@ -1093,11 +1096,11 @@ static bool isParameterPack(Expr *PackExpression) {
   if (auto *D = dyn_cast<DeclRefExpr>(PackExpression); D) {
     ValueDecl *VD = D->getDecl();
     return VD->isParameterPack();
-  } else if (auto *D = dyn_cast<CXXReflectExpr>(PackExpression);
-             D && D->getOperand().getKind() ==
-                    ReflectionValue::RK_declaration) {
-    ValueDecl *VD = D->getOperand().getAsDecl();
-    return VD->isParameterPack();
+  } else if (auto *R = dyn_cast<CXXReflectExpr>(PackExpression)) {
+    if (!R->hasDependentSubExpr() &&
+        R->getReflection().getKind() == ReflectionValue::RK_declaration) {
+      return R->getReflection().getAsDecl()->isParameterPack();
+    }
   }
   return false;
 }

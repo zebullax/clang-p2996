@@ -281,12 +281,25 @@ let Class = PropertyTypeCase<ReflectionValue, "RK_type"> in {
                            value.getAsOpaquePtr());
   }]>;
 }
-let Class = PropertyTypeCase<ReflectionValue, "RK_expr_result"> in {
-  def : Property<"value", StmtRef> {
-    let Read = [{ node.getAsExprResult() }];
+let Class = PropertyTypeCase<ReflectionValue, "RK_object"> in {
+  def : Property<"value", APValue> {
+    let Read = [{ node.getAsObject() }];
   }
   def : Creator<[{
-    return ReflectionValue(ReflectionValue::RK_expr_result, value);
+    return ReflectionValue(ReflectionValue::RK_object,
+                           new (ctx) APValue(value));
+  }]>;
+}
+let Class = PropertyTypeCase<ReflectionValue, "RK_value"> in {
+  def : Property<"value", APValue> {
+    let Read = [{ node.getAsValue() }];
+  }
+  def : Property<"type", QualType> {
+    let Read = [{ node.getResultType() }];
+  }
+  def : Creator<[{
+    return ReflectionValue(ReflectionValue::RK_value,
+                           new (ctx) APValue(value), type);
   }]>;
 }
 let Class = PropertyTypeCase<ReflectionValue, "RK_declaration"> in {

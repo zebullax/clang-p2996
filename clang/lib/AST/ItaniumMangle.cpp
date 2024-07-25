@@ -4688,12 +4688,13 @@ void CXXNameMangler::mangleReflection(const ReflectionValue &R) {
     Context.mangleCanonicalTypeName(QT, Out, false);
     break;
   }
-  case ReflectionValue::RK_expr_result:
-    Out << 'e';
-    if (R.getAsExprResult()->getType()->isNullPtrType())
-      mangleNullPointer(R.getAsExprResult()->getType());
-    else
-      mangleExpression(R.getAsExprResult());
+  case ReflectionValue::RK_object:
+    Out << 'o';
+    mangleValueInTemplateArg(R.getResultType(), R.getAsObject(), false, true);
+    break;
+  case ReflectionValue::RK_value:
+    Out << "v";
+    mangleValueInTemplateArg(R.getResultType(), R.getAsValue(), false, true);
     break;
   case ReflectionValue::RK_declaration: {
     Out << 'd';
@@ -4870,9 +4871,14 @@ recurse:
   case Expr::CXXExpansionSelectExprClass:
     llvm_unreachable("unexpected statement kind");
 
-  case Expr::CXXReflectExprClass:
-    mangleReflection(cast<CXXReflectExpr>(E)->getOperand());
+  case Expr::CXXReflectExprClass: {
+    const CXXReflectExpr *RE = cast<CXXReflectExpr>(E);
+    if (RE->hasDependentSubExpr())
+      mangleExpression(RE->getDependentSubExpr());
+    else
+      mangleReflection(RE->getReflection());
     break;
+  }
 
   case Expr::CXXIndeterminateSpliceExprClass:
     E = cast<CXXIndeterminateSpliceExpr>(E)->getOperand();
@@ -6634,7 +6640,7 @@ void CXXNameMangler::mangleValueInTemplateArg(QualType T, const APValue &V,
 
   case APValue::LValue: {
     // Proposed in https://github.com/itanium-cxx-abi/cxx-abi/issues/47.
-    assert((T->isPointerType() || T->isReferenceType()) &&
+    assert((T->isPointerType() || T->isReferenceType() || V.isNullPointer()) &&
            "unexpected type for LValue template arg");
 
     if (V.isNullPointer()) {

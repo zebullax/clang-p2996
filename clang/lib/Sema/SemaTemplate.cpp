@@ -8850,15 +8850,9 @@ static Expr *BuildExpressionFromIntegralTemplateArgumentValue(
 }
 
 static ExprResult
-BuildExpressionFromReflection(Sema &S, const ReflectionValue &R,
+BuildExpressionFromReflection(Sema &S, const ReflectionValue &RV,
                               SourceLocation Loc) {
-  ConstantExpr *CE =
-      ConstantExpr::CreateEmpty(S.Context, ConstantResultStorageKind::APValue);
-  CE->setType(S.Context.MetaInfoTy);
-  CE->setValueKind(VK_PRValue);
-  CE->SetResult(APValue(R.getKind(), R.getOpaqueValue()), S.Context);
-
-  return CE;
+  return CXXReflectExpr::Create(S.Context, Loc, SourceRange {Loc, Loc}, RV);
 }
 
 /// Construct a new expression that refers to the given reflection template

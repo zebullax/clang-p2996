@@ -15122,8 +15122,7 @@ public:
                                  SourceLocation ArgLoc, Decl *D);
   ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc,
                                  ParsedTemplateArgument Template);
-  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc,
-                                 CXXIndeterminateSpliceExpr *E);
+  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc, CXXExprSpliceExpr *E);
 
   ExprResult ActOnCXXMetafunction(SourceLocation KwLoc,
                                   SourceLocation LParenLoc,
@@ -15165,17 +15164,23 @@ public:
                                    CXXExprSpliceExpr *RHS,
                                    SourceLocation TemplateKWLoc);
 
+  // Reflection of non-expression operands.
   ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
                                  SourceLocation OperandLoc, QualType T);
   ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
-                                 SourceLocation OperandLoc, Expr *E);
-  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
                                  SourceLocation OperandLoc, Decl *D);
-  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
-                                 UnresolvedLookupExpr *E);
   ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
                                  SourceLocation OperandLoc,
                                  TemplateName Template);
+
+  // Reflection of expression operands.
+  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc, Expr *E);
+  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
+                                 UnresolvedLookupExpr *E);
+  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
+                                 SubstNonTypeTemplateParmExpr *E);
+  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
+                                 CXXExprSpliceExpr *E);
 
   ExprResult BuildCXXMetafunctionExpr(SourceLocation KwLoc,
                                       SourceLocation LParenLoc,

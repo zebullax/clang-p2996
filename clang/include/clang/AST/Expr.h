@@ -1066,8 +1066,8 @@ protected:
    setDependence(ExprDependence::None);
  }
 public:
-  const Expr *getSubExpr() const { return SubExpr ? cast<Expr>(SubExpr) : nullptr; }
-  Expr *getSubExpr() { return SubExpr ? cast<Expr>(SubExpr) : nullptr; }
+  const Expr *getSubExpr() const { return cast<Expr>(SubExpr); }
+  Expr *getSubExpr() { return cast<Expr>(SubExpr); }
 
   /// As with any mutator of the AST, be very careful when modifying an
   /// existing AST to preserve its invariants.
@@ -1137,10 +1137,10 @@ public:
                                                   const ASTContext &Context);
 
   SourceLocation getBeginLoc() const LLVM_READONLY {
-    return SubExpr ? SubExpr->getBeginLoc() : SourceLocation();
+    return SubExpr->getBeginLoc();
   }
   SourceLocation getEndLoc() const LLVM_READONLY {
-    return SubExpr ? SubExpr->getEndLoc() : SourceLocation();
+    return SubExpr->getEndLoc();
   }
 
   static bool classof(const Stmt *T) {

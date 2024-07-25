@@ -17411,8 +17411,6 @@ static void RemoveNestedImmediateInvocation(
       if (!E->isImmediateInvocation())
         return Base::TransformConstantExpr(E);
       RemoveImmediateInvocation(E);
-      if (!E->getSubExpr())
-        return E;
       return Base::TransformExpr(E->getSubExpr());
     }
     /// Base::TransfromCXXOperatorCallExpr doesn't traverse the callee so
