@@ -5585,7 +5585,7 @@ ASTContext::getDependentTemplateSpecializationType(
 }
 
 QualType ASTContext::getDependentTemplateSpecializationType(
-    ElaboratedTypeKeyword Keyword, const CXXIndeterminateSpliceExpr *Splice,
+    ElaboratedTypeKeyword Keyword, const CXXSpliceSpecifierExpr *Splice,
     ArrayRef<TemplateArgumentLoc> Args) const {
   // TODO: avoid this copy
   SmallVector<TemplateArgument, 16> ArgCopy;
@@ -5597,7 +5597,7 @@ QualType ASTContext::getDependentTemplateSpecializationType(
 QualType
 ASTContext::getDependentTemplateSpecializationType(
                                  ElaboratedTypeKeyword Keyword,
-                                 const CXXIndeterminateSpliceExpr *Splice,
+                                 const CXXSpliceSpecifierExpr *Splice,
                                  ArrayRef<TemplateArgument> Args) const {
   llvm::FoldingSetNodeID ID;
   DependentTemplateSpecializationType::Profile(ID, *this, Keyword, Splice,
@@ -6765,7 +6765,7 @@ ASTContext::getNameForTemplate(TemplateName Name,
       DeclarationNameLoc DNLoc =
           DeclarationNameLoc::makeCXXOperatorNameLoc(SourceRange());
       return DeclarationNameInfo(DName, NameLoc, DNLoc);
-    } else if (DTN->isIndeterminateSplice()) {
+    } else if (DTN->isSpliceSpecifier()) {
       return DeclarationNameInfo(DName, NameLoc);
     }
 
@@ -7015,7 +7015,7 @@ static bool isSameQualifier(const NestedNameSpecifier *X,
         Y->getAsType()->getCanonicalTypeInternal())
       return false;
     break;
-  case NestedNameSpecifier::IndeterminateSplice:
+  case NestedNameSpecifier::Splice:
     // TODO(P2996): This might not be good enough.
     if (X->getAsSpliceExpr() != Y->getAsSpliceExpr())
       return false;
@@ -7332,7 +7332,7 @@ ASTContext::getCanonicalTemplateArgument(const TemplateArgument &Arg) const {
       return TemplateArgument(Arg, getCanonicalType(Arg.getIntegralType()));
 
     case TemplateArgument::Reflection:
-    case TemplateArgument::IndeterminateSplice:
+    case TemplateArgument::SpliceSpecifier:
       return Arg;
 
     case TemplateArgument::StructuralValue:
@@ -7409,7 +7409,7 @@ ASTContext::getCanonicalNestedNameSpecifier(NestedNameSpecifier *NNS) const {
 
   case NestedNameSpecifier::Global:
   case NestedNameSpecifier::Super:
-  case NestedNameSpecifier::IndeterminateSplice:
+  case NestedNameSpecifier::Splice:
     // The global specifier and __super specifer are canonical and unique.
     return NNS;
   }
@@ -9869,7 +9869,7 @@ ASTContext::getDependentTemplateName(NestedNameSpecifier *NNS,
 /// Retrieve the template name that represents a dependent
 /// template name such as \c [:R:] where \c R is dependent.
 TemplateName ASTContext::getDependentTemplateName(
-        const CXXIndeterminateSpliceExpr *Splice) const {
+        const CXXSpliceSpecifierExpr *Splice) const {
   llvm::FoldingSetNodeID ID;
   DependentTemplateName::Profile(ID, Splice);
 

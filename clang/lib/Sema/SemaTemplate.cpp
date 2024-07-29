@@ -914,7 +914,7 @@ static TemplateArgumentLoc translateTemplateArgument(Sema &SemaRef,
 
   case ParsedTemplateArgument::NonType: {
     Expr *E = static_cast<Expr *>(Arg.getAsExpr());
-    if (auto *S = dyn_cast<CXXIndeterminateSpliceExpr>(E))
+    if (auto *S = dyn_cast<CXXSpliceSpecifierExpr>(E))
       return TemplateArgumentLoc(TemplateArgument(S), S);
 
     return TemplateArgumentLoc(TemplateArgument(E), E);
@@ -933,8 +933,8 @@ static TemplateArgumentLoc translateTemplateArgument(Sema &SemaRef,
         Arg.getLocation(), Arg.getEllipsisLoc());
   }
 
-  case ParsedTemplateArgument::IndeterminateSplice: {
-    CXXIndeterminateSpliceExpr *Splice = Arg.getAsIndeterminateSplice();
+  case ParsedTemplateArgument::SpliceSpecifier: {
+    CXXSpliceSpecifierExpr *Splice = Arg.getAsSpliceSpecifier();
     return TemplateArgumentLoc(TemplateArgument(Splice), Splice);
   }
   }
@@ -3309,9 +3309,9 @@ QualType Sema::CheckTemplateIdType(TemplateName Name,
       return Context.getDependentTemplateSpecializationType(
           ElaboratedTypeKeyword::None, DTN->getQualifier(), DTN->getIdentifier(),
           TemplateArgs.arguments());
-    else if (DTN->isIndeterminateSplice())
+    else if (DTN->isSpliceSpecifier())
       return Context.getDependentTemplateSpecializationType(
-          ElaboratedTypeKeyword::None, DTN->getIndeterminateSplice(),
+          ElaboratedTypeKeyword::None, DTN->getSpliceSpecifier(),
           TemplateArgs.arguments());
   }
 
@@ -3641,9 +3641,9 @@ TypeResult Sema::ActOnTemplateIdType(
       T = Context.getDependentTemplateSpecializationType(
           ElaboratedTypeKeyword::None, DTN->getQualifier(), DTN->getIdentifier(),
           TemplateArgs.arguments());
-    else if (DTN->isIndeterminateSplice())
+    else if (DTN->isSpliceSpecifier())
       T = Context.getDependentTemplateSpecializationType(
-          ElaboratedTypeKeyword::None, DTN->getIndeterminateSplice(),
+          ElaboratedTypeKeyword::None, DTN->getSpliceSpecifier(),
           TemplateArgs.arguments());
     // Build type-source information.
     TypeLocBuilder TLB;
@@ -3717,9 +3717,9 @@ TypeResult Sema::ActOnTagTemplateIdType(TagUseKind TUK,
       T = Context.getDependentTemplateSpecializationType(
           Keyword, DTN->getQualifier(), DTN->getIdentifier(),
           TemplateArgs.arguments());
-    else if (DTN->isIndeterminateSplice())
+    else if (DTN->isSpliceSpecifier())
       T = Context.getDependentTemplateSpecializationType(
-          Keyword, DTN->getIndeterminateSplice(), TemplateArgs.arguments());
+          Keyword, DTN->getSpliceSpecifier(), TemplateArgs.arguments());
 
     // Build type-source information.
     TypeLocBuilder TLB;
@@ -3801,7 +3801,7 @@ static bool isTemplateArgumentTemplateParameter(
   case TemplateArgument::NullPtr:
   case TemplateArgument::Integral:
   case TemplateArgument::Reflection:
-  case TemplateArgument::IndeterminateSplice:
+  case TemplateArgument::SpliceSpecifier:
   case TemplateArgument::Declaration:
   case TemplateArgument::StructuralValue:
   case TemplateArgument::Pack:
@@ -4665,16 +4665,16 @@ bool Sema::CheckTemplateTypeArgument(
     diagnoseMissingTemplateArguments(Name, SR.getEnd());
     return true;
   }
-  case TemplateArgument::IndeterminateSplice: {
+  case TemplateArgument::SpliceSpecifier: {
     // These are dependent and will be converted during substitution.
     SugaredConverted.push_back(Arg);
     CanonicalConverted.push_back(Arg);
     return false;
   }
   case TemplateArgument::Expression: {
-    // Check if this is an expansion of a pack of IndeterminateSplices.
+    // Check if this is an expansion of a pack of SpliceSpecifiers.
     if (auto *P = dyn_cast<PackExpansionExpr>(Arg.getAsExpr());
-        P && isa<CXXIndeterminateSpliceExpr>(P->getPattern())) {
+        P && isa<CXXSpliceSpecifierExpr>(P->getPattern())) {
       SugaredConverted.push_back(Arg);
       CanonicalConverted.push_back(Arg);
       return false;
@@ -5114,7 +5114,7 @@ bool Sema::CheckTemplateArgument(
     case TemplateArgument::Declaration:
     case TemplateArgument::Integral:
     case TemplateArgument::Reflection:
-    case TemplateArgument::IndeterminateSplice:
+    case TemplateArgument::SpliceSpecifier:
     case TemplateArgument::StructuralValue:
     case TemplateArgument::NullPtr:
       // We've already checked this template argument, so just copy
@@ -5262,7 +5262,7 @@ bool Sema::CheckTemplateArgument(
         Context.getCanonicalTemplateArgument(Arg.getArgument()));
     break;
 
-  case TemplateArgument::IndeterminateSplice:
+  case TemplateArgument::SpliceSpecifier:
     // These are dependent and cannot yet be validated. Assume valid for now.
     SugaredConverted.push_back(Arg.getArgument());
     CanonicalConverted.push_back(Arg.getArgument());
@@ -5271,7 +5271,7 @@ bool Sema::CheckTemplateArgument(
   case TemplateArgument::Expression:
     if (auto *E = Arg.getArgument().getAsExpr();
         isa<PackExpansionExpr>(E) &&
-        isa<CXXIndeterminateSpliceExpr>(
+        isa<CXXSpliceSpecifierExpr>(
             dyn_cast<PackExpansionExpr>(E)->getPattern())) {
       SugaredConverted.push_back(Arg.getArgument());
       CanonicalConverted.push_back(Arg.getArgument());
@@ -5949,7 +5949,7 @@ bool UnnamedLocalNoLinkageFinder::VisitNestedNameSpecifier(
   case NestedNameSpecifier::NamespaceAlias:
   case NestedNameSpecifier::Global:
   case NestedNameSpecifier::Super:
-  case NestedNameSpecifier::IndeterminateSplice:
+  case NestedNameSpecifier::Splice:
     return false;
 
   case NestedNameSpecifier::TypeSpec:
@@ -6683,7 +6683,7 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
     if (PE)
       Arg = PE->getPattern();
     ExprResult E;
-    if (isa<CXXIndeterminateSpliceExpr>(Arg))
+    if (isa<CXXSpliceSpecifierExpr>(Arg))
       E = Arg;
     else
       E = ImpCastExprToType(
@@ -6705,7 +6705,7 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
     return E;
   }
 
-  if (isa<CXXIndeterminateSpliceExpr>(Arg)) {
+  if (isa<CXXSpliceSpecifierExpr>(Arg)) {
     SugaredConverted = TemplateArgument(Arg, Arg);
     CanonicalConverted = SugaredConverted;
     return Arg;
@@ -7610,8 +7610,8 @@ Sema::BuildExpressionFromNonTypeTemplateArgument(const TemplateArgument &Arg,
   case TemplateArgument::Reflection:
     return BuildExpressionFromReflectionTemplateArgument(Arg, Loc);
 
-  case TemplateArgument::IndeterminateSplice:
-    return Arg.getAsIndeterminateSplice();
+  case TemplateArgument::SpliceSpecifier:
+    return Arg.getAsSpliceSpecifier();
 
   case TemplateArgument::StructuralValue:
     return BuildExpressionFromNonTypeTemplateArgumentValue(
@@ -10444,7 +10444,7 @@ Sema::ActOnTypenameType(Scope *S, SourceLocation TypenameLoc,
     assert(DTN && "dependent template has non-dependent name?");
     assert(DTN->getQualifier() == SS.getScopeRep());
 
-    if (!DTN->isIdentifier() && !DTN->isIndeterminateSplice()) {
+    if (!DTN->isIdentifier() && !DTN->isSpliceSpecifier()) {
       Diag(TemplateIILoc, diag::err_template_id_not_a_type) << Template;
       NoteAllFoundTemplates(Template);
       return true;
@@ -10455,9 +10455,9 @@ Sema::ActOnTypenameType(Scope *S, SourceLocation TypenameLoc,
       T = Context.getDependentTemplateSpecializationType(
           ElaboratedTypeKeyword::Typename, DTN->getQualifier(),
           DTN->getIdentifier(), TemplateArgs.arguments());
-    else if (DTN->isIndeterminateSplice())
+    else if (DTN->isSpliceSpecifier())
       T = Context.getDependentTemplateSpecializationType(
-          ElaboratedTypeKeyword::Typename, DTN->getIndeterminateSplice(),
+          ElaboratedTypeKeyword::Typename, DTN->getSpliceSpecifier(),
           TemplateArgs.arguments());
 
     // Create source-location information for this type.

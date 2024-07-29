@@ -285,12 +285,12 @@ checkDeducedTemplateArguments(ASTContext &Context,
     // All other combinations are incompatible.
     return DeducedTemplateArgument();
 
-  case TemplateArgument::IndeterminateSplice:
+  case TemplateArgument::SpliceSpecifier:
     if (Y.getKind() == TemplateArgument::Type ||
         Y.getKind() == TemplateArgument::Expression ||
         Y.getKind() == TemplateArgument::Declaration ||
         Y.getKind() == TemplateArgument::Reflection ||
-        Y.getKind() == TemplateArgument::IndeterminateSplice ||
+        Y.getKind() == TemplateArgument::SpliceSpecifier ||
         Y.getKind() == TemplateArgument::Template)
       return X;
 
@@ -2517,7 +2517,7 @@ DeduceTemplateArguments(Sema &S, TemplateParameterList *TemplateParams,
     Info.SecondArg = A;
     return TemplateDeductionResult::NonDeducedMismatch;
 
-  case TemplateArgument::IndeterminateSplice:
+  case TemplateArgument::SpliceSpecifier:
     llvm_unreachable("TODO");
 
   case TemplateArgument::StructuralValue:
@@ -2537,7 +2537,7 @@ DeduceTemplateArguments(Sema &S, TemplateParameterList *TemplateParams,
       case TemplateArgument::Expression:
       case TemplateArgument::StructuralValue:
       case TemplateArgument::Reflection:
-      case TemplateArgument::IndeterminateSplice:
+      case TemplateArgument::SpliceSpecifier:
         return DeduceNonTypeTemplateArgument(
             S, TemplateParams, NTTP, DeducedTemplateArgument(A),
             A.getNonTypeTemplateArgumentType(), Info, Deduced);
@@ -2757,7 +2757,7 @@ static bool isSameTemplateArg(ASTContext &Context,
     case TemplateArgument::Reflection:
       return X.getAsReflection() == Y.getAsReflection();
 
-    case TemplateArgument::IndeterminateSplice:
+    case TemplateArgument::SpliceSpecifier:
       return false;
 
     case TemplateArgument::StructuralValue:
@@ -2844,7 +2844,7 @@ Sema::getTrivialTemplateArgumentLoc(const TemplateArgument &Arg,
     return TemplateArgumentLoc(TemplateArgument(E), E);
   }
 
-  case TemplateArgument::IndeterminateSplice:
+  case TemplateArgument::SpliceSpecifier:
     llvm_unreachable("TODO: unimplemented");
 
     case TemplateArgument::Template:
@@ -6740,7 +6740,7 @@ MarkUsedTemplateParameters(ASTContext &Ctx,
   case TemplateArgument::Null:
   case TemplateArgument::Integral:
   case TemplateArgument::Reflection:
-  case TemplateArgument::IndeterminateSplice:
+  case TemplateArgument::SpliceSpecifier:
   case TemplateArgument::Declaration:
   case TemplateArgument::NullPtr:
   case TemplateArgument::StructuralValue:

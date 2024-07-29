@@ -142,8 +142,8 @@ def Selector : PropertyType;
 def SourceLocation : PropertyType;
 def StmtRef : RefPropertyType<"Stmt"> { let ConstWhenWriting = 1; }
   def ExprRef : SubclassPropertyType<"Expr", StmtRef>;
-  def CXXIndeterminateSpliceExprRef :
-      SubclassPropertyType<"CXXIndeterminateSpliceExpr", ExprRef>;
+  def CXXSpliceSpecifierExprRef :
+      SubclassPropertyType<"CXXSpliceSpecifierExpr", ExprRef>;
 def TagDataMemberSpecRef :
     RefPropertyType<"TagDataMemberSpec"> { let ConstWhenWriting = 1; }
 def TemplateArgument : PropertyType;
@@ -917,9 +917,9 @@ let Class = PropertyTypeCase<TemplateArgument, "Reflection"> in {
     return TemplateArgument(ctx, value, isDefaulted);
   }]>;
 }
-let Class = PropertyTypeCase<TemplateArgument, "IndeterminateSplice"> in {
-  def : Property<"value", CXXIndeterminateSpliceExprRef> {
-    let Read = [{ node.getAsIndeterminateSplice() }];
+let Class = PropertyTypeCase<TemplateArgument, "SpliceSpecifier"> in {
+  def : Property<"value", CXXSpliceSpecifierExprRef> {
+    let Read = [{ node.getAsSpliceSpecifier() }];
   }
   def : Property<"isDefaulted", Bool> {
     let Read = [{ node.getIsDefaulted() }];

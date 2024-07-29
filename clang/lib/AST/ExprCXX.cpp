@@ -1968,32 +1968,32 @@ CXXMetafunctionExpr *CXXMetafunctionExpr::Create(ASTContext &C,
                                      Args.size(), KwLoc, LParenLoc, RParenLoc);
 }
 
-CXXIndeterminateSpliceExpr::CXXIndeterminateSpliceExpr(
+CXXSpliceSpecifierExpr::CXXSpliceSpecifierExpr(
         QualType ResultTy, SourceLocation TemplateKWLoc,
         SourceLocation LSpliceLoc, Expr *Operand, SourceLocation RSpliceLoc)
-  : Expr(CXXIndeterminateSpliceExprClass, ResultTy, VK_PRValue, OK_Ordinary),
+  : Expr(CXXSpliceSpecifierExprClass, ResultTy, VK_PRValue, OK_Ordinary),
     TemplateKWLoc(TemplateKWLoc), LSpliceLoc(LSpliceLoc), Operand(Operand),
     RSpliceLoc(RSpliceLoc) {
   setDependence(computeDependence(this));
 }
 
-CXXIndeterminateSpliceExpr *CXXIndeterminateSpliceExpr::Create(
+CXXSpliceSpecifierExpr *CXXSpliceSpecifierExpr::Create(
         ASTContext &C, SourceLocation TemplateKWLoc, SourceLocation LSpliceLoc,
         Expr *Operand, SourceLocation RSpliceLoc) {
-  return new (C) CXXIndeterminateSpliceExpr(C.MetaInfoTy, TemplateKWLoc,
-                                            LSpliceLoc, Operand, RSpliceLoc);
+  return new (C) CXXSpliceSpecifierExpr(C.MetaInfoTy, TemplateKWLoc,
+                                        LSpliceLoc, Operand, RSpliceLoc);
 }
 
-CXXExprSpliceExpr::CXXExprSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
-                                     SourceLocation TemplateKWLoc,
-                                     SourceLocation LSpliceLoc, Expr *Operand,
-                                     SourceLocation RSpliceLoc,
-                                     const TemplateArgumentListInfo *TArgs,
-                                     bool AllowMemberReference)
-  : Expr(CXXExprSpliceExprClass, ResultTy, ValueKind, OK_Ordinary),
+CXXSpliceExpr::CXXSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
+                             SourceLocation TemplateKWLoc,
+                             SourceLocation LSpliceLoc, Expr *Operand,
+                             SourceLocation RSpliceLoc,
+                             const TemplateArgumentListInfo *TArgs,
+                             bool AllowMemberReference)
+  : Expr(CXXSpliceExprClass, ResultTy, ValueKind, OK_Ordinary),
     LSpliceLoc(LSpliceLoc), Operand(Operand), RSpliceLoc(RSpliceLoc),
     AllowMemberReference(AllowMemberReference) {
-  ExprSpliceExprBits.HasTemplateKWAndArgsInfo =
+  SpliceExprBits.HasTemplateKWAndArgsInfo =
       (TArgs != nullptr ) || TemplateKWLoc.isValid();
 
   if (TArgs) {
@@ -2006,15 +2006,14 @@ CXXExprSpliceExpr::CXXExprSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
   setDependence(computeDependence(this));
 }
 
-CXXExprSpliceExpr *CXXExprSpliceExpr::Create(
-                                          ASTContext &C,
-                                          ExprValueKind ValueKind,
-                                          SourceLocation TemplateKWLoc,
-                                          SourceLocation LSpliceLoc,
-                                          Expr *Operand,
-                                          SourceLocation RSpliceLoc,
-                                          const TemplateArgumentListInfo *TArgs,
-                                          bool AllowMemberReference) {
+CXXSpliceExpr *CXXSpliceExpr::Create(ASTContext &C,
+                                     ExprValueKind ValueKind,
+                                     SourceLocation TemplateKWLoc,
+                                     SourceLocation LSpliceLoc,
+                                     Expr *Operand,
+                                     SourceLocation RSpliceLoc,
+                                     const TemplateArgumentListInfo *TArgs,
+                                     bool AllowMemberReference) {
   QualType ResultTy = Operand->getType();
   if (Operand->isTypeDependent() || Operand->isValueDependent())
     ResultTy = C.DependentTy;
@@ -2023,10 +2022,10 @@ CXXExprSpliceExpr *CXXExprSpliceExpr::Create(
                                    TemplateArgumentLoc>(
         (TemplateKWLoc.isValid() || TArgs) ? 1 : 0,
         TArgs ? TArgs->size() : 0);
-  void *Mem = C.Allocate(Size, alignof(CXXExprSpliceExpr));
-  return new (Mem) CXXExprSpliceExpr(ResultTy, ValueKind, TemplateKWLoc,
-                                     LSpliceLoc, Operand, RSpliceLoc, TArgs,
-                                     AllowMemberReference);
+  void *Mem = C.Allocate(Size, alignof(CXXSpliceExpr));
+  return new (Mem) CXXSpliceExpr(ResultTy, ValueKind, TemplateKWLoc,
+                                 LSpliceLoc, Operand, RSpliceLoc, TArgs,
+                                 AllowMemberReference);
 }
 
 StackLocationExpr::StackLocationExpr(QualType ResultTy, SourceRange Range,
@@ -2056,7 +2055,7 @@ ExtractLValueExpr *ExtractLValueExpr::Create(ASTContext &C, SourceRange Range,
 
 CXXDependentMemberSpliceExpr::CXXDependentMemberSpliceExpr(
         QualType ResultTy, Expr *Base, SourceLocation OpLoc, bool IsArrow,
-        CXXExprSpliceExpr *RHS)
+        CXXSpliceExpr *RHS)
     : Expr(CXXDependentMemberSpliceExprClass, ResultTy, VK_LValue, OK_Ordinary),
       OpLoc(OpLoc), IsArrow(IsArrow) {
   SubExprs[0] = Base;
@@ -2067,7 +2066,7 @@ CXXDependentMemberSpliceExpr::CXXDependentMemberSpliceExpr(
 
 CXXDependentMemberSpliceExpr *CXXDependentMemberSpliceExpr::Create(
         ASTContext &C, Expr *Base, SourceLocation OpLoc, bool IsArrow,
-        CXXExprSpliceExpr *RHS) {
+        CXXSpliceExpr *RHS) {
   return new (C) CXXDependentMemberSpliceExpr(C.DependentTy, Base, OpLoc,
                                               IsArrow, RHS);
 }

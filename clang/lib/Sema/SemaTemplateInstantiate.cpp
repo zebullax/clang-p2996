@@ -2018,8 +2018,8 @@ TemplateName TemplateInstantiator::TransformTemplateName(
         Arg = getPackSubstitutedTemplateArgument(getSema(), Arg);
       }
 
-      if (Arg.getKind() == TemplateArgument::IndeterminateSplice) {
-        CXXIndeterminateSpliceExpr *Splice = Arg.getAsIndeterminateSplice();
+      if (Arg.getKind() == TemplateArgument::SpliceSpecifier) {
+        CXXSpliceSpecifierExpr *Splice = Arg.getAsSpliceSpecifier();
         return SemaRef.Context.getDependentTemplateName(Splice);
       }
 
@@ -2228,8 +2228,8 @@ ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(
         refParam = true;
       }
     }
-  } else if (arg.getKind() == TemplateArgument::IndeterminateSplice) {
-    return arg.getAsIndeterminateSplice();
+  } else if (arg.getKind() == TemplateArgument::SpliceSpecifier) {
+    return arg.getAsSpliceSpecifier();
   } else if (arg.getKind() == TemplateArgument::Declaration ||
              arg.getKind() == TemplateArgument::NullPtr) {
     if (arg.getKind() == TemplateArgument::Declaration) {
@@ -2563,8 +2563,8 @@ TemplateInstantiator::TransformTemplateTypeParmType(TypeLocBuilder &TLB,
       return NewT;
     }
 
-    if (Arg.getKind() == TemplateArgument::IndeterminateSplice) {
-      CXXIndeterminateSpliceExpr *Splice = Arg.getAsIndeterminateSplice();
+    if (Arg.getKind() == TemplateArgument::SpliceSpecifier) {
+      CXXSpliceSpecifierExpr *Splice = Arg.getAsSpliceSpecifier();
       QualType UnderlyingTy = SemaRef.Context.DependentTy;
 
       QualType Ty = SemaRef.Context.getReflectionSpliceType(Splice,

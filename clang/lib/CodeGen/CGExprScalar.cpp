@@ -464,7 +464,7 @@ public:
   Value *VisitUnaryCoawait(const UnaryOperator *E) {
     return Visit(E->getSubExpr());
   }
-  Value *VisitCXXExprSpliceExpr(const CXXExprSpliceExpr *E) {
+  Value *VisitCXXSpliceExpr(const CXXSpliceExpr *E) {
     return Visit(E->getOperand());
   }
 

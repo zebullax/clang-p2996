@@ -1417,7 +1417,7 @@ void CXXNameMangler::mangleUnresolvedPrefix(NestedNameSpecifier *qualifier,
     mangleSourceName(qualifier->getAsIdentifier());
     // An Identifier has no type information, so we can't emit abi tags for it.
     break;
-  case NestedNameSpecifier::IndeterminateSplice:
+  case NestedNameSpecifier::Splice:
     llvm_unreachable("should not get this far");
   }
 
@@ -2200,7 +2200,7 @@ void CXXNameMangler::manglePrefix(NestedNameSpecifier *qualifier) {
       addSubstitution(qualifier);
     return;
   }
-  case NestedNameSpecifier::IndeterminateSplice:
+  case NestedNameSpecifier::Splice:
     llvm_unreachable("should not get this far");
   }
 
@@ -2268,8 +2268,8 @@ void CXXNameMangler::mangleTemplatePrefix(TemplateName Template) {
 
   if (Dependent->isIdentifier())
     mangleSourceName(Dependent->getIdentifier());
-  else if (Dependent->isIndeterminateSplice())
-    mangleExpression(Dependent->getIndeterminateSplice());
+  else if (Dependent->isSpliceSpecifier())
+    mangleExpression(Dependent->getSpliceSpecifier());
   else
     mangleOperatorName(Dependent->getOperator(), UnknownArity);
 
@@ -4866,7 +4866,7 @@ recurse:
   case Expr::CXXInheritedCtorInitExprClass:
   case Expr::CXXParenListInitExprClass:
   case Expr::CXXMetafunctionExprClass:
-  case Expr::CXXExprSpliceExprClass:
+  case Expr::CXXSpliceExprClass:
   case Expr::CXXDependentMemberSpliceExprClass:
   case Expr::StackLocationExprClass:
   case Expr::ExtractLValueExprClass:
@@ -4884,8 +4884,8 @@ recurse:
     break;
   }
 
-  case Expr::CXXIndeterminateSpliceExprClass:
-    E = cast<CXXIndeterminateSpliceExpr>(E)->getOperand();
+  case Expr::CXXSpliceSpecifierExprClass:
+    E = cast<CXXSpliceSpecifierExpr>(E)->getOperand();
     goto recurse;
 
   case Expr::ConstantExprClass:

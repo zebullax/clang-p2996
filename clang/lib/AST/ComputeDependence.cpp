@@ -997,11 +997,11 @@ ExprDependence clang::computeDependence(CXXMetafunctionExpr *E) {
 }
 
 
-ExprDependence clang::computeDependence(CXXIndeterminateSpliceExpr *E) {
+ExprDependence clang::computeDependence(CXXSpliceSpecifierExpr *E) {
   return E->getOperand()->getDependence();
 }
 
-ExprDependence clang::computeDependence(CXXExprSpliceExpr *E) {
+ExprDependence clang::computeDependence(CXXSpliceExpr *E) {
   auto D = E->getOperand()->getDependence();
   if (D & ExprDependence::Value)
     D |= ExprDependence::Type;

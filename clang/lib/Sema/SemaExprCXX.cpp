@@ -82,7 +82,7 @@ ParsedType Sema::getInheritingConstructorName(CXXScopeSpec &SS,
   case NestedNameSpecifier::Super:
   case NestedNameSpecifier::Namespace:
   case NestedNameSpecifier::NamespaceAlias:
-  case NestedNameSpecifier::IndeterminateSplice:
+  case NestedNameSpecifier::Splice:
     llvm_unreachable("Nested name specifier is not a type for inheriting ctor");
   }
 
@@ -537,7 +537,7 @@ bool Sema::checkLiteralOperatorId(const CXXScopeSpec &SS,
   case NestedNameSpecifier::Super:
   case NestedNameSpecifier::Namespace:
   case NestedNameSpecifier::NamespaceAlias:
-  case NestedNameSpecifier::IndeterminateSplice:
+  case NestedNameSpecifier::Splice:
     return false;
   }
 

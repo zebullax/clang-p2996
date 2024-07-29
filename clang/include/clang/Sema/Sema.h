@@ -15187,16 +15187,16 @@ public:
                                  SourceLocation ArgLoc, Decl *D);
   ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc,
                                  ParsedTemplateArgument Template);
-  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc, CXXExprSpliceExpr *E);
+  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc, CXXSpliceExpr *E);
 
   ExprResult ActOnCXXMetafunction(SourceLocation KwLoc,
                                   SourceLocation LParenLoc,
                                   SmallVectorImpl<Expr *> &Args,
                                   SourceLocation RParenLoc);
-  ExprResult ActOnCXXIndeterminateSpliceExpr(SourceLocation TemplateKWLoc,
-                                             SourceLocation LSpliceLoc,
-                                             Expr *Operand,
-                                             SourceLocation RSpliceLoc);
+  ExprResult ActOnCXXSpliceSpecifierExpr(SourceLocation TemplateKWLoc,
+                                         SourceLocation LSpliceLoc,
+                                         Expr *Operand,
+                                         SourceLocation RSpliceLoc);
   TypeResult ActOnCXXSpliceExpectingType(SourceLocation LSplice,
                                          Expr *Operand,
                                          SourceLocation RSplice,
@@ -15217,16 +15217,16 @@ public:
                                              SourceLocation RSplice,
                                              bool Complain);
   ParsedTemplateArgument
-  ActOnTemplateIndeterminateSpliceArgument(CXXIndeterminateSpliceExpr *Splice);
+  ActOnTemplateSpliceSpecifierArgument(CXXSpliceSpecifierExpr *Splice);
 
   bool ActOnCXXNestedNameSpecifierReflectionSplice(
-      CXXScopeSpec &SS, CXXIndeterminateSpliceExpr *Splice,
+      CXXScopeSpec &SS, CXXSpliceSpecifierExpr *Splice,
       SourceLocation ColonColonLoc);
 
   ExprResult ActOnMemberAccessExpr(Scope *S, Expr *Base,
                                    SourceLocation OpLoc,
                                    tok::TokenKind OpKind,
-                                   CXXExprSpliceExpr *RHS,
+                                   CXXSpliceExpr *RHS,
                                    SourceLocation TemplateKWLoc);
 
   // Reflection of non-expression operands.
@@ -15245,7 +15245,7 @@ public:
   ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
                                  SubstNonTypeTemplateParmExpr *E);
   ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
-                                 CXXExprSpliceExpr *E);
+                                 CXXSpliceExpr *E);
 
   ExprResult BuildCXXMetafunctionExpr(SourceLocation KwLoc,
                                       SourceLocation LParenLoc,
@@ -15254,10 +15254,10 @@ public:
                                       const CXXMetafunctionExpr::ImplFn &Impl,
                                       SmallVectorImpl<Expr *> &Args);
 
-  ExprResult BuildCXXIndeterminateSpliceExpr(SourceLocation TemplateKWLoc,
-                                             SourceLocation LSpliceLoc,
-                                             Expr *Operand,
-                                             SourceLocation RSpliceLoc);
+  ExprResult BuildCXXSpliceSpecifierExpr(SourceLocation TemplateKWLoc,
+                                         SourceLocation LSpliceLoc,
+                                         Expr *Operand,
+                                         SourceLocation RSpliceLoc);
   QualType BuildReflectionSpliceType(SourceLocation LSplice,
                                      Expr *Operand,
                                      SourceLocation RSplice,
@@ -15282,11 +15282,10 @@ public:
   ExprResult BuildMemberReferenceExpr(Scope *S, Expr *Base,
                                       SourceLocation OpLoc,
                                       tok::TokenKind OpKind,
-                                      CXXExprSpliceExpr *RHS,
+                                      CXXSpliceExpr *RHS,
                                       SourceLocation TemplateKWLoc);
   ExprResult BuildDependentMemberSpliceExpr(Expr *Base, SourceLocation OpLoc,
-                                            bool IsArrow,
-                                            CXXExprSpliceExpr *RHS);
+                                            bool IsArrow, CXXSpliceExpr *RHS);
 
   DeclContext *TryFindDeclContextOf(const Expr *E);
 

@@ -2649,14 +2649,13 @@ void StmtPrinter::VisitCXXMetafunctionExpr(CXXMetafunctionExpr *S) {
   OS << ")";
 }
 
-void StmtPrinter::VisitCXXIndeterminateSpliceExpr(
-                                                CXXIndeterminateSpliceExpr *S) {
+void StmtPrinter::VisitCXXSpliceSpecifierExpr(CXXSpliceSpecifierExpr *S) {
   OS << "[: ";
   Visit(S->getOperand());
   OS << " :]";
 }
 
-void StmtPrinter::VisitCXXExprSpliceExpr(CXXExprSpliceExpr *S) {
+void StmtPrinter::VisitCXXSpliceExpr(CXXSpliceExpr *S) {
   OS << "[: ";
   Visit(S->getOperand());
   OS << " :]";

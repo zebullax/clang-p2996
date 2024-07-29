@@ -937,10 +937,10 @@ public:
 
   /// Skip past any expressions splices which might surround this expression
   /// until reaching a fixed point. Skips:
-  /// * CXXExprSpliceExpr
-  Expr *IgnoreExprSplices() LLVM_READONLY;
-  const Expr *IgnoreExprSplices() const {
-    return const_cast<Expr *>(this)->IgnoreExprSplices();
+  /// * CXXSpliceExpr
+  Expr *IgnoreSplices() LLVM_READONLY;
+  const Expr *IgnoreSplices() const {
+    return const_cast<Expr *>(this)->IgnoreSplices();
   }
 
   /// Skip conversion operators. If this Expr is a call to a conversion

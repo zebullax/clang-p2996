@@ -937,8 +937,8 @@ void clang::TextNodeDumper::dumpNestedNameSpecifier(const NestedNameSpecifier *N
     case NestedNameSpecifier::Super:
       OS << " Super";
       break;
-    case NestedNameSpecifier::IndeterminateSplice:
-      OS << " IndeterminateSplice";
+    case NestedNameSpecifier::Splice:
+      OS << " SpliceSpecifier";
       break;
     }
 

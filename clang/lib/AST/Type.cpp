@@ -3259,7 +3259,7 @@ DependentTemplateSpecializationType::DependentTemplateSpecializationType(
 }
 
 DependentTemplateSpecializationType::DependentTemplateSpecializationType(
-    ElaboratedTypeKeyword Keyword,const CXXIndeterminateSpliceExpr *Splice,
+    ElaboratedTypeKeyword Keyword, const CXXSpliceSpecifierExpr *Splice,
     ArrayRef<TemplateArgument> Args, QualType Canon)
     : TypeWithKeyword(Keyword, DependentTemplateSpecialization, Canon,
                       TypeDependence::DependentInstantiation),
@@ -3288,10 +3288,10 @@ bool DependentTemplateSpecializationType::hasSplice() const {
   return Storage.getInt() == 1;
 }
 
-const CXXIndeterminateSpliceExpr *
+const CXXSpliceSpecifierExpr *
 DependentTemplateSpecializationType::getSplice() const {
   assert(hasSplice() && "no identifier");
-  return Storage.getPointer().dyn_cast<const CXXIndeterminateSpliceExpr *>();
+  return Storage.getPointer().dyn_cast<const CXXSpliceSpecifierExpr *>();
 }
 
 void
@@ -3314,7 +3314,7 @@ DependentTemplateSpecializationType::Profile(
                                        llvm::FoldingSetNodeID &ID,
                                        const ASTContext &Context,
                                        ElaboratedTypeKeyword Keyword,
-                                       const CXXIndeterminateSpliceExpr *Splice,
+                                       const CXXSpliceSpecifierExpr *Splice,
                                        ArrayRef<TemplateArgument> Args) {
   ID.AddInteger(llvm::to_underlying(Keyword));
   ID.AddPointer(/*Qualifier=*/nullptr);

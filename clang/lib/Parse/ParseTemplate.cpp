@@ -1466,10 +1466,10 @@ ParsedTemplateArgument Parser::ParseTemplateTemplateArgument() {
   return Result;
 }
 
-ParsedTemplateArgument Parser::ParseIndeterminateSpliceTemplateArgument() {
+ParsedTemplateArgument Parser::ParseSpliceSpecifierTemplateArgument() {
   CXXScopeSpec SS;
   if (Tok.is(tok::kw_template) && NextToken().is(tok::l_splice)) {
-    if (ParseCXXIndeterminateSplice(ConsumeToken()))
+    if (ParseCXXSpliceSpecifier(ConsumeToken()))
       return ParsedTemplateArgument();
   } else if (ParseOptionalCXXScopeSpecifier(
       SS, /*ObjectType=*/nullptr,
@@ -1482,11 +1482,10 @@ ParsedTemplateArgument Parser::ParseIndeterminateSpliceTemplateArgument() {
 
   ExprResult ER = getExprAnnotation(Tok);
   assert(!ER.isInvalid());
-  CXXIndeterminateSpliceExpr *Splice =
-        cast<CXXIndeterminateSpliceExpr>(ER.get());
+  CXXSpliceSpecifierExpr *Splice = cast<CXXSpliceSpecifierExpr>(ER.get());
   ConsumeAnnotationToken();
 
-  return Actions.ActOnTemplateIndeterminateSpliceArgument(Splice);
+  return Actions.ActOnTemplateSpliceSpecifierArgument(Splice);
 }
 
 /// ParseTemplateArgument - Parse a C++ template argument (C++ [temp.names]).
@@ -1534,12 +1533,12 @@ ParsedTemplateArgument Parser::ParseTemplateArgument() {
     TPA.Revert();
   }
 
-  // Try to parse an indeterminate splice template argument.
+  // Try to parse a splice specifier template argument.
   {
     TentativeParsingAction TPA(*this);
 
     ParsedTemplateArgument SpliceTemplateArgument
-          = ParseIndeterminateSpliceTemplateArgument();
+          = ParseSpliceSpecifierTemplateArgument();
     if (!SpliceTemplateArgument.isInvalid()) {
       TPA.Commit();
       return SpliceTemplateArgument;

@@ -3055,7 +3055,7 @@ public:
     E = E->IgnoreParens();
     if (isa<UnaryOperator>(E)) {
       assert(cast<UnaryOperator>(E)->getOpcode() == UO_AddrOf);
-      E = cast<UnaryOperator>(E)->getSubExpr()->IgnoreExprSplices();
+      E = cast<UnaryOperator>(E)->getSubExpr()->IgnoreSplices();
       auto *Ovl = cast<OverloadExpr>(E->IgnoreParens());
 
       Result.HasFormOfMemberPointer = (E == Ovl && Ovl->getQualifier());
@@ -3063,7 +3063,7 @@ public:
       Result.IsAddressOfOperandWithParen = HasParen;
       Result.Expression = Ovl;
     } else {
-      Result.Expression = cast<OverloadExpr>(E->IgnoreExprSplices());
+      Result.Expression = cast<OverloadExpr>(E->IgnoreSplices());
     }
 
     return Result;
@@ -5496,31 +5496,24 @@ public:
   }
 };
 
-/// Represents a C++2c splice "expression". Strictly speaking, it may be a mild
-/// abuse of terminology to classify a splice as an expression, since it can
-/// yield a type, namespace, or template-id in addition to a value. That said,
-/// the -operand- of a splice is an expression (which always evaluates to a
-/// type context-convertible to 'std::meta::info'), and 'Expr' provides a
-/// convenient existing means of storing the SourceLocation of the splice
-/// operands alongside the operand. We therefore consider a "[:R:]" a "splice
-/// expression", and treat a "splice" as an operation occupying the same source
-/// range as the splice expression.
-class CXXIndeterminateSpliceExpr : public Expr {
+/// Represents a C++2c "splice specifier". At some point, this should probably
+/// be refactored into a non-Expr class, and removed from 'ExprCXX.h'.
+class CXXSpliceSpecifierExpr : public Expr {
   SourceLocation TemplateKWLoc;
   SourceLocation LSpliceLoc;
   Expr *Operand;
   SourceLocation RSpliceLoc;
 
-  CXXIndeterminateSpliceExpr(QualType ResultTy, SourceLocation TemplateKWLoc,
-                             SourceLocation LSpliceLoc, Expr *Operand,
-                             SourceLocation RSpliceLoc);
+  CXXSpliceSpecifierExpr(QualType ResultTy, SourceLocation TemplateKWLoc,
+                         SourceLocation LSpliceLoc, Expr *Operand,
+                         SourceLocation RSpliceLoc);
 
 public:
-  static CXXIndeterminateSpliceExpr *Create(ASTContext &C,
-                                            SourceLocation TemplateKWLoc,
-                                            SourceLocation LSpliceLoc,
-                                            Expr *Operand,
-                                            SourceLocation RSpliceLoc);
+  static CXXSpliceSpecifierExpr *Create(ASTContext &C,
+                                        SourceLocation TemplateKWLoc,
+                                        SourceLocation LSpliceLoc,
+                                        Expr *Operand,
+                                        SourceLocation RSpliceLoc);
 
   Expr *getOperand() const {
     return Operand;
@@ -5565,7 +5558,7 @@ public:
   }
 
   static bool classof(const Stmt *T) {
-    return T->getStmtClass() == CXXIndeterminateSpliceExprClass;
+    return T->getStmtClass() == CXXSpliceSpecifierExprClass;
   }
 };
 
@@ -5646,9 +5639,9 @@ public:
   }
 };
 
-class CXXExprSpliceExpr final
+class CXXSpliceExpr final
     : public Expr,
-      private llvm::TrailingObjects<CXXExprSpliceExpr, ASTTemplateKWAndArgsInfo,
+      private llvm::TrailingObjects<CXXSpliceExpr, ASTTemplateKWAndArgsInfo,
                                     TemplateArgumentLoc> {
   friend TrailingObjects;
 
@@ -5657,17 +5650,17 @@ class CXXExprSpliceExpr final
   SourceLocation RSpliceLoc;
   bool AllowMemberReference;
 
-  CXXExprSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
-                    SourceLocation TemplateKWLoc, SourceLocation LSpliceLoc,
-                    Expr *Operand, SourceLocation RSpliceLoc,
-                    const TemplateArgumentListInfo *TemplateArgs,
-                    bool AllowMemberReference);
+  CXXSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
+                SourceLocation TemplateKWLoc, SourceLocation LSpliceLoc,
+                Expr *Operand, SourceLocation RSpliceLoc,
+                const TemplateArgumentListInfo *TemplateArgs,
+                bool AllowMemberReference);
 
   inline ASTTemplateKWAndArgsInfo *getTrailingASTTemplateKWAndArgsInfo() {
     return getTrailingObjects<ASTTemplateKWAndArgsInfo>();
   }
   const ASTTemplateKWAndArgsInfo *getTrailingASTTemplateKWAndArgsInfo() const {
-    return const_cast<CXXExprSpliceExpr *>(this)
+    return const_cast<CXXSpliceExpr *>(this)
         ->getTrailingASTTemplateKWAndArgsInfo();
   }
 
@@ -5675,12 +5668,12 @@ class CXXExprSpliceExpr final
     return getTrailingObjects<TemplateArgumentLoc>();
   }
   const TemplateArgumentLoc *getTrailingTemplateArgumentLoc() const {
-    return const_cast<CXXExprSpliceExpr *>(this)
+    return const_cast<CXXSpliceExpr *>(this)
         ->getTrailingTemplateArgumentLoc();
   }
 
   bool hasTemplateKWAndArgsInfo() const {
-    return ExprSpliceExprBits.HasTemplateKWAndArgsInfo;
+    return SpliceExprBits.HasTemplateKWAndArgsInfo;
   }
 
   unsigned numTrailingObjects(OverloadToken<ASTTemplateKWAndArgsInfo>) const {
@@ -5693,7 +5686,7 @@ class CXXExprSpliceExpr final
 
 
 public:
-  static CXXExprSpliceExpr *Create(ASTContext &C, ExprValueKind ValueKind,
+  static CXXSpliceExpr *Create(ASTContext &C, ExprValueKind ValueKind,
                                    SourceLocation TemplateKWLoc,
                                    SourceLocation LSpliceLoc, Expr *Operand,
                                    SourceLocation RSpliceLoc,
@@ -5715,7 +5708,7 @@ public:
   bool hasExplicitTemplateArgs() const { return getLAngleLoc().isValid(); }
 
   TemplateArgumentLoc const *getTemplateArgs() const {
-    return const_cast<CXXExprSpliceExpr *>(this)
+    return const_cast<CXXSpliceExpr *>(this)
         ->getTrailingObjects<TemplateArgumentLoc>();
   }
 
@@ -5793,7 +5786,7 @@ public:
   }
 
   static bool classof(const Stmt *T) {
-    return T->getStmtClass() == CXXExprSpliceExprClass;
+    return T->getStmtClass() == CXXSpliceExprClass;
   }
 };
 
@@ -5809,13 +5802,12 @@ class CXXDependentMemberSpliceExpr : public Expr {
 
   CXXDependentMemberSpliceExpr(QualType ResultTy, Expr *Base,
                                SourceLocation OpLoc, bool IsArrow,
-                               CXXExprSpliceExpr *RHS);
+                               CXXSpliceExpr *RHS);
 
 public:
   static CXXDependentMemberSpliceExpr *Create(ASTContext &C, Expr *Base,
                                               SourceLocation OpLoc,
-                                              bool IsArrow,
-                                              CXXExprSpliceExpr *RHS);
+                                              bool IsArrow, CXXSpliceExpr *RHS);
 
   Expr *getBase() const {
     return cast<Expr>(SubExprs[0]);
@@ -5829,8 +5821,8 @@ public:
     return IsArrow;
   }
 
-  CXXExprSpliceExpr *getRHS() const {
-    return cast<CXXExprSpliceExpr>(SubExprs[1]);
+  CXXSpliceExpr *getRHS() const {
+    return cast<CXXSpliceExpr>(SubExprs[1]);
   }
 
   SourceLocation getBeginLoc() const {

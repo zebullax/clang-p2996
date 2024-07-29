@@ -1179,15 +1179,15 @@ public:
   QualType RebuildDependentTemplateSpecializationType(
                                        ElaboratedTypeKeyword Keyword,
                                        SourceLocation TemplateKWLoc,
-                                       const CXXIndeterminateSpliceExpr *Splice,
+                                       const CXXSpliceSpecifierExpr *Splice,
                                        TemplateArgumentListInfo &Args,
                                        bool AllowInjectedClassName) {
     // Rebuild the template name.
     // TODO: avoid TemplateName abstraction
-    ExprResult ER = getDerived().TransformCXXIndeterminateSpliceExpr(
-            const_cast<CXXIndeterminateSpliceExpr *>(Splice));
+    ExprResult ER = getDerived().TransformCXXSpliceSpecifierExpr(
+            const_cast<CXXSpliceSpecifierExpr *>(Splice));
     TemplateName InstName = getDerived().RebuildTemplateName(
-            cast<CXXIndeterminateSpliceExpr>(ER.get()));
+            cast<CXXSpliceSpecifierExpr>(ER.get()));
 
     if (InstName.isNull())
       return QualType();
@@ -1363,7 +1363,7 @@ public:
                                    NamedDecl *FirstQualifierInScope,
                                    bool AllowInjectedClassName);
 
-  TemplateName RebuildTemplateName(const CXXIndeterminateSpliceExpr *Splice);
+  TemplateName RebuildTemplateName(const CXXSpliceSpecifierExpr *Splice);
 
   /// Build a new template name given a nested name specifier and the
   /// overloaded operator name that is referred to as a template.
@@ -4009,9 +4009,9 @@ public:
           Pattern.getTemplateQualifierLoc(), Pattern.getTemplateNameLoc(),
           EllipsisLoc);
 
-    case TemplateArgument::IndeterminateSplice: {
+    case TemplateArgument::SpliceSpecifier: {
       ExprResult Result = getSema().CheckPackExpansion(
-              Pattern.getSourceIndeterminateSpliceExpression(),
+              Pattern.getSourceSpliceSpecifierExpression(),
               EllipsisLoc, NumExpansions);
 
       if (Result.isInvalid())
@@ -4536,9 +4536,9 @@ NestedNameSpecifierLoc TreeTransform<Derived>::TransformNestedNameSpecifierLoc(
       }
       return NestedNameSpecifierLoc();
     }
-    case NestedNameSpecifier::IndeterminateSplice: {
-      CXXIndeterminateSpliceExpr *Splice =
-            const_cast<CXXIndeterminateSpliceExpr *>(QNNS->getAsSpliceExpr());
+    case NestedNameSpecifier::Splice: {
+      CXXSpliceSpecifierExpr *Splice =
+            const_cast<CXXSpliceSpecifierExpr *>(QNNS->getAsSpliceExpr());
 
       // Transform the splice operand (resolve template parameters, etc).
       ExprResult ER;
@@ -4551,9 +4551,9 @@ NestedNameSpecifierLoc TreeTransform<Derived>::TransformNestedNameSpecifierLoc(
       if (ER.isInvalid())
         return NestedNameSpecifierLoc();
       else if (ER.get()->isValueDependent()) {
-        SS.MakeIndeterminateSplice(SemaRef.Context,
-                                   cast<CXXIndeterminateSpliceExpr>(ER.get()),
-                                   Q.getLocalEndLoc());
+        SS.MakeSpliceSpecifier(SemaRef.Context,
+                               cast<CXXSpliceSpecifierExpr>(ER.get()),
+                               Q.getLocalEndLoc());
         break;
       }
       Expr *Operand = ER.get();
@@ -4729,7 +4729,7 @@ TreeTransform<Derived>::TransformTemplateName(CXXScopeSpec &SS,
     if (!getDerived().AlwaysRebuild() &&
         SS.getScopeRep() == DTN->getQualifier() &&
         ObjectType.isNull() &&
-        !DTN->isIndeterminateSplice()) {
+        !DTN->isSpliceSpecifier()) {
       return Name;
     }
 
@@ -4744,14 +4744,13 @@ TreeTransform<Derived>::TransformTemplateName(CXXScopeSpec &SS,
                                               ObjectType,
                                               FirstQualifierInScope,
                                               AllowInjectedClassName);
-    } else if (DTN->isIndeterminateSplice()) {
+    } else if (DTN->isSpliceSpecifier()) {
       ExprResult E = getDerived().TransformExpr(
-            const_cast<CXXIndeterminateSpliceExpr *>(
-                DTN->getIndeterminateSplice()));
+            const_cast<CXXSpliceSpecifierExpr *>(DTN->getSpliceSpecifier()));
       if (E.isInvalid())
         return TemplateName();
       return getDerived().RebuildTemplateName(
-            cast<CXXIndeterminateSpliceExpr>(E.get()));
+            cast<CXXSpliceSpecifierExpr>(E.get()));
     }
 
     return getDerived().RebuildTemplateName(SS, TemplateKWLoc,
@@ -4848,7 +4847,7 @@ bool TreeTransform<Derived>::TransformTemplateArgument(
     return false;
   }
 
-  case TemplateArgument::IndeterminateSplice: {
+  case TemplateArgument::SpliceSpecifier: {
     // Template argument expressions are constant expressions.
     EnterExpressionEvaluationContext Unevaluated(
         getSema(),
@@ -4857,15 +4856,14 @@ bool TreeTransform<Derived>::TransformTemplateArgument(
         Sema::ReuseLambdaContextDecl, /*ExprContext=*/
         Sema::ExpressionEvaluationContextRecord::EK_TemplateArgument);
 
-    ExprResult ER = getDerived().TransformCXXIndeterminateSpliceExpr(
-          Input.getArgument().getAsIndeterminateSplice());
+    ExprResult ER = getDerived().TransformCXXSpliceSpecifierExpr(
+          Input.getArgument().getAsSpliceSpecifier());
     if (ER.isInvalid())
       return true;
-    CXXIndeterminateSpliceExpr *NewSplice =
-          cast<CXXIndeterminateSpliceExpr>(ER.get());
+    CXXSpliceSpecifierExpr *NewSplice = cast<CXXSpliceSpecifierExpr>(ER.get());
 
     ParsedTemplateArgument ParsedTAs[1] = {
-      SemaRef.ActOnTemplateIndeterminateSpliceArgument(NewSplice)
+      SemaRef.ActOnTemplateSpliceSpecifierArgument(NewSplice)
     };
     if (ParsedTAs[0].isInvalid())
       return true;
@@ -7436,9 +7434,9 @@ QualType TreeTransform<Derived>::TransformDependentTemplateSpecializationType(
       Result = getSema().Context.getDependentTemplateSpecializationType(
           TL.getTypePtr()->getKeyword(), DTN->getQualifier(),
           DTN->getIdentifier(), NewTemplateArgs.arguments());
-    else if (DTN->isIndeterminateSplice())
+    else if (DTN->isSpliceSpecifier())
       Result = getSema().Context.getDependentTemplateSpecializationType(
-          TL.getTypePtr()->getKeyword(), DTN->getIndeterminateSplice(),
+          TL.getTypePtr()->getKeyword(), DTN->getSpliceSpecifier(),
           NewTemplateArgs.arguments());
 
     DependentTemplateSpecializationTypeLoc NewTL
@@ -8906,8 +8904,8 @@ TreeTransform<Derived>::TransformCXXMetafunctionExpr(CXXMetafunctionExpr *E) {
 
 template <typename Derived>
 ExprResult
-TreeTransform<Derived>::TransformCXXIndeterminateSpliceExpr(
-        CXXIndeterminateSpliceExpr *E) {
+TreeTransform<Derived>::TransformCXXSpliceSpecifierExpr(
+        CXXSpliceSpecifierExpr *E) {
   // Splice expressions are evaluated immediately, so this is similar to
   // rebuilding an immediate invocation.
   llvm::SaveAndRestore DisableIITracking(
@@ -8917,15 +8915,15 @@ TreeTransform<Derived>::TransformCXXIndeterminateSpliceExpr(
   if (Result.isInvalid())
     return ExprError();
 
-  return getSema().BuildCXXIndeterminateSpliceExpr(E->getTemplateKWLoc(),
-                                                   E->getLSpliceLoc(),
-                                                   Result.get(),
-                                                   E->getRSpliceLoc());
+  return getSema().BuildCXXSpliceSpecifierExpr(E->getTemplateKWLoc(),
+                                               E->getLSpliceLoc(),
+                                               Result.get(),
+                                               E->getRSpliceLoc());
 }
 
 template <typename Derived>
 ExprResult
-TreeTransform<Derived>::TransformCXXExprSpliceExpr(CXXExprSpliceExpr *E) {
+TreeTransform<Derived>::TransformCXXSpliceExpr(CXXSpliceExpr *E) {
   ExprResult ER;
   {
     EnterExpressionEvaluationContext Context(
@@ -8961,7 +8959,7 @@ TreeTransform<Derived>::TransformCXXDependentMemberSpliceExpr(
   return getSema().BuildMemberReferenceExpr(
           nullptr, Base.get(), E->getOpLoc(),
           E->isArrow()? tok::arrow : tok::period,
-          cast<CXXExprSpliceExpr>(RHS.get()), SourceLocation());
+          cast<CXXSpliceExpr>(RHS.get()), SourceLocation());
 }
 
 template <typename Derived>
@@ -16844,10 +16842,10 @@ TreeTransform<Derived>::RebuildTemplateName(CXXScopeSpec &SS,
 template<typename Derived>
 TemplateName
 TreeTransform<Derived>::RebuildTemplateName(
-        const CXXIndeterminateSpliceExpr *Splice) {
+        const CXXSpliceSpecifierExpr *Splice) {
   return getSema().BuildReflectionSpliceTemplate(
         Splice->getLSpliceLoc(),
-        const_cast<CXXIndeterminateSpliceExpr *>(Splice),
+        const_cast<CXXSpliceSpecifierExpr *>(Splice),
         Splice->getRSpliceLoc(),
         /*Complain=*/true).get();
 }

@@ -56,7 +56,7 @@ namespace clang {
 
 class APValue;
 class ASTContext;
-class CXXIndeterminateSpliceExpr;
+class CXXSpliceSpecifierExpr;
 class Expr;
 struct PrintingPolicy;
 class TypeSourceInfo;
@@ -90,9 +90,9 @@ public:
     /// meta::info non-type template parameter.
     Reflection,
 
-    /// The template argument is an indeterminate splice of a reflection, which
-    /// might reflect any of: a type, an expression, or a class template.
-    IndeterminateSplice,
+    /// The template argument is a splice specifier of a reflection, which might
+    /// reflect any of: a type, an expression, or a class template.
+    SpliceSpecifier,
 
     /// The template argument is a non-type template argument that can't be
     /// represented by the special-case Declaration, NullPtr, or Integral
@@ -237,9 +237,8 @@ public:
   TemplateArgument(ASTContext &Ctx, const ReflectionValue &Value,
                    bool IsDefaulted = false);
 
-  /// Construct an indeterminate splice template argument.
-  TemplateArgument(CXXIndeterminateSpliceExpr *Splice,
-                   bool IsDefaulted = false);
+  /// Construct a splice specifier template argument.
+  TemplateArgument(CXXSpliceSpecifierExpr *Splice, bool IsDefaulted = false);
 
   /// Construct an integral constant template argument with the same
   /// value as Other but a different type.
@@ -412,9 +411,9 @@ public:
             (const char *)&ReflectionArg.Value);
   }
 
-  CXXIndeterminateSpliceExpr *getAsIndeterminateSplice() const {
-    assert(getKind() == IndeterminateSplice && "Unexpected kind");
-    return reinterpret_cast<CXXIndeterminateSpliceExpr *>(TypeOrValue.V);
+  CXXSpliceSpecifierExpr *getAsSpliceSpecifier() const {
+    assert(getKind() == SpliceSpecifier && "Unexpected kind");
+    return reinterpret_cast<CXXSpliceSpecifierExpr *>(TypeOrValue.V);
   }
 
   /// Retrieve the type of the integral value.
@@ -595,7 +594,7 @@ public:
     assert(Argument.getKind() == TemplateArgument::NullPtr ||
            Argument.getKind() == TemplateArgument::Integral ||
            Argument.getKind() == TemplateArgument::Reflection ||
-           Argument.getKind() == TemplateArgument::IndeterminateSplice ||
+           Argument.getKind() == TemplateArgument::SpliceSpecifier ||
            Argument.getKind() == TemplateArgument::Declaration ||
            Argument.getKind() == TemplateArgument::StructuralValue ||
            Argument.getKind() == TemplateArgument::Expression);
@@ -658,8 +657,8 @@ public:
     return LocInfo.getAsExpr();
   }
 
-  Expr *getSourceIndeterminateSpliceExpression() const {
-    assert(Argument.getKind() == TemplateArgument::IndeterminateSplice);
+  Expr *getSourceSpliceSpecifierExpression() const {
+    assert(Argument.getKind() == TemplateArgument::SpliceSpecifier);
     return LocInfo.getAsExpr();
   }
 

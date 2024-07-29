@@ -2496,7 +2496,7 @@ CodeGenModule::getMemberPointerConstant(const UnaryOperator *uo) {
   // Member pointer constants always have a very particular form.
   const MemberPointerType *type = cast<MemberPointerType>(uo->getType());
 
-  const Expr *SubExpr = uo->getSubExpr()->IgnoreExprSplices();
+  const Expr *SubExpr = uo->getSubExpr()->IgnoreSplices();
   const ValueDecl *decl = cast<DeclRefExpr>(SubExpr)->getDecl();
 
   // A member function pointer.

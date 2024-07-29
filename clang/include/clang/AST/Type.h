@@ -6918,7 +6918,7 @@ class DependentTemplateSpecializationType : public TypeWithKeyword,
   /// Either the identifier of the template, or a splice expression that
   /// will resolve to the template.
   llvm::PointerIntPair<llvm::PointerUnion<const IdentifierInfo *,
-                                          const CXXIndeterminateSpliceExpr *>,
+                                          const CXXSpliceSpecifierExpr *>,
                        1, bool> Storage;
 
   DependentTemplateSpecializationType(ElaboratedTypeKeyword Keyword,
@@ -6928,7 +6928,7 @@ class DependentTemplateSpecializationType : public TypeWithKeyword,
                                       QualType Canon);
 
   DependentTemplateSpecializationType(ElaboratedTypeKeyword Keyword,
-                                      const CXXIndeterminateSpliceExpr *Splice,
+                                      const CXXSpliceSpecifierExpr *Splice,
                                       ArrayRef<TemplateArgument> Args,
                                       QualType Canon);
 
@@ -6939,7 +6939,7 @@ public:
   const IdentifierInfo *getIdentifier() const;
 
   bool hasSplice() const;
-  const CXXIndeterminateSpliceExpr *getSplice() const;
+  const CXXSpliceSpecifierExpr *getSplice() const;
 
   ArrayRef<TemplateArgument> template_arguments() const {
     return {reinterpret_cast<const TemplateArgument *>(this + 1),
@@ -6970,7 +6970,7 @@ public:
   static void Profile(llvm::FoldingSetNodeID &ID,
                       const ASTContext &Context,
                       ElaboratedTypeKeyword Keyword,
-                      const CXXIndeterminateSpliceExpr *Splice,
+                      const CXXSpliceSpecifierExpr *Splice,
                       ArrayRef<TemplateArgument> Args);
 
   static bool classof(const Type *T) {

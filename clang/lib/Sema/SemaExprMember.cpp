@@ -1246,7 +1246,7 @@ Sema::BuildMemberReferenceExpr(Expr *BaseExpr, QualType BaseExprType,
 
 ExprResult
 Sema::BuildMemberReferenceExpr(Scope *S, Expr *Base, SourceLocation OpLoc,
-                               tok::TokenKind OpKind, CXXExprSpliceExpr *RHS,
+                               tok::TokenKind OpKind, CXXSpliceExpr *RHS,
                                SourceLocation TemplateKWLoc) {
   // Disable access control for the duration of the splice expression
   AccessControlScopeGuard guard {*this, true};
@@ -1335,7 +1335,7 @@ Sema::BuildMemberReferenceExpr(Scope *S, Expr *Base, SourceLocation OpLoc,
 
 ExprResult
 Sema::BuildDependentMemberSpliceExpr(Expr *Base, SourceLocation OpLoc,
-                                     bool IsArrow, CXXExprSpliceExpr *RHS) {
+                                     bool IsArrow, CXXSpliceExpr *RHS) {
   return CXXDependentMemberSpliceExpr::Create(Context, Base, OpLoc, IsArrow,
                                               RHS);
 }
@@ -1900,7 +1900,7 @@ ExprResult Sema::ActOnMemberAccessExpr(Scope *S, Expr *Base,
 ExprResult Sema::ActOnMemberAccessExpr(Scope *S, Expr *Base,
                                        SourceLocation OpLoc,
                                        tok::TokenKind OpKind,
-                                       CXXExprSpliceExpr *RHS,
+                                       CXXSpliceExpr *RHS,
                                        SourceLocation TemplateKWLoc) {
   return BuildMemberReferenceExpr(S, Base, OpLoc, OpKind, RHS, TemplateKWLoc);
 }

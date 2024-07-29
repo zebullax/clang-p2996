@@ -484,13 +484,12 @@ void ASTStmtWriter::VisitCXXMetafunctionExpr(CXXMetafunctionExpr *E) {
   Code = serialization::EXPR_METAFUNCTION;
 }
 
-void ASTStmtWriter::VisitCXXIndeterminateSpliceExpr(
-                                                CXXIndeterminateSpliceExpr *E) {
+void ASTStmtWriter::VisitCXXSpliceSpecifierExpr(CXXSpliceSpecifierExpr *E) {
   VisitExpr(E);
   Code = serialization::EXPR_SPLICE;
 }
 
-void ASTStmtWriter::VisitCXXExprSpliceExpr(CXXExprSpliceExpr *E) {
+void ASTStmtWriter::VisitCXXSpliceExpr(CXXSpliceExpr *E) {
   VisitExpr(E);
   // TODO(P2996): Implement this.
   Code = serialization::EXPR_EXPR_SPLICE;

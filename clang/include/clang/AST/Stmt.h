@@ -1165,9 +1165,9 @@ protected:
     unsigned IsImplicit : 1;
   };
 
-  class CXXExprSpliceExprBitfields {
+  class CXXSpliceExprBitfields {
     friend class ASTStmtReader;
-    friend class CXXExprSpliceExpr;
+    friend class CXXSpliceExpr;
 
     LLVM_PREFERRED_TYPE(ExprBitfields)
     unsigned : NumExprBits;
@@ -1280,7 +1280,7 @@ protected:
     CoawaitExprBitfields CoawaitBits;
 
     // C++ Reflection expressions
-    CXXExprSpliceExprBitfields ExprSpliceExprBits;
+    CXXSpliceExprBitfields SpliceExprBits;
 
     // Obj-C Expressions
     ObjCIndirectCopyRestoreExprBitfields ObjCIndirectCopyRestoreExprBits;

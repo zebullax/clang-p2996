@@ -13927,8 +13927,8 @@ static ValueDecl *getPrimaryDecl(Expr *E) {
     return getPrimaryDecl(cast<ImplicitCastExpr>(E)->getSubExpr());
   case Stmt::CXXUuidofExprClass:
     return cast<CXXUuidofExpr>(E)->getGuidDecl();
-  case Stmt::CXXExprSpliceExprClass:
-    return getPrimaryDecl(cast<CXXExprSpliceExpr>(E)->getOperand());
+  case Stmt::CXXSpliceExprClass:
+    return getPrimaryDecl(cast<CXXSpliceExpr>(E)->getOperand());
   default:
     return nullptr;
   }
@@ -13955,7 +13955,7 @@ static void diagnoseAddressOfInvalidType(Sema &S, SourceLocation Loc,
 bool Sema::CheckUseOfCXXMethodAsAddressOfOperand(SourceLocation OpLoc,
                                                  const Expr *Op,
                                                  const CXXMethodDecl *MD) {
-  Op = Op->IgnoreExprSplices();
+  Op = Op->IgnoreSplices();
   const auto *DRE = cast<DeclRefExpr>(Op->IgnoreParens());
 
   if (Op != DRE)
@@ -13984,7 +13984,7 @@ bool Sema::CheckUseOfCXXMethodAsAddressOfOperand(SourceLocation OpLoc,
 QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
   if (const BuiltinType *PTy = OrigOp.get()->getType()->getAsPlaceholderType()){
     if (PTy->getKind() == BuiltinType::Overload) {
-      Expr *E = OrigOp.get()->IgnoreParens()->IgnoreExprSplices();
+      Expr *E = OrigOp.get()->IgnoreParens()->IgnoreSplices();
       if (!isa<OverloadExpr>(E)) {
         assert(cast<UnaryOperator>(E)->getOpcode() == UO_AddrOf);
         Diag(OpLoc, diag::err_typecheck_invalid_lvalue_addrof_addrof_function)
@@ -14072,7 +14072,7 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
   } else if (isa<ObjCSelectorExpr>(op)) {
     return Context.getPointerType(op->getType());
   } else if (lval == Expr::LV_MemberFunction) {
-    Expr *unwrapped = op->IgnoreExprSplices();
+    Expr *unwrapped = op->IgnoreSplices();
     // If it's an instance method, make a member pointer.
     // The expression must have exactly the form &A::foo.
 
@@ -14167,7 +14167,7 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
     } else if (isa<FunctionTemplateDecl>(dcl)) {
       return Context.OverloadTy;
     } else if (isa<FieldDecl>(dcl) || isa<IndirectFieldDecl>(dcl)) {
-      Expr *unwrapped = op->IgnoreExprSplices();
+      Expr *unwrapped = op->IgnoreSplices();
       // Okay: we can take the address of a field.
       // Could be a pointer to member, though, if there is an explicit
       // scope qualifier for the class.

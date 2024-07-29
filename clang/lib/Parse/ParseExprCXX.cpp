@@ -237,7 +237,7 @@ bool Parser::ParseOptionalCXXScopeSpecifier(
 
     HasScopeSpecifier = true;
   } else if (!HasScopeSpecifier && Tok.is(tok::l_splice)) {
-    if (ParseCXXIndeterminateSplice())
+    if (ParseCXXSpliceSpecifier())
       return true;
 
     {
@@ -270,8 +270,8 @@ bool Parser::ParseOptionalCXXScopeSpecifier(
 
       SourceLocation CCLoc;
       TryConsumeToken(tok::coloncolon, CCLoc);
-      CXXIndeterminateSpliceExpr *SpliceExpr =
-            dyn_cast<CXXIndeterminateSpliceExpr>(Result.get());
+      CXXSpliceSpecifierExpr *SpliceExpr =
+            dyn_cast<CXXSpliceSpecifierExpr>(Result.get());
       if (Actions.ActOnCXXNestedNameSpecifierReflectionSplice(SS, SpliceExpr,
                                                               CCLoc)) {
         SS.SetInvalid(SourceRange(SpliceExpr->getExprLoc(), CCLoc));

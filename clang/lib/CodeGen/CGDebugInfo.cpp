@@ -2384,7 +2384,7 @@ CGDebugInfo::CollectTemplateParams(std::optional<TemplateArgs> OArgs,
     // And the following should never occur:
     case TemplateArgument::TemplateExpansion:
     case TemplateArgument::Null:
-    case TemplateArgument::IndeterminateSplice:
+    case TemplateArgument::SpliceSpecifier:
       llvm_unreachable(
           "These argument types shouldn't exist in concrete types");
     }

@@ -503,12 +503,11 @@ void ASTStmtReader::VisitCXXMetafunctionExpr(CXXMetafunctionExpr *E) {
   llvm_unreachable("unimplemented");
 }
 
-void ASTStmtReader::VisitCXXIndeterminateSpliceExpr(
-                                                CXXIndeterminateSpliceExpr *E) {
+void ASTStmtReader::VisitCXXSpliceSpecifierExpr(CXXSpliceSpecifierExpr *E) {
   llvm_unreachable("unimplemented");
 }
 
-void ASTStmtReader::VisitCXXExprSpliceExpr(CXXExprSpliceExpr *E) {
+void ASTStmtReader::VisitCXXSpliceExpr(CXXSpliceExpr *E) {
   llvm_unreachable("unimplemented");
 }
 

@@ -3084,8 +3084,8 @@ Expr *Expr::IgnoreParenCasts() {
   return IgnoreExprNodes(this, IgnoreParensSingleStep, IgnoreCastsSingleStep);
 }
 
-Expr *Expr::IgnoreExprSplices() {
-  return IgnoreExprNodes(this, IgnoreExprSpliceSingleStep);
+Expr *Expr::IgnoreSplices() {
+  return IgnoreExprNodes(this, IgnoreSpliceSingleStep);
 }
 
 Expr *Expr::IgnoreConversionOperatorSingleStep() {
@@ -3643,8 +3643,8 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case RequiresExprClass:
   case CXXReflectExprClass:
   case CXXMetafunctionExprClass:
-  case CXXIndeterminateSpliceExprClass:
-  case CXXExprSpliceExprClass:
+  case CXXSpliceSpecifierExprClass:
+  case CXXSpliceExprClass:
   case CXXDependentMemberSpliceExprClass:
   case StackLocationExprClass:
   case ExtractLValueExprClass:

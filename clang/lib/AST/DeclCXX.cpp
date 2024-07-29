@@ -3041,13 +3041,13 @@ NamespaceAliasDecl *NamespaceAliasDecl::CreateDeserialized(ASTContext &C,
 void DependentNamespaceDecl::anchor() {}
 
 DependentNamespaceDecl::DependentNamespaceDecl(
-      ASTContext &C, DeclContext *DC, CXXIndeterminateSpliceExpr *SpliceExpr)
+      ASTContext &C, DeclContext *DC, CXXSpliceSpecifierExpr *SpliceExpr)
     : NamespaceDecl(DependentNamespace, C, DC, false, SpliceExpr->getBeginLoc(),
                     SpliceExpr->getBeginLoc(), nullptr, nullptr, false),
       SpliceExpr(SpliceExpr) {}
 
 DependentNamespaceDecl *DependentNamespaceDecl::Create(
-      ASTContext &C, DeclContext *DC, CXXIndeterminateSpliceExpr *SpliceExpr) {
+      ASTContext &C, DeclContext *DC, CXXSpliceSpecifierExpr *SpliceExpr) {
   return new (C, DC) DependentNamespaceDecl(C, DC, SpliceExpr);
 }
 

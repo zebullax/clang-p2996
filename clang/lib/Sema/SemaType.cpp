@@ -1269,8 +1269,8 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   }
 
   case DeclSpec::TST_type_splice: {
-    CXXIndeterminateSpliceExpr *E =
-          dyn_cast<CXXIndeterminateSpliceExpr>(DS.getRepAsExpr());
+    CXXSpliceSpecifierExpr *E =
+          dyn_cast<CXXSpliceSpecifierExpr>(DS.getRepAsExpr());
     assert(E && "Didn't get an expression for type-splice?");
     // TypeQuals handled by caller.
     Result = S.BuildReflectionSpliceType(E->getLSpliceLoc(), E->getOperand(),
@@ -5335,9 +5335,9 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
             ClsType = Context.getElaboratedType(ElaboratedTypeKeyword::None,
                                                 NNSPrefix, ClsType);
           break;
-        case NestedNameSpecifier::IndeterminateSplice: {
-          CXXIndeterminateSpliceExpr *E =
-              const_cast<CXXIndeterminateSpliceExpr *>(NNS->getAsSpliceExpr());
+        case NestedNameSpecifier::Splice: {
+          CXXSpliceSpecifierExpr *E =
+              const_cast<CXXSpliceSpecifierExpr *>(NNS->getAsSpliceExpr());
           TypeResult TR = S.ActOnCXXSpliceExpectingType(E->getLSpliceLoc(), E,
                                                         E->getRSpliceLoc(),
                                                         /*Complain=*/true);

@@ -225,9 +225,9 @@ TemplateArgument::TemplateArgument(ASTContext &Ctx,
   new (ReflectionArg.Value.buffer) ReflectionValue(Value);
 }
 
-TemplateArgument::TemplateArgument(CXXIndeterminateSpliceExpr *Splice,
+TemplateArgument::TemplateArgument(CXXSpliceSpecifierExpr *Splice,
                                    bool IsDefaulted) {
-  TypeOrValue.Kind = IndeterminateSplice;
+  TypeOrValue.Kind = SpliceSpecifier;
   TypeOrValue.IsDefaulted = IsDefaulted;
   TypeOrValue.V = reinterpret_cast<uintptr_t>(Splice);
 }
@@ -340,8 +340,8 @@ TemplateArgumentDependence TemplateArgument::getDependence() const {
   case StructuralValue:
     return TemplateArgumentDependence::None;
 
-  case IndeterminateSplice:
-    return computeFromExpr(getAsIndeterminateSplice());
+  case SpliceSpecifier:
+    return computeFromExpr(getAsSpliceSpecifier());
 
   case Expression:
     return computeFromExpr(getAsExpr());
@@ -383,8 +383,8 @@ bool TemplateArgument::isPackExpansion() const {
   case Expression:
     return isa<PackExpansionExpr>(getAsExpr());
 
-  case IndeterminateSplice:
-    return isa<PackExpansionExpr>(getAsIndeterminateSplice());
+  case SpliceSpecifier:
+    return isa<PackExpansionExpr>(getAsSpliceSpecifier());
   }
 
   llvm_unreachable("Invalid TemplateArgument Kind!");
@@ -408,7 +408,7 @@ QualType TemplateArgument::getNonTypeTemplateArgumentType() const {
   case TemplateArgument::Type:
   case TemplateArgument::Template:
   case TemplateArgument::TemplateExpansion:
-  case TemplateArgument::IndeterminateSplice:
+  case TemplateArgument::SpliceSpecifier:
   case TemplateArgument::Pack:
     return QualType();
 
@@ -476,9 +476,9 @@ void TemplateArgument::Profile(llvm::FoldingSetNodeID &ID,
     getReflectionType().Profile(ID);
     break;
 
-  case IndeterminateSplice:
+  case SpliceSpecifier:
     // TODO(P2996): Revisit this.
-    getAsIndeterminateSplice()->Profile(ID, Context, true);
+    getAsSpliceSpecifier()->Profile(ID, Context, true);
     break;
 
   case Expression:
@@ -519,7 +519,7 @@ bool TemplateArgument::structurallyEquals(const TemplateArgument &Other) const {
     return getReflectionType() == Other.getReflectionType() &&
            getAsReflection() == Other.getAsReflection();
 
-  case IndeterminateSplice:
+  case SpliceSpecifier:
     return false;  // TODO(P2996): Revisit this.
 
   case StructuralValue: {
@@ -560,7 +560,7 @@ TemplateArgument TemplateArgument::getPackExpansionPattern() const {
   case Declaration:
   case Integral:
   case Reflection:
-  case IndeterminateSplice:
+  case SpliceSpecifier:
   case StructuralValue:
   case Pack:
   case Null:
@@ -631,8 +631,8 @@ void TemplateArgument::print(const PrintingPolicy &Policy, raw_ostream &Out,
     printReflection(*this, Out, Policy, IncludeType);
     break;
 
-  case IndeterminateSplice:
-    getAsIndeterminateSplice()->printPretty(Out, nullptr, Policy);
+  case SpliceSpecifier:
+    getAsSpliceSpecifier()->printPretty(Out, nullptr, Policy);
     break;
 
   case Expression:
@@ -694,8 +694,8 @@ SourceRange TemplateArgumentLoc::getSourceRange() const {
   case TemplateArgument::Reflection:
     return getSourceReflectionExpression()->getSourceRange();
 
-  case TemplateArgument::IndeterminateSplice:
-    return getSourceIndeterminateSpliceExpression()->getSourceRange();
+  case TemplateArgument::SpliceSpecifier:
+    return getSourceSpliceSpecifierExpression()->getSourceRange();
 
   case TemplateArgument::StructuralValue:
     return getSourceStructuralValueExpression()->getSourceRange();
@@ -732,7 +732,7 @@ static const T &DiagTemplateArg(const T &DB, const TemplateArgument &Arg) {
     // TODO(P2996): Implement this.
     return DB << "(reflection)";
 
-  case TemplateArgument::IndeterminateSplice:
+  case TemplateArgument::SpliceSpecifier:
     // TODO(P2996): Implement this.
     return DB << "[:reflection-splice:]";
 

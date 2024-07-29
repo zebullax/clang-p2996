@@ -3878,7 +3878,7 @@ private:
   bool ParseTemplateArgumentList(TemplateArgList &TemplateArgs,
                                  TemplateTy Template, SourceLocation OpenLoc);
   ParsedTemplateArgument ParseTemplateTemplateArgument();
-  ParsedTemplateArgument ParseIndeterminateSpliceTemplateArgument();
+  ParsedTemplateArgument ParseSpliceSpecifierTemplateArgument();
   ParsedTemplateArgument ParseTemplateArgument();
   DeclGroupPtrTy ParseExplicitInstantiation(DeclaratorContext Context,
                                             SourceLocation ExternLoc,
@@ -3938,7 +3938,7 @@ private:
   ExprResult ParseCXXReflectExpression();
   ExprResult ParseCXXMetafunctionExpression();
 
-  bool ParseCXXIndeterminateSplice(SourceLocation TemplateKWLoc = {});
+  bool ParseCXXSpliceSpecifier(SourceLocation TemplateKWLoc = {});
 
   TypeResult ParseCXXSpliceAsType(bool AllowDependent, bool Complain);
   ExprResult ParseCXXSpliceAsExpr(bool AllowMemberReference);

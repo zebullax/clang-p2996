@@ -994,7 +994,7 @@ TemplateDeclInstantiator::VisitDependentNamespaceDecl(
   ExprResult ER = SemaRef.SubstExpr(D->getSpliceExpr(), TemplateArgs);
   if (ER.isInvalid())
     return nullptr;
-  auto *Splice = cast<CXXIndeterminateSpliceExpr>(ER.get());
+  auto *Splice = cast<CXXSpliceSpecifierExpr>(ER.get());
   assert(!Splice->isValueDependent());
 
   DeclResult DR =

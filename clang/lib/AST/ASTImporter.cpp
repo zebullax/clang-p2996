@@ -9724,7 +9724,7 @@ ASTImporter::Import(NestedNameSpecifier *FromNNS) {
       return TyOrErr.takeError();
     }
 
-  case NestedNameSpecifier::IndeterminateSplice:
+  case NestedNameSpecifier::Splice:
     llvm_unreachable("unimplemented");
   }
 
@@ -9813,13 +9813,13 @@ ASTImporter::Import(NestedNameSpecifierLoc FromNNS) {
       break;
     }
 
-    case NestedNameSpecifier::IndeterminateSplice: {
+    case NestedNameSpecifier::Splice: {
       auto ToSourceRangeOrErr = Import(NNS.getSourceRange());
       if (!ToSourceRangeOrErr)
         return ToSourceRangeOrErr.takeError();
 
-      Builder.MakeIndeterminateSplice(getToContext(), Spec->getAsSpliceExpr(),
-                                      ToSourceRangeOrErr->getEnd());
+      Builder.MakeSpliceSpecifier(getToContext(), Spec->getAsSpliceExpr(),
+                                  ToSourceRangeOrErr->getEnd());
       break;
     }
   }

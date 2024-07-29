@@ -6423,7 +6423,7 @@ void ASTRecordWriter::AddNestedNameSpecifierLoc(NestedNameSpecifierLoc NNS) {
       AddSourceRange(NNS.getLocalSourceRange());
       break;
 
-    case NestedNameSpecifier::IndeterminateSplice:
+    case NestedNameSpecifier::Splice:
       AddSourceRange(NNS.getLocalSourceRange());
       break;
     }

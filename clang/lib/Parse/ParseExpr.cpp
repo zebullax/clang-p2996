@@ -1691,8 +1691,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
 
   case tok::kw_template: {
     Token Next = NextToken();
-    if (!Next.is(tok::l_splice) ||
-        ParseCXXIndeterminateSplice(ConsumeToken())) {
+    if (!Next.is(tok::l_splice) || ParseCXXSpliceSpecifier(ConsumeToken())) {
       NotCastExpr = true;
       return ExprError();
     }
@@ -2298,9 +2297,8 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
       Expr* OrigLHS = !LHS.isInvalid() ? LHS.get() : nullptr;
       SourceLocation TemplateKWLoc;
 
-      if (Tok.is(tok::kw_template) && NextToken().is(tok::l_splice)) {
-        ParseCXXIndeterminateSplice(ConsumeToken());
-      }
+      if (Tok.is(tok::kw_template) && NextToken().is(tok::l_splice))
+        ParseCXXSpliceSpecifier(ConsumeToken());
 
       PreferredType.enterMemAccess(Actions, Tok.getLocation(), OrigLHS);
 
@@ -2396,7 +2394,7 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
         if (!Res.isInvalid() && !Diags.hasErrorOccurred()) {
           LHS = Actions.ActOnMemberAccessExpr(
                 getCurScope(), LHS.get(), OpLoc, OpKind,
-                cast<CXXExprSpliceExpr>(Res.get()), TemplateKWLoc);
+                cast<CXXSpliceExpr>(Res.get()), TemplateKWLoc);
           if (!LHS.isInvalid() && Tok.is(tok::less))
             checkPotentialAngleBracket(LHS);
           break;

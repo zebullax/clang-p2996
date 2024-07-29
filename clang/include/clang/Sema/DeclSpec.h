@@ -176,17 +176,16 @@ public:
                  SourceLocation SuperLoc, SourceLocation ColonColonLoc);
 
   /// Turns this (empty) nested-name-specifier into a specifier having a single
-  /// component of indeterminate splice kind.
+  /// component of splice specifier kind.
   ///
   /// \param Context The AST context in which this nested-name-specifier
   /// resides.
   ///
-  /// \param Expr The splice expression.
+  /// \param Expr The splice specifier.
   ///
   /// \param ColonColonLoc The location of the trailing '::'.
-  void MakeIndeterminateSplice(ASTContext &Context,
-                               CXXIndeterminateSpliceExpr *Expr,
-                               SourceLocation ColonColonLoc);
+  void MakeSpliceSpecifier(ASTContext &Context, CXXSpliceSpecifierExpr *Expr,
+                           SourceLocation ColonColonLoc);
 
   /// Make a new nested-name-specifier from incomplete source-location
   /// information.

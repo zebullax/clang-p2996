@@ -149,9 +149,9 @@ inline Expr *IgnoreParensOnlySingleStep(Expr *E) {
   return E;
 }
 
-inline Expr *IgnoreExprSpliceSingleStep(Expr *E) {
-  if (auto *ESE = dyn_cast<CXXExprSpliceExpr>(E))
-    return ESE->getOperand();
+inline Expr *IgnoreSpliceSingleStep(Expr *E) {
+  if (auto *SE = dyn_cast<CXXSpliceExpr>(E))
+    return SE->getOperand();
   return E;
 }
 

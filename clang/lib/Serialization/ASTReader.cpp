@@ -9411,11 +9411,11 @@ ASTRecordReader::readNestedNameSpecifierLoc() {
       break;
     }
 
-    case NestedNameSpecifier::IndeterminateSplice: {
-      CXXIndeterminateSpliceExpr *Expr =
-            reinterpret_cast<CXXIndeterminateSpliceExpr *>(readExpr());
+    case NestedNameSpecifier::Splice: {
+      CXXSpliceSpecifierExpr *Expr =
+            reinterpret_cast<CXXSpliceSpecifierExpr *>(readExpr());
       SourceLocation ColonColonLoc = readSourceLocation();
-      Builder.MakeIndeterminateSplice(Context, Expr, ColonColonLoc);
+      Builder.MakeSpliceSpecifier(Context, Expr, ColonColonLoc);
       break;
     }
     }

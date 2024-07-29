@@ -629,8 +629,8 @@ Sema::ActOnPackExpansion(const ParsedTemplateArgument &Arg,
 
     return Arg.getTemplatePackExpansion(EllipsisLoc);
 
-  case ParsedTemplateArgument::IndeterminateSplice: {
-    ExprResult Result = ActOnPackExpansion(Arg.getAsIndeterminateSplice(),
+  case ParsedTemplateArgument::SpliceSpecifier: {
+    ExprResult Result = ActOnPackExpansion(Arg.getAsSpliceSpecifier(),
                                            EllipsisLoc);
     if (Result.isInvalid())
       return ParsedTemplateArgument();
@@ -1200,7 +1200,7 @@ TemplateArgumentLoc Sema::getTemplateArgumentPackExpansionPattern(
     Ellipsis = Expansion->getEllipsisLoc();
     NumExpansions = Expansion->getNumExpansions();
 
-    if (auto *S = dyn_cast<CXXIndeterminateSpliceExpr>(Pattern))
+    if (auto *S = dyn_cast<CXXSpliceSpecifierExpr>(Pattern))
       return TemplateArgumentLoc(S, S);
 
     return TemplateArgumentLoc(Pattern, Pattern);
@@ -1223,7 +1223,7 @@ TemplateArgumentLoc Sema::getTemplateArgumentPackExpansionPattern(
   case TemplateArgument::Null:
     return TemplateArgumentLoc();
 
-  case TemplateArgument::IndeterminateSplice:
+  case TemplateArgument::SpliceSpecifier:
     llvm_unreachable("pack of splices should be Expression type");
   }
 

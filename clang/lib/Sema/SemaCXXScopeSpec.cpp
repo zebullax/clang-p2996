@@ -165,7 +165,7 @@ DeclContext *Sema::computeDeclContext(const CXXScopeSpec &SS,
   case NestedNameSpecifier::Super:
     return NNS->getAsRecordDecl();
 
-  case NestedNameSpecifier::IndeterminateSplice:
+  case NestedNameSpecifier::Splice:
     return TryFindDeclContextOf(NNS->getAsSpliceExpr());
   }
 
@@ -882,9 +882,9 @@ bool Sema::ActOnCXXNestedNameSpecifier(Scope *S,
       T = Context.getDependentTemplateSpecializationType(
             ElaboratedTypeKeyword::None, DTN->getQualifier(),
             DTN->getIdentifier(), TemplateArgs.arguments());
-    else if (DTN->isIndeterminateSplice())
+    else if (DTN->isSpliceSpecifier())
       T = Context.getDependentTemplateSpecializationType(
-            ElaboratedTypeKeyword::None, DTN->getIndeterminateSplice(),
+            ElaboratedTypeKeyword::None, DTN->getSpliceSpecifier(),
             TemplateArgs.arguments());
 
     // Create source-location information for this type.
@@ -1027,7 +1027,7 @@ bool Sema::ShouldEnterDeclaratorScope(Scope *S, const CXXScopeSpec &SS) {
   case NestedNameSpecifier::TypeSpec:
   case NestedNameSpecifier::TypeSpecWithTemplate:
   case NestedNameSpecifier::Super:
-  case NestedNameSpecifier::IndeterminateSplice:
+  case NestedNameSpecifier::Splice:
     // These are never namespace scopes.
     return true;
   }

@@ -8390,11 +8390,11 @@ public:
   /// Visit a metafunction evaluation (P2996).
   bool VisitCXXMetafunctionExpr(const CXXMetafunctionExpr *E);
 
-  bool VisitCXXIndeterminateSpliceExpr(const CXXIndeterminateSpliceExpr *E) {
+  bool VisitCXXSpliceSpecifierExpr(const CXXSpliceSpecifierExpr *E) {
     return this->Visit(E->getOperand());
   }
 
-  bool VisitCXXExprSpliceExpr(const CXXExprSpliceExpr *E) {
+  bool VisitCXXSpliceExpr(const CXXSpliceExpr *E) {
     return this->Visit(E->getOperand());
   }
 
@@ -10342,7 +10342,7 @@ bool MemberPointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
 bool MemberPointerExprEvaluator::VisitUnaryAddrOf(const UnaryOperator *E) {
   // C++11 [expr.unary.op]p3 has very strict rules on how the address of a
   // member can be formed.
-  Expr *SubExpr = E->getSubExpr()->IgnoreExprSplices();
+  Expr *SubExpr = E->getSubExpr()->IgnoreSplices();
   return Success(cast<DeclRefExpr>(SubExpr)->getDecl());
 }
 
@@ -15937,8 +15937,8 @@ public:
 
   bool VisitCXXReflectExpr(const CXXReflectExpr *E);
   bool VisitCXXMetafunctionExpr(const CXXMetafunctionExpr *E);
-  bool VisitCXXIndeterminateSpliceExpr(const CXXIndeterminateSpliceExpr *E);
-  bool VisitCXXExprSpliceExpr(const CXXExprSpliceExpr *E);
+  bool VisitCXXSpliceSpecifierExpr(const CXXSpliceSpecifierExpr *E);
+  bool VisitCXXSpliceExpr(const CXXSpliceExpr *E);
 };
 
 bool ReflectionEvaluator::VisitCXXReflectExpr(const CXXReflectExpr *E) {
@@ -15951,13 +15951,13 @@ bool ReflectionEvaluator::VisitCXXMetafunctionExpr(
   return BaseType::VisitCXXMetafunctionExpr(E);
 }
 
-bool ReflectionEvaluator::VisitCXXIndeterminateSpliceExpr(
-                                          const CXXIndeterminateSpliceExpr *E) {
-  return BaseType::VisitCXXIndeterminateSpliceExpr(E);
+bool ReflectionEvaluator::VisitCXXSpliceSpecifierExpr(
+                                              const CXXSpliceSpecifierExpr *E) {
+  return BaseType::VisitCXXSpliceSpecifierExpr(E);
 }
 
-bool ReflectionEvaluator::VisitCXXExprSpliceExpr(const CXXExprSpliceExpr *E) {
-  return BaseType::VisitCXXExprSpliceExpr(E);
+bool ReflectionEvaluator::VisitCXXSpliceExpr(const CXXSpliceExpr *E) {
+  return BaseType::VisitCXXSpliceExpr(E);
 }
 }  // end anonymous namespace
 
@@ -16759,8 +16759,8 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CXXNoexceptExprClass:
   case Expr::CXXReflectExprClass:
   case Expr::CXXMetafunctionExprClass:
-  case Expr::CXXIndeterminateSpliceExprClass:
-  case Expr::CXXExprSpliceExprClass:
+  case Expr::CXXSpliceSpecifierExprClass:
+  case Expr::CXXSpliceExprClass:
   case Expr::StackLocationExprClass:
   case Expr::ExtractLValueExprClass:
   case Expr::CXXExpansionInitListExprClass:
