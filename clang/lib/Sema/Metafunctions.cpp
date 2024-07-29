@@ -2648,7 +2648,8 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     if (Synthesized->getType().getCanonicalType().getTypePtr() !=
         ResultTy.getCanonicalType().getTypePtr())
       return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
-          << (Synthesized->isLValue() ? 1 : 0) << ReturnsLValue << ResultTy;
+          << (Synthesized->isLValue() ? 1 : 0) << RV.getResultType()
+          << ReturnsLValue << ResultTy << Range;
 
     return !Evaluator(Result, Synthesized, !ReturnsLValue);
   }
@@ -2670,14 +2671,16 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
                                             Range.getEnd(), Synthesized);
       if (ER.isInvalid())
         return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
-            << (Synthesized->isLValue() ? 1 : 0) << ReturnsLValue << ResultTy;
+            << (Synthesized->isLValue() ? 1 : 0) << RV.getResultType()
+            << ReturnsLValue << ResultTy << Range;
       Synthesized = ER.get();
     }
 
     if (Synthesized->getType().getCanonicalType().getTypePtr() !=
         ResultTy.getCanonicalType().getTypePtr())
       return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
-          << (Synthesized->isLValue() ? 1 : 0) << ReturnsLValue << ResultTy;
+          << (Synthesized->isLValue() ? 1 : 0) << RV.getResultType()
+          << ReturnsLValue << ResultTy << Range;
 
     return !Evaluator(Result, Synthesized, true);
   }
@@ -2699,7 +2702,7 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
         if (RawResultTy.getCanonicalType().getTypePtr() !=
             Decl->getType().getCanonicalType().getTypePtr())
           return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
-              << 1 << Decl->getType() << 1 << ResultTy;
+              << 1 << Decl->getType() << 1 << ResultTy << Range;
 
         NestedNameSpecifierLocBuilder NNSLocBuilder;
         if (auto *ParentClsDecl = dyn_cast_or_null<CXXRecordDecl>(
@@ -2722,7 +2725,7 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
         if (ResultTy.getCanonicalType().getTypePtr() !=
             Decl->getType().getCanonicalType().getTypePtr())
           return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
-              << 0 << Decl->getType() << ReturnsLValue << ResultTy;
+              << 0 << Decl->getType() << ReturnsLValue << ResultTy << Range;
 
         Synthesized = ExtractLValueExpr::Create(S.Context, Range, ResultTy,
                                                 Decl);
