@@ -244,9 +244,14 @@ bool Parser::ParseOptionalCXXScopeSpecifier(
       TentativeParsingAction TPA(*this);
       if (NextToken().is(tok::less) &&
           ParseTemplateAnnotationFromSplice(/*TemplateKWLoc=*/SourceLocation(),
-                                            false, false, /*Complain=*/false)) {
+                                            false, false,
+                                            /*Complain=*/IsTypename)) {
         TPA.Revert();
-        return true;
+
+        // Revert, but do not raise an error unless this follows a 'typename':
+        // This could otherwise be an expression within a comparison, e.g.,
+        //   if ([:x:] < 5)
+        return IsTypename;
       }
 
       if (!NextToken().is(tok::coloncolon)) {
