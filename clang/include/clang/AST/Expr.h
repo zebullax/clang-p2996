@@ -2345,6 +2345,11 @@ public:
     return getTrailingFPFeatures();
   }
 
+  /// Get the store FPOptionsOverride or default if not stored.
+  FPOptionsOverride getStoredFPFeaturesOrDefault() const {
+    return hasStoredFPFeatures() ? getStoredFPFeatures() : FPOptionsOverride();
+  }
+
 protected:
   /// Set FPFeatures in trailing storage, used by Serialization & ASTImporter.
   void setStoredFPFeatures(FPOptionsOverride F) { getTrailingFPFeatures() = F; }
@@ -3108,6 +3113,11 @@ public:
     *getTrailingFPFeatures() = F;
   }
 
+  /// Get the store FPOptionsOverride or default if not stored.
+  FPOptionsOverride getStoredFPFeaturesOrDefault() const {
+    return hasStoredFPFeatures() ? getStoredFPFeatures() : FPOptionsOverride();
+  }
+
   /// Get the FP features status of this operator. Only meaningful for
   /// operations on floating point types.
   FPOptions getFPFeaturesInEffect(const LangOptions &LO) const {
@@ -3604,6 +3614,11 @@ public:
     return *getTrailingFPFeatures();
   }
 
+  /// Get the store FPOptionsOverride or default if not stored.
+  FPOptionsOverride getStoredFPFeaturesOrDefault() const {
+    return hasStoredFPFeatures() ? getStoredFPFeatures() : FPOptionsOverride();
+  }
+
   /// Get the FP features status of this operation. Only meaningful for
   /// operations on floating point types.
   FPOptions getFPFeaturesInEffect(const LangOptions &LO) const {
@@ -4049,6 +4064,10 @@ public:
   void setStoredFPFeatures(FPOptionsOverride F) {
     assert(BinaryOperatorBits.HasFPFeatures);
     *getTrailingFPFeatures() = F;
+  }
+  /// Get the store FPOptionsOverride or default if not stored.
+  FPOptionsOverride getStoredFPFeaturesOrDefault() const {
+    return hasStoredFPFeatures() ? getStoredFPFeatures() : FPOptionsOverride();
   }
 
   /// Get the FP features status of this operator. Only meaningful for
