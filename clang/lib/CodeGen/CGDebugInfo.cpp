@@ -2272,17 +2272,6 @@ CGDebugInfo::CollectTemplateParams(std::optional<TemplateArgs> OArgs,
           TheCU, Name, TTy, defaultParameter,
           llvm::ConstantInt::get(CGM.getLLVMContext(), TA.getAsIntegral())));
     } break;
-    case TemplateArgument::Reflection: {
-      TemplateParams.push_back(
-          DBuilder.createTemplateValueParameter(
-              TheCU, Name,
-              getOrCreateType(CGM.getContext().MetaInfoTy, Unit),
-              defaultParameter,
-              llvm::ConstantInt::get(
-                  llvm::IntegerType::get(CGM.getLLVMContext(), sizeof(uintptr_t)),
-                  reinterpret_cast<uintptr_t>(
-                      TA.getAsReflection().getOpaqueValue()))));
-    } break;
     case TemplateArgument::Declaration: {
       const ValueDecl *D = TA.getAsDecl();
       QualType T = TA.getParamTypeForDecl().getDesugaredType(CGM.getContext());
@@ -5546,7 +5535,6 @@ bool CGDebugInfo::HasReconstitutableArgs(
       // probably feasible some day.
       return TA.getAsIntegral().getBitWidth() <= 64 &&
              IsReconstitutableType(TA.getIntegralType());
-    case TemplateArgument::Reflection:
     case TemplateArgument::StructuralValue:
       return false;
     case TemplateArgument::Type:

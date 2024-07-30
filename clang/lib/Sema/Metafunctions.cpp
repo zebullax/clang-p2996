@@ -948,13 +948,6 @@ static APValue getNthTemplateArgument(Sema &S,
     }
     case TemplateArgument::Template:
       return makeReflection(templArgument.getAsTemplate());
-    case TemplateArgument::Reflection: {
-      const ReflectionValue& asReflection = templArgument.getAsReflection();
-      ReflectionValue RV(ReflectionValue::RK_value,
-                         new (S.Context) APValue(asReflection),
-                         S.Context.MetaInfoTy);
-      return APValue(RV);
-    }
     case TemplateArgument::Declaration:
       return makeReflection(templArgument.getAsDecl());
     case TemplateArgument::Pack:
@@ -2343,18 +2336,13 @@ static TemplateArgument TArgFromReflection(Sema &S, EvalFn Evaluator,
   case ReflectionValue::RK_type:
     return RV.getAsType().getCanonicalType();
   case ReflectionValue::RK_object: {
-    Expr *OVE = new (S.Context) OpaqueValueExpr(Loc, RV.getResultType(),
-                                                VK_LValue);
-    Expr *CE = ConstantExpr::Create(S.Context, OVE, RV.getAsObject());
-    return TemplateArgument(CE);
+    QualType RefTy = S.Context.getLValueReferenceType(RV.getResultType());
+    return TemplateArgument(S.Context, RefTy, RV.getAsObject(), false);
   }
   case ReflectionValue::RK_value: {
     if (RV.getResultType()->isIntegralOrEnumerationType())
       return TemplateArgument(S.Context, RV.getAsValue().getInt(),
                               RV.getResultType().getCanonicalType());
-
-    if(RV.getResultType()->isReflectionType())
-      return TemplateArgument(S.Context, RV.getAsValue().getReflection());
 
     return TemplateArgument(S.Context, RV.getResultType(), RV.getAsValue(),
                             false);
@@ -2373,7 +2361,7 @@ static TemplateArgument TArgFromReflection(Sema &S, EvalFn Evaluator,
       return TemplateArgument(S.Context, R.getInt(),
                               Synthesized->getType().getCanonicalType());
     else if(Synthesized->getType()->isReflectionType())
-      return TemplateArgument(S.Context, R.getReflection());
+      return TemplateArgument(S.Context, S.Context.MetaInfoTy, R);
     else
       return TemplateArgument(Synthesized);
     break;

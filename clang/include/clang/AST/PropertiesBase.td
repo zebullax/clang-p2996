@@ -906,17 +906,6 @@ let Class = PropertyTypeCase<TemplateArgument, "Integral"> in {
     return TemplateArgument(ctx, value, type, isDefaulted);
   }]>;
 }
-let Class = PropertyTypeCase<TemplateArgument, "Reflection"> in {
-  def : Property<"value", ReflectionValue> {
-    let Read = [{ node.getAsReflection() }];
-  }
-  def : Property<"isDefaulted", Bool> {
-    let Read = [{ node.getIsDefaulted() }];
-  }
-  def : Creator<[{
-    return TemplateArgument(ctx, value, isDefaulted);
-  }]>;
-}
 let Class = PropertyTypeCase<TemplateArgument, "SpliceSpecifier"> in {
   def : Property<"value", CXXSpliceSpecifierExprRef> {
     let Read = [{ node.getAsSpliceSpecifier() }];

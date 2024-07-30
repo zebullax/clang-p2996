@@ -6246,10 +6246,6 @@ void CXXNameMangler::mangleTemplateArg(TemplateArgument A, bool NeedExactType) {
   case TemplateArgument::Integral:
     mangleIntegerLiteral(A.getIntegralType(), A.getAsIntegral());
     break;
-  case TemplateArgument::Reflection: {
-    mangleReflection(A.getAsReflection());
-    break;
-  }
   case TemplateArgument::Declaration: {
     //  <expr-primary> ::= L <mangled-name> E # external name
     ValueDecl *D = A.getAsDecl();

@@ -3800,7 +3800,6 @@ static bool isTemplateArgumentTemplateParameter(
   case TemplateArgument::Null:
   case TemplateArgument::NullPtr:
   case TemplateArgument::Integral:
-  case TemplateArgument::Reflection:
   case TemplateArgument::SpliceSpecifier:
   case TemplateArgument::Declaration:
   case TemplateArgument::StructuralValue:
@@ -5113,7 +5112,6 @@ bool Sema::CheckTemplateArgument(
 
     case TemplateArgument::Declaration:
     case TemplateArgument::Integral:
-    case TemplateArgument::Reflection:
     case TemplateArgument::SpliceSpecifier:
     case TemplateArgument::StructuralValue:
     case TemplateArgument::NullPtr:
@@ -5288,7 +5286,6 @@ bool Sema::CheckTemplateArgument(
 
   case TemplateArgument::Declaration:
   case TemplateArgument::Integral:
-  case TemplateArgument::Reflection:
   case TemplateArgument::StructuralValue:
   case TemplateArgument::NullPtr:
     llvm_unreachable("non-type argument with template template parameter");
@@ -6843,14 +6840,6 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
     if (Value.isAddrLabelDiff())
       return Diag(StartLoc, diag::err_non_type_template_arg_addr_label_diff);
 
-    if (ParamType->isReflectionType()) {
-      SugaredConverted = TemplateArgument(Context, Value.getReflection());
-      CanonicalConverted = TemplateArgument(Context, Value.getReflection());
-
-      return ArgResult.get();
-    }
-
-
     SugaredConverted = TemplateArgument(Context, ParamType, Value);
     CanonicalConverted = TemplateArgument(Context, CanonParamType, Value);
     return ArgResult.get();
@@ -7488,20 +7477,6 @@ BuildExpressionFromReflection(Sema &S, const ReflectionValue &RV,
   return CXXReflectExpr::Create(S.Context, Loc, SourceRange {Loc, Loc}, RV);
 }
 
-/// Construct a new expression that refers to the given reflection template
-/// argument with the given source-location information.
-///
-/// This routine takes care of the mapping from an integral template argument
-/// (which may have any integral type) to the appropriate literal value.
-ExprResult
-Sema::BuildExpressionFromReflectionTemplateArgument(const TemplateArgument &Arg,
-                                                    SourceLocation Loc) {
-  assert(Arg.getKind() == TemplateArgument::Reflection &&
-       "Operation is only valid for reflection template arguments");
-
-  return BuildExpressionFromReflection(*this, Arg.getAsReflection(), Loc);
-}
-
 static Expr *BuildExpressionFromNonTypeTemplateArgumentValue(
     Sema &S, QualType T, const APValue &Val, SourceLocation Loc) {
   auto MakeInitList = [&](ArrayRef<Expr *> Elts) -> Expr * {
@@ -7606,9 +7581,6 @@ Sema::BuildExpressionFromNonTypeTemplateArgument(const TemplateArgument &Arg,
   case TemplateArgument::Integral:
     return BuildExpressionFromIntegralTemplateArgumentValue(
         *this, Arg.getIntegralType(), Arg.getAsIntegral(), Loc);
-
-  case TemplateArgument::Reflection:
-    return BuildExpressionFromReflectionTemplateArgument(Arg, Loc);
 
   case TemplateArgument::SpliceSpecifier:
     return Arg.getAsSpliceSpecifier();

@@ -7331,7 +7331,6 @@ ASTContext::getCanonicalTemplateArgument(const TemplateArgument &Arg) const {
     case TemplateArgument::Integral:
       return TemplateArgument(Arg, getCanonicalType(Arg.getIntegralType()));
 
-    case TemplateArgument::Reflection:
     case TemplateArgument::SpliceSpecifier:
       return Arg;
 

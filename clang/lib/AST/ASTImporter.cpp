@@ -807,10 +807,6 @@ ASTNodeImporter::import(const TemplateArgument &From) {
     return TemplateArgument(From, *ToTypeOrErr);
   }
 
-  case TemplateArgument::Reflection: {
-    return TemplateArgument(From, Importer.getToContext().MetaInfoTy);
-  }
-
   case TemplateArgument::Declaration: {
     Expected<ValueDecl *> ToOrErr = import(From.getAsDecl());
     if (!ToOrErr)
@@ -3647,8 +3643,6 @@ private:
       return false;
     case TemplateArgument::Integral:
       return CheckType(Arg.getIntegralType());
-    case TemplateArgument::Reflection:
-      return CheckType(ParentDC->getParentASTContext().MetaInfoTy);
     case TemplateArgument::Type:
       return CheckType(Arg.getAsType());
     case TemplateArgument::Expression:

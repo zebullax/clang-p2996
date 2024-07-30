@@ -681,9 +681,6 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     return llvm::APSInt::isSameValue(Arg1.getAsIntegral(),
                                      Arg2.getAsIntegral());
 
-  case TemplateArgument::Reflection:
-    return Arg1.getAsReflection() == Arg2.getAsReflection();
-
   case TemplateArgument::SpliceSpecifier:
     return Arg1.getAsSpliceSpecifier() == Arg2.getAsSpliceSpecifier();
 

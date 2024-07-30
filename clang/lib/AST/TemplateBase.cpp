@@ -139,22 +139,6 @@ static void printIntegral(const TemplateArgument &TemplArg, raw_ostream &Out,
     Out << Val;
 }
 
-/// Print a template reflection argument value.
-///
-/// \param TemplArg the TemplateArgument instance to print.
-///
-/// \param Out the raw_ostream instance to use for printing.
-///
-/// \param Policy the printing policy for EnumConstantDecl printing.
-///
-/// \param IncludeType If set, ensure that the type of the expression printed
-/// matches the type of the template argument.
-static void printReflection(const TemplateArgument &TemplArg, raw_ostream &Out,
-                            const PrintingPolicy &Policy, bool IncludeType) {
-  // TODO(P2996): Implement this.
-  Out << "(reflection)";
-}
-
 static unsigned getArrayDepth(QualType type) {
   unsigned count = 0;
   while (const auto *arrayType = type->getAsArrayTypeUnsafe()) {
@@ -214,15 +198,6 @@ void TemplateArgument::initFromIntegral(const ASTContext &Ctx,
   }
 
   Integer.Type = Type.getAsOpaquePtr();
-}
-
-TemplateArgument::TemplateArgument(ASTContext &Ctx,
-                                   const ReflectionValue &Value,
-                                   bool IsDefaulted) {
-  ReflectionArg.Kind = Reflection;
-  ReflectionArg.IsDefaulted = IsDefaulted;
-  ReflectionArg.Type = Ctx.MetaInfoTy.getAsOpaquePtr();
-  new (ReflectionArg.Value.buffer) ReflectionValue(Value);
 }
 
 TemplateArgument::TemplateArgument(CXXSpliceSpecifierExpr *Splice,
@@ -336,7 +311,6 @@ TemplateArgumentDependence TemplateArgument::getDependence() const {
 
   case NullPtr:
   case Integral:
-  case Reflection:
   case StructuralValue:
     return TemplateArgumentDependence::None;
 
@@ -367,7 +341,6 @@ bool TemplateArgument::isPackExpansion() const {
   case Null:
   case Declaration:
   case Integral:
-  case Reflection:
   case StructuralValue:
   case Pack:
   case Template:
@@ -414,9 +387,6 @@ QualType TemplateArgument::getNonTypeTemplateArgumentType() const {
 
   case TemplateArgument::Integral:
     return getIntegralType();
-
-  case TemplateArgument::Reflection:
-    return getReflectionType();
 
   case TemplateArgument::Expression:
     return getAsExpr()->getType();
@@ -471,11 +441,6 @@ void TemplateArgument::Profile(llvm::FoldingSetNodeID &ID,
     getAsStructuralValue().Profile(ID);
     break;
 
-  case Reflection:
-    getAsReflection().Profile(ID);
-    getReflectionType().Profile(ID);
-    break;
-
   case SpliceSpecifier:
     // TODO(P2996): Revisit this.
     getAsSpliceSpecifier()->Profile(ID, Context, true);
@@ -514,10 +479,6 @@ bool TemplateArgument::structurallyEquals(const TemplateArgument &Other) const {
   case Integral:
     return getIntegralType() == Other.getIntegralType() &&
            getAsIntegral() == Other.getAsIntegral();
-
-  case Reflection:
-    return getReflectionType() == Other.getReflectionType() &&
-           getAsReflection() == Other.getAsReflection();
 
   case SpliceSpecifier:
     return false;  // TODO(P2996): Revisit this.
@@ -559,7 +520,6 @@ TemplateArgument TemplateArgument::getPackExpansionPattern() const {
 
   case Declaration:
   case Integral:
-  case Reflection:
   case SpliceSpecifier:
   case StructuralValue:
   case Pack:
@@ -627,10 +587,6 @@ void TemplateArgument::print(const PrintingPolicy &Policy, raw_ostream &Out,
     printIntegral(*this, Out, Policy, IncludeType);
     break;
 
-  case Reflection:
-    printReflection(*this, Out, Policy, IncludeType);
-    break;
-
   case SpliceSpecifier:
     getAsSpliceSpecifier()->printPretty(Out, nullptr, Policy);
     break;
@@ -691,9 +647,6 @@ SourceRange TemplateArgumentLoc::getSourceRange() const {
   case TemplateArgument::Integral:
     return getSourceIntegralExpression()->getSourceRange();
 
-  case TemplateArgument::Reflection:
-    return getSourceReflectionExpression()->getSourceRange();
-
   case TemplateArgument::SpliceSpecifier:
     return getSourceSpliceSpecifierExpression()->getSourceRange();
 
@@ -728,13 +681,9 @@ static const T &DiagTemplateArg(const T &DB, const TemplateArgument &Arg) {
   case TemplateArgument::Integral:
     return DB << toString(Arg.getAsIntegral(), 10);
 
-  case TemplateArgument::Reflection:
-    // TODO(P2996): Implement this.
-    return DB << "(reflection)";
-
   case TemplateArgument::SpliceSpecifier:
     // TODO(P2996): Implement this.
-    return DB << "[:reflection-splice:]";
+    return DB << "[:splice-specifier:]";
 
   case TemplateArgument::StructuralValue: {
     // FIXME: We're guessing at LangOptions!

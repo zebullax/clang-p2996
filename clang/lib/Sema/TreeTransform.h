@@ -4022,7 +4022,6 @@ public:
 
     case TemplateArgument::Null:
     case TemplateArgument::Integral:
-    case TemplateArgument::Reflection:
     case TemplateArgument::Declaration:
     case TemplateArgument::StructuralValue:
     case TemplateArgument::Pack:
@@ -4800,7 +4799,6 @@ bool TreeTransform<Derived>::TransformTemplateArgument(
     llvm_unreachable("Unexpected TemplateArgument");
 
   case TemplateArgument::Integral:
-  case TemplateArgument::Reflection:
   case TemplateArgument::NullPtr:
   case TemplateArgument::Declaration:
   case TemplateArgument::StructuralValue: {
@@ -4826,10 +4824,6 @@ bool TreeTransform<Derived>::TransformTemplateArgument(
     else if (Arg.getKind() == TemplateArgument::Integral)
       Output = TemplateArgumentLoc(
           TemplateArgument(getSema().Context, Arg.getAsIntegral(), NewT),
-          TemplateArgumentLocInfo());
-    else if (Arg.getKind() == TemplateArgument::Reflection)
-      Output = TemplateArgumentLoc(
-          TemplateArgument(getSema().Context, Arg.getAsReflection()),
           TemplateArgumentLocInfo());
     else if (Arg.getKind() == TemplateArgument::NullPtr)
       Output = TemplateArgumentLoc(TemplateArgument(NewT, /*IsNullPtr=*/true),

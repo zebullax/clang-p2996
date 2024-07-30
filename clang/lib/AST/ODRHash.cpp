@@ -188,9 +188,6 @@ void ODRHash::AddTemplateArgument(TemplateArgument TA) {
       TA.getAsIntegral().Profile(ID);
       break;
     }
-    case TemplateArgument::Reflection:
-      TA.getAsReflection().Profile(ID);
-      break;
     case TemplateArgument::StructuralValue:
       AddQualType(TA.getStructuralValueType());
       AddStructuralValue(TA.getAsStructuralValue());

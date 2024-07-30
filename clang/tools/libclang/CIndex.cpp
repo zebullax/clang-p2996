@@ -1568,7 +1568,6 @@ bool CursorVisitor::VisitTemplateArgumentLoc(const TemplateArgumentLoc &TAL) {
   switch (TAL.getArgument().getKind()) {
   case TemplateArgument::Null:
   case TemplateArgument::Integral:
-  case TemplateArgument::Reflection:
   case TemplateArgument::Pack:
     return false;
 

@@ -6099,7 +6099,6 @@ void ASTRecordWriter::AddTemplateArgumentLocInfo(
     break;
   case TemplateArgument::Null:
   case TemplateArgument::Integral:
-  case TemplateArgument::Reflection:
   case TemplateArgument::Declaration:
   case TemplateArgument::NullPtr:
   case TemplateArgument::StructuralValue:

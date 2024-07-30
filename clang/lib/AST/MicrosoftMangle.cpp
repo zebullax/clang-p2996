@@ -1828,10 +1828,6 @@ void MicrosoftCXXNameMangler::mangleTemplateArg(const TemplateDecl *TD,
                          cast<NonTypeTemplateParmDecl>(Parm), T);
     break;
   }
-  case TemplateArgument::Reflection: {
-    mangleReflection(TA.getAsReflection());
-    break;
-  }
   case TemplateArgument::NullPtr: {
     QualType T = TA.getNullPtrType();
     if (const MemberPointerType *MPT = T->getAs<MemberPointerType>()) {

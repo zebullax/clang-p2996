@@ -11829,10 +11829,6 @@ public:
   BuildExpressionFromNonTypeTemplateArgument(const TemplateArgument &Arg,
                                              SourceLocation Loc);
 
-  ExprResult
-  BuildExpressionFromReflectionTemplateArgument(const TemplateArgument &Arg,
-                                                SourceLocation Loc);
-
   /// Enumeration describing how template parameter lists are compared
   /// for equality.
   enum TemplateParameterListEqualKind {
