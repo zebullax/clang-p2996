@@ -2201,7 +2201,10 @@ void CXXNameMangler::manglePrefix(NestedNameSpecifier *qualifier) {
     return;
   }
   case NestedNameSpecifier::Splice:
-    llvm_unreachable("should not get this far");
+    Out << "s";
+    mangleExpression(qualifier->getAsSpliceExpr()->getOperand());
+    Out << "E";
+    return;
   }
 
   llvm_unreachable("unexpected nested name specifier");
