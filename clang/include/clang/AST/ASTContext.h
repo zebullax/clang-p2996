@@ -324,6 +324,13 @@ class ASTContext : public RefCountedBase<ASTContext> {
   /// This is lazily created.  This is intentionally not serialized.
   mutable llvm::StringMap<StringLiteral *> StringLiteralCache;
 
+  /// A cache mapping a string value to a VarDecl object holding a generated
+  /// immutable character array containing the same string.
+  ///
+  /// This is lazily created.  This is intentionally not serialized.
+  mutable llvm::StringMap<VarDecl *> GenCharArrayCache;
+  mutable llvm::StringMap<VarDecl *> GenUTF8CharArrayCache;
+
   /// MD5 hash of CUID. It is calculated when first used and cached by this
   /// data member.
   mutable std::string CUIDHash;
@@ -3246,6 +3253,10 @@ public:
   /// function declaration or file name. Used by SourceLocExpr and
   /// PredefinedExpr to cache evaluated results.
   StringLiteral *getPredefinedStringLiteralFromCache(StringRef Key) const;
+
+  /// Return a variable whose holding a generated immutable character array
+  /// containing the same string.
+  VarDecl *getGeneratedCharArray(StringRef Key, bool IsUtf8);
 
   /// Return a declaration for the global GUID object representing the given
   /// GUID value.

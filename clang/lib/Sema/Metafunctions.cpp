@@ -644,7 +644,8 @@ static APValue makeReflection(TagDataMemberSpec *TDMS) {
   return APValue(RV);
 }
 
-static Expr *makeCString(StringRef Str, ASTContext &C, bool Utf8) {
+static Expr *makeCString(StringRef Str, ASTContext &C, bool Utf8,
+                         bool CastToPtr) {
   QualType ConstCharTy = (Utf8 ? C.Char8Ty : C.CharTy).withConst();
 
   // Get the type for 'const char[Str.size()]'.
@@ -655,14 +656,18 @@ static Expr *makeCString(StringRef Str, ASTContext &C, bool Utf8) {
   // Create a string literal having type 'const char [Str.size()]'.
   StringLiteralKind SLK = Utf8 ? StringLiteralKind::UTF8 :
                                  StringLiteralKind::Ordinary;
-  StringLiteral *StrLit = StringLiteral::Create(C, Str, SLK, false, StrLitTy,
-                                                SourceLocation{});
+  Expr *Synthesized = StringLiteral::Create(C, Str, SLK, false, StrLitTy,
+                                            SourceLocation{});
 
-  // Create an expression to implicitly cast the literal to 'const char *'.
-  QualType ConstCharPtrTy = C.getPointerType(ConstCharTy);
-  return ImplicitCastExpr::Create(C, ConstCharPtrTy, CK_ArrayToPointerDecay,
-                                  StrLit, /*BasePath=*/nullptr, VK_PRValue,
-                                  FPOptionsOverride());
+  if (CastToPtr) {
+    // Create an expression to implicitly cast the literal to 'const char *'.
+    QualType ConstCharPtrTy = C.getPointerType(ConstCharTy);
+    Synthesized = ImplicitCastExpr::Create(C, ConstCharPtrTy,
+                                           CK_ArrayToPointerDecay, Synthesized,
+                                           /*BasePath=*/nullptr, VK_PRValue,
+                                           FPOptionsOverride());
+  }
+  return Synthesized;
 }
 
 static bool SetAndSucceed(APValue &Out, const APValue &Result) {
@@ -1823,7 +1828,9 @@ bool identifier_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     return Diagnoser(Range.getBegin(), diag::metafn_anonymous_entity)
         << DescriptionOf(R.getReflection()) << Range;
 
-  return !Evaluator(Result, makeCString(Name, S.Context, IsUtf8), true);
+  return !Evaluator(Result,
+                    makeCString(Name, S.Context, IsUtf8, /*CastToPtr=*/true),
+                    true);
 }
 
 bool has_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
@@ -5286,7 +5293,21 @@ bool define_static_string(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
   bool IsUtf8 = Scratch.getInt().getBoolValue();
 
-  return !Evaluator(Result, makeCString(Contents, S.Context, IsUtf8), true);
+  VarDecl *AnonArr = S.Context.getGeneratedCharArray(Contents, IsUtf8);
+  if (!AnonArr->hasInit()) {
+    Expr *StrLit = makeCString(Contents, S.Context, IsUtf8,
+                               /*CastToPtr=*/false);
+
+    AnonArr->setConstexpr(true);
+    S.AddInitializerToDecl(AnonArr, StrLit, false);
+
+    S.GeneratedDecl.push_back(AnonArr);
+  }
+  assert(AnonArr->getFormalLinkage() == Linkage::Internal);
+
+  APValue::LValuePathEntry Path[1] = {APValue::LValuePathEntry::ArrayIndex(0)};
+  return SetAndSucceed(Result,
+                       APValue(AnonArr, CharUnits::Zero(), Path, false));
 }
 
 bool get_ith_parameter_of(APValue &Result, Sema &S, EvalFn Evaluator,

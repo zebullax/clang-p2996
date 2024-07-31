@@ -12895,6 +12895,26 @@ ASTContext::getPredefinedStringLiteralFromCache(StringRef Key) const {
   return Result;
 }
 
+VarDecl *
+ASTContext::getGeneratedCharArray(StringRef Key, bool Utf8) {
+  auto &Cache = Utf8 ? GenUTF8CharArrayCache : GenCharArrayCache;
+  VarDecl *&Result = Cache[Key];
+  if (!Result) {
+    std::string Name;
+    {
+      llvm::raw_string_ostream NameOut(Name);
+      NameOut << "__gen_char_array_" << Cache.size();
+    }
+
+    QualType CharGenTy = Utf8 ? Char8Ty : CharTy;
+    QualType LitTy = getStringLiteralArrayType(CharGenTy, Key.size());
+
+    Result = VarDecl::Create(*this, TUDecl, SourceLocation(), SourceLocation(),
+                             &Idents.get(Name), LitTy, nullptr, SC_Static);
+  }
+  return Result;
+}
+
 MSGuidDecl *
 ASTContext::getMSGuidDecl(MSGuidDecl::Parts Parts) const {
   assert(MSGuidTagDecl && "building MS GUID without MS extensions?");
