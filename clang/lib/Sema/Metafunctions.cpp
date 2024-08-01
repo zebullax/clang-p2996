@@ -34,6 +34,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
+#include <iostream>
 
 
 namespace clang {
@@ -646,8 +647,7 @@ static APValue makeReflection(TagDataMemberSpec *TDMS) {
   return APValue(RV);
 }
 
-static Expr *makeCString(StringRef Str, ASTContext &C, bool Utf8,
-                         bool CastToPtr) {
+static Expr *makeStrLiteral(StringRef Str, ASTContext &C, bool Utf8) {
   QualType ConstCharTy = (Utf8 ? C.Char8Ty : C.CharTy).withConst();
 
   // Get the type for 'const char[Str.size()]'.
@@ -658,18 +658,7 @@ static Expr *makeCString(StringRef Str, ASTContext &C, bool Utf8,
   // Create a string literal having type 'const char [Str.size()]'.
   StringLiteralKind SLK = Utf8 ? StringLiteralKind::UTF8 :
                                  StringLiteralKind::Ordinary;
-  Expr *Synthesized = StringLiteral::Create(C, Str, SLK, false, StrLitTy,
-                                            SourceLocation{});
-
-  if (CastToPtr) {
-    // Create an expression to implicitly cast the literal to 'const char *'.
-    QualType ConstCharPtrTy = C.getPointerType(ConstCharTy);
-    Synthesized = ImplicitCastExpr::Create(C, ConstCharPtrTy,
-                                           CK_ArrayToPointerDecay, Synthesized,
-                                           /*BasePath=*/nullptr, VK_PRValue,
-                                           FPOptionsOverride());
-  }
-  return Synthesized;
+  return StringLiteral::Create(C, Str, SLK, false, StrLitTy, SourceLocation{});
 }
 
 static bool SetAndSucceed(APValue &Out, const APValue &Result) {
@@ -1830,9 +1819,11 @@ bool identifier_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     return Diagnoser(Range.getBegin(), diag::metafn_anonymous_entity)
         << DescriptionOf(R.getReflection()) << Range;
 
-  return !Evaluator(Result,
-                    makeCString(Name, S.Context, IsUtf8, /*CastToPtr=*/true),
-                    true);
+  Expr *StrLit = makeStrLiteral(Name, S.Context, IsUtf8);
+
+  APValue::LValuePathEntry Path[1] = {APValue::LValuePathEntry::ArrayIndex(0)};
+  return SetAndSucceed(Result,
+                       APValue(StrLit, CharUnits::Zero(), Path, false));
 }
 
 bool has_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
@@ -2631,6 +2622,31 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     ResultTy = LVRT->getPointeeType();
   }
 
+  auto extractLambda = [&](APValue &Out, CXXRecordDecl *RD) -> bool {
+    // Lambdas with captures are not structural types; should not be possible
+    // to get a reflection to a value of such a type.
+    assert(RD->isCapturelessLambda());
+
+    CXXMethodDecl *CallOp = RD->getLambdaStaticInvoker();
+    QualType LambdaPtrTy = S.Context.getPointerType(CallOp->getType());
+
+    if (LambdaPtrTy.getCanonicalType().getTypePtr() !=
+        ResultTy.getCanonicalType().getTypePtr())
+      return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
+          << 0 << QualType(RD->getTypeForDecl(), 0) << 0 << ResultTy << Range;
+
+    // If not already done, generate a fake body for the call-operator.
+    // The real body is generated during CodeGen.
+    if (!CallOp->hasBody()) {
+      CallOp->markUsed(S.Context);
+      CallOp->setReferenced();
+      CallOp->setBody(new (S.Context) CompoundStmt(Range.getBegin()));
+    }
+
+    APValue CallOpLV(CallOp, CharUnits::Zero(), APValue::NoLValuePath());
+    return SetAndSucceed(Out, CallOpLV);
+  };
+
   APValue R;
   if (!Evaluator(R, Args[1], true))
     return true;
@@ -2638,59 +2654,39 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   ReflectionValue RV = R.getReflection();
   switch (RV.getKind()) {
   case ReflectionValue::RK_object: {
-    Expr *OVE = new (S.Context) OpaqueValueExpr(Range.getBegin(),
-                                                RV.getResultType(), VK_LValue);
-    Expr *Synthesized = ConstantExpr::Create(S.Context, OVE, RV.getAsObject());
-
-    if (Synthesized->getType().getCanonicalType().getTypePtr() !=
+    if (RV.getResultType().getCanonicalType().getTypePtr() !=
         ResultTy.getCanonicalType().getTypePtr())
       return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
-          << (Synthesized->isLValue() ? 1 : 0) << RV.getResultType()
-          << ReturnsLValue << ResultTy << Range;
+          << 1 << RV.getResultType() << ReturnsLValue << ResultTy << Range;
 
-    return !Evaluator(Result, Synthesized, !ReturnsLValue);
+    return SetAndSucceed(Result, RV.getAsObject());
   }
   case ReflectionValue::RK_value: {
     if (ReturnsLValue)
       return Diagnoser(Range.getBegin(), diag::metafn_cannot_extract)
           << 1 << DescriptionOf(RV) << Range;
 
-    Expr *OVE = new (S.Context) OpaqueValueExpr(Range.getBegin(),
-                                                RV.getResultType(),
-                                                VK_PRValue);
-    Expr *Synthesized = ConstantExpr::Create(S.Context, OVE, RV.getAsValue());
+    if (auto *RD = RV.getResultType()->getAsCXXRecordDecl();
+        RD && RD->isLambda() && ResultTy->isPointerType())
+      return extractLambda(Result, RD);
 
-    if (auto *RD = dyn_cast_or_null<RecordDecl>(
-            Synthesized->getType()->getAsCXXRecordDecl());
-        RD && RD->isLambda() && ResultTy->isPointerType()) {
-      TypeSourceInfo *TSI = S.Context.CreateTypeSourceInfo(ResultTy, 0);
-      ExprResult ER = S.BuildCStyleCastExpr(Range.getBegin(), TSI,
-                                            Range.getEnd(), Synthesized);
-      if (ER.isInvalid())
-        return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
-            << (Synthesized->isLValue() ? 1 : 0) << RV.getResultType()
-            << ReturnsLValue << ResultTy << Range;
-      Synthesized = ER.get();
-    }
-
-    if (Synthesized->getType().getCanonicalType().getTypePtr() !=
+    if (RV.getResultType().getCanonicalType().getTypePtr() !=
         ResultTy.getCanonicalType().getTypePtr())
       return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
-          << (Synthesized->isLValue() ? 1 : 0) << RV.getResultType()
-          << ReturnsLValue << ResultTy << Range;
+          << 0 << RV.getResultType() << ReturnsLValue << ResultTy << Range;
 
-    return !Evaluator(Result, Synthesized, true);
+    return SetAndSucceed(Result, RV.getAsValue());
   }
   case ReflectionValue::RK_declaration: {
     ValueDecl *Decl = R.getReflectedDecl();
     ensureInstantiated(S, Decl, Args[1]->getSourceRange());
 
-    bool isLambda = false;
-    if (auto *RD = Decl->getType()->getAsCXXRecordDecl())
-        isLambda = RD->isLambda();
+    if (auto *RD = Decl->getType()->getAsCXXRecordDecl();
+        RD && RD->isLambda() && ResultTy->isPointerType())
+      return extractLambda(Result, RD);
 
-    Expr *Synthesized;
-    if (isa<VarDecl, TemplateParamObjectDecl>(Decl) && !isLambda) {
+    if (isa<VarDecl, TemplateParamObjectDecl>(Decl)) {
+      Expr *Synthesized;
       if (isa<LValueReferenceType>(Decl->getType().getCanonicalType())) {
         // We have a reflection of an object with reference type.
         // Synthesize a 'DeclRefExpr' designating the object, such that constant
@@ -2727,6 +2723,12 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
         Synthesized = ExtractLValueExpr::Create(S.Context, Range, ResultTy,
                                                 Decl);
       }
+
+      if (Synthesized->getType().getCanonicalType().getTypePtr() !=
+          ResultTy.getCanonicalType().getTypePtr())
+        return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
+            << 0 << Decl->getType() << ReturnsLValue << ResultTy << Range;
+      return !Evaluator(Result, Synthesized, !ReturnsLValue);
     } else if (isa<BindingDecl>(Decl)) {
       return Diagnoser(Range.getBegin(),
                        diag::metafn_extract_structured_binding) << Range;
@@ -2735,69 +2737,42 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
       // Only variables may be returned as LValues.
       return Diagnoser(Range.getBegin(), diag::metafn_cannot_extract)
           << 1 << DescriptionOf(R.getReflection());
+    } else if (isa<FieldDecl, CXXMethodDecl>(Decl)) {
+      // Extracting a non-static member as a pointer.
+      if (auto *FD = dyn_cast<FieldDecl>(Decl); FD && FD->isBitField())
+        return Diagnoser(Range.getBegin(), diag::metafn_cannot_extract) << 2
+            << DescriptionOf(R.getReflection()) << Range;
+
+      auto *ParentTy = cast<RecordDecl>(
+              Decl->getDeclContext())->getTypeForDecl();
+      QualType MemPtrTy = S.Context.getMemberPointerType(Decl->getType(),
+                                                         ParentTy);
+      if (MemPtrTy.getCanonicalType().getTypePtr() !=
+          ResultTy.getCanonicalType().getTypePtr())
+        return Diagnoser(Range.getBegin(),
+                         diag::metafn_extract_entity_type_mismatch)
+            << ResultTy << DescriptionOf(R.getReflection()) << MemPtrTy
+            << Range;
+
+      APValue MemPtrLV(Decl, false, ArrayRef<const CXXRecordDecl *> {});
+      return SetAndSucceed(Result, MemPtrLV);
+    } else if (auto *ECD = dyn_cast<EnumConstantDecl>(Decl)) {
+      if (ECD->getType().getCanonicalType().getTypePtr() !=
+          ResultTy.getCanonicalType().getTypePtr())
+        return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
+            << 2 << Decl->getType() << 0 << ResultTy << Range;
+
+      return SetAndSucceed(Result, APValue(ECD->getInitVal()));
     } else {
-      // We have a reflection of a non-variable entity (either a field,
-      // function, enumerator, or lambda).
-      NestedNameSpecifierLocBuilder NNSLocBuilder;
-      if (auto *ParentClsDecl = dyn_cast_or_null<CXXRecordDecl>(
-              Decl->getDeclContext())) {
-        TypeSourceInfo *TSI = S.Context.CreateTypeSourceInfo(
-                QualType(ParentClsDecl->getTypeForDecl(), 0), 0);
-        NNSLocBuilder.Extend(S.Context, Range.getBegin(), TSI->getTypeLoc(),
-                             Range.getBegin());
-      }
+      QualType FnPtrTy = S.Context.getPointerType(Decl->getType());
+      if (FnPtrTy.getCanonicalType().getTypePtr() !=
+          ResultTy.getCanonicalType().getTypePtr())
+        return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
+            << 0 << Decl->getType() << ReturnsLValue << ResultTy << Range;
 
-      ExprValueKind VK = VK_LValue;
-      if (isa<CXXMethodDecl>(Decl))
-        VK = VK_PRValue;
-
-      Synthesized = DeclRefExpr::Create(S.Context, NNSLocBuilder.getTemporary(),
-                                        SourceLocation(), Decl, false,
-                                        Range.getBegin(), Decl->getType(), VK,
-                                        Decl, nullptr);
-
-      if (isa<FieldDecl>(Decl) || isa<FunctionDecl>(Decl)) {
-        if (auto *FD = dyn_cast<FieldDecl>(Decl); FD && FD->isBitField())
-          return Diagnoser(Range.getBegin(), diag::metafn_cannot_extract)
-              << 2 << DescriptionOf(R.getReflection()) << Range;
-
-        ExprResult ER = S.CreateBuiltinUnaryOp(Range.getBegin(), UO_AddrOf,
-                                               Synthesized, true);
-        if (ER.isInvalid())
-          llvm_unreachable("could not build address-of expression");
-        Synthesized = ER.get();
-
-        if (Synthesized->getType().getCanonicalType().getTypePtr() !=
-            ResultTy.getCanonicalType().getTypePtr())
-          return Diagnoser(Range.getBegin(),
-                           diag::metafn_extract_entity_type_mismatch)
-              << ResultTy << DescriptionOf(R.getReflection())
-              << Synthesized->getType() << Range;
-        return !Evaluator(Result, Synthesized, !ReturnsLValue);
-      }
-
-      if (isa<EnumConstantDecl>(Decl)) {
-        Synthesized = ImplicitCastExpr::Create(
-              S.Context, Synthesized->getType(), CK_IntegralCast, Synthesized,
-              /*BasePath=*/nullptr, VK_PRValue, FPOptionsOverride());
-      } else if (isLambda && ResultTy->isPointerType()) {
-        TypeSourceInfo *TSI = S.Context.CreateTypeSourceInfo(ResultTy, 0);
-        ExprResult ER = S.BuildCStyleCastExpr(Range.getBegin(), TSI,
-                                              Range.getEnd(), Synthesized);
-        if (ER.isInvalid())
-          return true;
-
-        Synthesized = ER.get();
-      }
+      return SetAndSucceed(Result, APValue(Decl, CharUnits::Zero(),
+                           APValue::NoLValuePath()));
     }
-
-    if (Synthesized->getType().getCanonicalType().getTypePtr() !=
-        ResultTy.getCanonicalType().getTypePtr())
-      return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
-          << (isa<EnumConstantDecl>(Decl) ? 2 : 0) << Decl->getType()
-          << ReturnsLValue << ResultTy << Range;
-
-    return !Evaluator(Result, Synthesized, !ReturnsLValue);
   }
   case ReflectionValue::RK_null:
   case ReflectionValue::RK_type:
@@ -5297,8 +5272,7 @@ bool define_static_string(APValue &Result, Sema &S, EvalFn Evaluator,
 
   VarDecl *AnonArr = S.Context.getGeneratedCharArray(Contents, IsUtf8);
   if (!AnonArr->hasInit()) {
-    Expr *StrLit = makeCString(Contents, S.Context, IsUtf8,
-                               /*CastToPtr=*/false);
+    Expr *StrLit = makeStrLiteral(Contents, S.Context, IsUtf8);
 
     AnonArr->setConstexpr(true);
     S.AddInitializerToDecl(AnonArr, StrLit, false);

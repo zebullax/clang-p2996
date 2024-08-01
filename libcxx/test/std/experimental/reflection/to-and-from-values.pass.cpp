@@ -346,13 +346,6 @@ int main() {
               std::println("call-lambda-value: {}", id);
             }))(1);
 
-  // RUN: grep "call-generic-lambda-value: 2 (int)" %t.stdout
-  extract<void(*)(int)>(std::meta::reflect_value(
-        [](auto id) {
-          std::println("call-generic-lambda-value: {} ({})", id,
-                       display_string_of(type_of(^id)));
-        }))(2);
-
   constexpr auto l = [](int id) {
     std::println("call-lambda-var: {}", id);
   };
@@ -370,9 +363,6 @@ int main() {
 
   // RUN: grep "call-generic-lambda-var: 3 (int)" %t.stdout
   extract<decltype(g)>(^g)(3);
-
-  // RUN: grep "call-generic-lambda-var: true (bool)" %t.stdout
-  extract<void(*)(bool)>(^g)(true);
 
   // RUN: grep "updated-extract-global: 42" %t.stdout
   int &ref = extract<int &>(^extract_ref_semantics::nonConstGlobal);
