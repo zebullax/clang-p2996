@@ -13,8 +13,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/APValue.h"
+#include "clang/AST/ASTConsumer.h"
 #include "clang/AST/CXXInheritance.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclGroup.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecordLayout.h"
@@ -5301,7 +5303,8 @@ bool define_static_string(APValue &Result, Sema &S, EvalFn Evaluator,
     AnonArr->setConstexpr(true);
     S.AddInitializerToDecl(AnonArr, StrLit, false);
 
-    S.GeneratedDecl.push_back(AnonArr);
+    DeclGroupRef DG(AnonArr);
+    S.Consumer.HandleTopLevelDecl(DG);
   }
   assert(AnonArr->getFormalLinkage() == Linkage::Internal);
 
