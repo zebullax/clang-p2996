@@ -511,16 +511,9 @@ consteval auto __workaround_expand_compiler_builtins(info type) -> info;
 
 namespace __range_of_infos {
 
-constexpr struct always_true_fn {
-  consteval bool operator()(info) {
-    return true;
-  }
-} always_true;
-
 struct sentinel {};
 
-template <typename Front, typename Next, typename Map,
-          typename Pred = always_true_fn>
+template <typename Front, typename Next, typename Map>
 class iterator {
   static constexpr Front m_front = { };
   static constexpr Next m_next = { };
@@ -532,14 +525,8 @@ class iterator {
   // m_currInfoItr can be either ^int, ^double and ^string
   info m_currInfoItr{^sentinel};
 
-  Pred m_pred;
   Map m_mapFn;
   size_t m_nextIndex {0};
-
-  consteval void advance() {
-    while ((m_currInfoItr != ^sentinel) && !m_pred(m_mapFn(m_currInfoItr)))
-      m_currInfoItr = m_next(m_currInfoItr, m_reflectedEntity, m_nextIndex++);
-  }
 
 public:
   using value_type = info;
@@ -547,22 +534,17 @@ public:
   using pointer = info;
   using difference_type = ptrdiff_t;
   using iterator_category = forward_iterator_tag;
-  using filter_type = Pred;
 
-  consteval iterator(Pred pred)
+  consteval iterator()
     : m_currInfoItr{^sentinel}
-    , m_pred{pred}
     , m_mapFn{}
   { }
 
-  consteval iterator(meta::info reflectedEntity, Pred pred)
+  consteval iterator(meta::info reflectedEntity)
     : m_reflectedEntity{reflectedEntity}
     , m_currInfoItr{m_front(reflectedEntity)}
-    , m_pred{pred}
     , m_nextIndex{1} // after we fetch the front, next index is 1
-  {
-    advance();
-  }
+  { }
 
   consteval info operator*() const {
     return m_mapFn(m_currInfoItr);
@@ -571,7 +553,6 @@ public:
   // pre-incr ++itr;
   consteval iterator operator++() {
     m_currInfoItr = m_next(m_currInfoItr, m_reflectedEntity, m_nextIndex++);
-    advance();
     return *this;
   }
 
@@ -580,10 +561,6 @@ public:
     iterator tmp = *this;
     operator++();
     return tmp;
-  }
-
-  consteval Pred filter() const {
-    return m_pred;
   }
 
   consteval friend bool operator==(iterator a, iterator b) {
@@ -602,10 +579,9 @@ class range {
 
 public:
   using iterator = Iter;
-  using filter_type = typename Iter::filter_type;
 
-  consteval range(info reflection, filter_type pred = {})
-    : m_first(reflection, pred) , m_last(pred)
+  consteval range(info reflection)
+    : m_first(reflection), m_last()
   { }
 
   consteval iterator begin() const
@@ -619,9 +595,9 @@ public:
   }
 };
 
-template <typename Front, typename Next, typename Map, typename Pred>
-consteval ptrdiff_t distance(iterator<Front, Next, Map, Pred> first,
-                             iterator<Front, Next, Map, Pred> last) {
+template <typename Front, typename Next, typename Map>
+consteval ptrdiff_t distance(iterator<Front, Next, Map> first,
+                             iterator<Front, Next, Map> last) {
   ptrdiff_t n = 0;
   for (; first != last; ++first)
     ++n;
@@ -848,10 +824,9 @@ consteval auto members_of(info r) -> vector<info> {
   using iterator =
       __range_of_infos::iterator<__range_of_infos::front_member_of_fn,
                                  __range_of_infos::next_member_of_fn,
-                                 __range_of_infos::map_decl_to_entity_fn,
-                                 __range_of_infos::always_true_fn>;
+                                 __range_of_infos::map_decl_to_entity_fn>;
   using range = __range_of_infos::range<iterator>;
-  auto rng = range{r, __range_of_infos::always_true};
+  auto rng = range{r};
   return vector<info>{rng.begin(), rng.end()};
 }
 
@@ -867,10 +842,9 @@ consteval auto bases_of(info r) -> vector<info> {
   using iterator =
     __range_of_infos::iterator<__range_of_infos::front_base_of_fn,
                                 __range_of_infos::next_base_of_fn,
-                                __range_of_infos::map_identity_fn,
-                                __range_of_infos::always_true_fn>;
+                                __range_of_infos::map_identity_fn>;
   using range = __range_of_infos::range<iterator>;
-  auto rng = range{r, __range_of_infos::always_true};
+  auto rng = range{r};
   return vector<info>{rng.begin(), rng.end()};
 }
 
