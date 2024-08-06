@@ -1071,23 +1071,36 @@ static bool ensureDeclared(Sema &S, QualType QT, SourceLocation SpecLoc) {
 
 static bool isReflectableDecl(ASTContext &C, const Decl *D) {
   assert(D && "null declaration");
-  if (isa<AccessSpecDecl>(D) || isa<EmptyDecl>(D) || isa<FriendDecl>(D))
-    return false;
+
   if (isa<NamespaceAliasDecl>(D))
     return true;
+
+  if (!isa<VarDecl, FunctionDecl, TypeDecl, FieldDecl, TemplateDecl,
+           NamespaceDecl, NamespaceAliasDecl, TranslationUnitDecl>(D))
+    return false;
+
   if (auto *Class = dyn_cast<CXXRecordDecl>(D))
     if (Class->isInjectedClassName())
       return false;
-  if (isa<StaticAssertDecl>(D))
-    return false;
 
   return D->getCanonicalDecl() == D;
 }
 
 /// Filter non-reflectable members.
 static Decl *findIterableMember(ASTContext &C, Decl *D, bool Inclusive) {
-  if (!D || (Inclusive && isReflectableDecl(C, D)))
+  if (!D)
     return D;
+
+  if (Inclusive) {
+    if (isReflectableDecl(C, D))
+      return D;
+
+    // Handle the case where the first Decl is a LinkageSpecDecl.
+    if (auto *LSDecl = dyn_cast_or_null<LinkageSpecDecl>(D)) {
+      Decl *RecD = findIterableMember(C, *LSDecl->decls_begin(), true);
+      if (RecD) return RecD;
+    }
+  }
 
   do {
     DeclContext *DC = D->getDeclContext();
@@ -1100,17 +1113,30 @@ static Decl *findIterableMember(ASTContext &C, Decl *D, bool Inclusive) {
     // declarations whose DeclContext is different from the previous Decl;
     // otherwise, we may inadvertently break the chain of redeclarations in
     // difficult to predit ways.
-    D = D->getNextDeclInContext();
-    while (D && D->getDeclContext() != DC)
-       D = D->getNextDeclInContext();
+    do {
+      D = D->getNextDeclInContext();
+    } while (D && D->getDeclContext() != DC);
 
+    // In the case of namespaces, walk the redeclaration chain.
     if (auto *NSDecl = dyn_cast<NamespaceDecl>(DC)) {
       while (!D && NSDecl) {
         NSDecl = NSDecl->getPreviousDecl();
         D = NSDecl ? *NSDecl->decls_begin() : nullptr;
       }
     }
+
+    // We need to recursively descend into LinkageSpecDecls to iterate over the
+    // members declared therein (e.g., `extern "C"` blocks).
+    if (auto *LSDecl = dyn_cast_or_null<LinkageSpecDecl>(D)) {
+      Decl *RecD = findIterableMember(C, *LSDecl->decls_begin(), true);
+      if (RecD) return RecD;
+    }
+
+    // Pop back out of a recursively entered LinkageSpecDecl.
+    if (!D && isa<LinkageSpecDecl>(DC))
+      return findIterableMember(C, cast<Decl>(DC), false);
   } while (D && !isReflectableDecl(C, D));
+
   return D;
 }
 
