@@ -155,12 +155,16 @@ void fn();
 struct Cls {};
 using Alias = int;
 
-template <typename T> class TCls {};
+template <typename T1, typename T2> class TCls {};
 template <typename T> void TFn() {}
 ;  // Empty declarations should not be represented in 'members_of'.
-template <typename T> int TVar = 0;
+template <typename T1, typename T2> int TVar = 0;
 template <typename T> using TAlias = int;
 template <typename T> concept Concept = requires { true; };
+
+// Partial specializations are not representable in P2996.
+template <typename T2> class TCls<int, T2> {};
+template <typename T2> int TVar<int, T2> = 1;
 
 }  // namespace myns
 

@@ -1081,6 +1081,10 @@ static bool isReflectableDecl(ASTContext &C, const Decl *D) {
     if (Class->isInjectedClassName())
       return false;
 
+  if (isa<ClassTemplatePartialSpecializationDecl,
+          VarTemplatePartialSpecializationDecl>(D))
+    return false;
+
   return D->getCanonicalDecl() == D;
 }
 
