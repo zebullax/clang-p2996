@@ -503,6 +503,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_public },
   { Metafunction::MFRK_bool, 1, 1, is_protected },
   { Metafunction::MFRK_bool, 1, 1, is_private },
+  { Metafunction::MFRK_metaInfo, 0, 0, access_context },
   { Metafunction::MFRK_bool, 1, 2, is_accessible },
   { Metafunction::MFRK_bool, 1, 1, is_virtual },
   { Metafunction::MFRK_bool, 1, 1, is_pure_virtual },
@@ -572,9 +573,6 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_sizeT, 1, 1, bit_size_of },
   { Metafunction::MFRK_sizeT, 1, 1, alignment_of },
   { Metafunction::MFRK_spliceFromArg, 5, 5, define_static_string },
-
-  // Proposed alternative P2996 accessibility API
-  { Metafunction::MFRK_metaInfo, 0, 0, access_context },
 
   // P3096 metafunction extensions
   { Metafunction::MFRK_metaInfo, 3, 3, get_ith_parameter_of },
@@ -2935,6 +2933,8 @@ bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
 
   DeclContext *AccessDC = nullptr;
   switch (Scratch.getReflectionKind()) {
+  case ReflectionKind::Null:
+    return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionKind::Type:
     AccessDC = dyn_cast<DeclContext>(findTypeDecl(Scratch.getReflectedType()));
     if (!AccessDC)
