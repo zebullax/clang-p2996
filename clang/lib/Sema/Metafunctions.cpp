@@ -2245,6 +2245,9 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     } else if (auto *TPOD = dyn_cast<TemplateParamObjectDecl>(Decl)) {
       Value = TPOD->getValue();
       QT = TPOD->getType();
+    } else {
+      return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
+          << 2 << DescriptionOf(RV) << Range;
     }
 
     QualType ValueTy = S.ComputeResultType(QT, Value);
