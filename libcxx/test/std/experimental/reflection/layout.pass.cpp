@@ -56,9 +56,14 @@ static_assert(offset_of(^BitField::bf3) == std::meta::member_offsets{1, 0});
 static_assert(offset_of(^BitField::bf4) == std::meta::member_offsets{1, 3});
 static_assert(bit_size_of(^BitField::bf1) == 1);
 static_assert(bit_size_of(^BitField::bf2) == 2);
-static_assert(bit_size_of(nonstatic_data_members_of(^BitField)[2]) == 0);
+static_assert(bit_size_of((members_of(^BitField) |
+                  std::views::filter(std::meta::is_bit_field) |
+                  std::ranges::to<std::vector>())[2]) == 0);
 static_assert(bit_size_of(^BitField::bf3) == 3);
 static_assert(bit_size_of(^BitField::bf4) == 3);
+
+// unnamed bitfield not included.
+static_assert(nonstatic_data_members_of(^BitField).size() == 4);
 static_assert(size_of(^BitField) == 4);
 
 

@@ -34,7 +34,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
-#include <iostream>
 
 
 namespace clang {
@@ -3580,7 +3579,11 @@ bool is_nonstatic_data_member(APValue &Result, Sema &S, EvalFn Evaluator,
 
   bool result = false;
   if (RV.isReflectedDecl()) {
-    result = isa<const FieldDecl>(RV.getReflectedDecl());
+    if (auto *FD = dyn_cast<FieldDecl>(RV.getReflectedDecl())) {
+      // Unnamed bit-fields are not members, but just about every other field
+      // should be a nonstatic data member.
+      result = (!FD->isBitField() || FD->getIdentifier());
+    }
   }
   return SetAndSucceed(Result, makeBool(S.Context, result));
 }
