@@ -15287,6 +15287,7 @@ public:
 
   QualType ComputeResultType(QualType ExprTy, const APValue &V);
 
+  const CXXMetafunctionExpr::ImplFn &getMetafunctionCb(unsigned FnID);
 
 private:
   // Lambdas having bound references to this Sema object, used to evaluate

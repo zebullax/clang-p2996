@@ -159,6 +159,10 @@ public:
     Record->push_back(Value);
   }
 
+  void writeChar(char Value) {
+    Record->push_back(Value);
+  }
+
   void writeUInt32(uint32_t Value) {
     Record->push_back(Value);
   }

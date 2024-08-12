@@ -287,23 +287,34 @@ ExprResult Sema::ActOnCXXMetafunction(SourceLocation KwLoc,
   // Find or build a 'std::function' having a lambda with the 'Sema' object
   // (i.e., 'this') and the 'Metafunction' both captured. This will be provided
   // as a callback to evaluate the metafunction at constant evaluation time.
-  auto ImplIt = MetafunctionImplCbs.find(FnID);
-  if (ImplIt == MetafunctionImplCbs.end()) {
-    auto MetafnImpl =
-        std::make_unique<CXXMetafunctionExpr::ImplFn>(std::function(
-          [this, Metafn](
-              APValue &Result, CXXMetafunctionExpr::EvaluateFn EvalFn,
-              CXXMetafunctionExpr::DiagnoseFn DiagFn, QualType ResultTy,
-              SourceRange Range, ArrayRef<Expr *> Args) -> bool {
-            return Metafn->evaluate(Result, *this, EvalFn, DiagFn, ResultTy,
-                                    Range, Args);
-        }));
-    ImplIt = MetafunctionImplCbs.try_emplace(FnID, std::move(MetafnImpl)).first;
-  }
+  const auto &ImplIt = getMetafunctionCb(FnID);
 
   // Return the CXXMetafunctionExpr representation.
   return BuildCXXMetafunctionExpr(KwLoc, LParenLoc, RParenLoc,
-                                  FnID, *ImplIt->second, Args);
+                                  FnID, ImplIt, Args);
+}
+
+const CXXMetafunctionExpr::ImplFn &Sema::getMetafunctionCb(unsigned FnID) {
+  auto ImplIt = MetafunctionImplCbs.find(FnID);
+  if (ImplIt == MetafunctionImplCbs.end()) {
+    const Metafunction *Metafn;
+    Metafunction::Lookup(FnID, Metafn);
+
+    assert(Metafn);
+    auto MetafnImpl = std::make_unique<CXXMetafunctionExpr::ImplFn>(
+        std::function(
+            [this, Metafn](APValue &Result,
+                           CXXMetafunctionExpr::EvaluateFn EvalFn,
+                           CXXMetafunctionExpr::DiagnoseFn DiagFn,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args) -> bool {
+              return Metafn->evaluate(Result, *this, EvalFn, DiagFn, ResultTy,
+                                      Range, Args);
+            }));
+    ImplIt = MetafunctionImplCbs.try_emplace(FnID, std::move(MetafnImpl)).first;
+  }
+
+  return *ImplIt->second;
 }
 
 ExprResult Sema::ActOnCXXSpliceSpecifierExpr(SourceLocation TemplateKWLoc,

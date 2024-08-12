@@ -1897,8 +1897,12 @@ CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType ExprTy, APValue RV)
       Kind(OperandKind::Reflection) {
   assert(RV.isReflection());
 
-  new ((void *)(char *)&Operand) APValue(RV);
+  setAPValue(RV);
   setDependence(computeDependence(this, C));
+}
+
+CXXReflectExpr::CXXReflectExpr(EmptyShell Empty)
+    : Expr(CXXReflectExprClass, Empty), Kind(OperandKind::Unset) {
 }
 
 CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType ExprTy,
@@ -1908,7 +1912,7 @@ CXXReflectExpr::CXXReflectExpr(const ASTContext &C, QualType ExprTy,
   assert(DepSubExpr->isValueDependent() &&
          "reflection operand must be a reflection or a dependent expression");
 
-  new ((void *)(char *)&Operand) Expr *(DepSubExpr);
+  setDependentSubExpr(DepSubExpr);
   setDependence(computeDependence(this, C));
 }
 
@@ -1930,6 +1934,10 @@ CXXReflectExpr *CXXReflectExpr::Create(ASTContext &C,
   return E;
 }
 
+CXXReflectExpr *CXXReflectExpr::CreateEmpty(const ASTContext &Ctx) {
+  return new (Ctx) CXXReflectExpr(EmptyShell());
+}
+
 static QualType UnwrapCXXMetafunctionExprReturnType(QualType QT) {
   if (auto *LVRT = dyn_cast<LValueReferenceType>(QT))
     QT = LVRT->getPointeeType();
@@ -1947,11 +1955,14 @@ CXXMetafunctionExpr::CXXMetafunctionExpr(unsigned MetaFnID,
                                          SourceLocation RParenLoc)
    : Expr(CXXMetafunctionExprClass,
           UnwrapCXXMetafunctionExprReturnType(ResultType), VK, OK_Ordinary),
-     MetaFnID(MetaFnID), Impl(Impl), ResultType(ResultType),
+     MetaFnID(MetaFnID), Impl(&Impl), ResultType(ResultType),
      NumArgs(NumArgs), Args(Args), KwLoc(KwLoc), LParenLoc(LParenLoc),
      RParenLoc(RParenLoc) {
-  std::copy(Args, Args + NumArgs, this->Args);
   setDependence(computeDependence(this));
+}
+
+CXXMetafunctionExpr::CXXMetafunctionExpr(EmptyShell Empty)
+  : Expr(CXXMetafunctionExprClass, Empty) {
 }
 
 CXXMetafunctionExpr *CXXMetafunctionExpr::Create(ASTContext &C,
@@ -1971,6 +1982,10 @@ CXXMetafunctionExpr *CXXMetafunctionExpr::Create(ASTContext &C,
                                      Args.size(), KwLoc, LParenLoc, RParenLoc);
 }
 
+CXXMetafunctionExpr *CXXMetafunctionExpr::CreateEmpty(ASTContext &C) {
+  return new (C) CXXMetafunctionExpr(EmptyShell());
+}
+
 CXXSpliceSpecifierExpr::CXXSpliceSpecifierExpr(
         QualType ResultTy, SourceLocation TemplateKWLoc,
         SourceLocation LSpliceLoc, Expr *Operand, SourceLocation RSpliceLoc)
@@ -1980,11 +1995,19 @@ CXXSpliceSpecifierExpr::CXXSpliceSpecifierExpr(
   setDependence(computeDependence(this));
 }
 
+CXXSpliceSpecifierExpr::CXXSpliceSpecifierExpr(EmptyShell Empty)
+  : Expr(CXXSpliceSpecifierExprClass, Empty) {
+}
+
 CXXSpliceSpecifierExpr *CXXSpliceSpecifierExpr::Create(
         ASTContext &C, SourceLocation TemplateKWLoc, SourceLocation LSpliceLoc,
         Expr *Operand, SourceLocation RSpliceLoc) {
   return new (C) CXXSpliceSpecifierExpr(C.MetaInfoTy, TemplateKWLoc,
                                         LSpliceLoc, Operand, RSpliceLoc);
+}
+
+CXXSpliceSpecifierExpr *CXXSpliceSpecifierExpr::CreateEmpty(ASTContext &C) {
+  return new (C) CXXSpliceSpecifierExpr(EmptyShell());
 }
 
 CXXSpliceExpr::CXXSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
@@ -2009,6 +2032,10 @@ CXXSpliceExpr::CXXSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
   setDependence(computeDependence(this));
 }
 
+CXXSpliceExpr::CXXSpliceExpr(EmptyShell Empty)
+  : Expr(CXXSpliceExprClass, Empty) {
+}
+
 CXXSpliceExpr *CXXSpliceExpr::Create(ASTContext &C,
                                      ExprValueKind ValueKind,
                                      SourceLocation TemplateKWLoc,
@@ -2029,6 +2056,10 @@ CXXSpliceExpr *CXXSpliceExpr::Create(ASTContext &C,
   return new (Mem) CXXSpliceExpr(ResultTy, ValueKind, TemplateKWLoc,
                                  LSpliceLoc, Operand, RSpliceLoc, TArgs,
                                  AllowMemberReference);
+}
+
+CXXSpliceExpr *CXXSpliceExpr::CreateEmpty(ASTContext &C) {
+  return new (C) CXXSpliceExpr(EmptyShell());
 }
 
 StackLocationExpr::StackLocationExpr(QualType ResultTy, SourceRange Range,
@@ -2067,11 +2098,20 @@ CXXDependentMemberSpliceExpr::CXXDependentMemberSpliceExpr(
   setDependence(computeDependence(this));
 }
 
+CXXDependentMemberSpliceExpr::CXXDependentMemberSpliceExpr(EmptyShell Empty)
+  : Expr(CXXDependentMemberSpliceExprClass, Empty) {
+}
+
 CXXDependentMemberSpliceExpr *CXXDependentMemberSpliceExpr::Create(
         ASTContext &C, Expr *Base, SourceLocation OpLoc, bool IsArrow,
         CXXSpliceExpr *RHS) {
   return new (C) CXXDependentMemberSpliceExpr(C.DependentTy, Base, OpLoc,
                                               IsArrow, RHS);
+}
+
+CXXDependentMemberSpliceExpr *CXXDependentMemberSpliceExpr::CreateEmpty(
+        ASTContext &C) {
+  return new (C) CXXDependentMemberSpliceExpr(EmptyShell());
 }
 
 CXXExpansionInitListExpr::CXXExpansionInitListExpr(

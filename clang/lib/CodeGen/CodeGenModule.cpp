@@ -4131,8 +4131,10 @@ void CodeGenModule::EmitGlobalDefinition(GlobalDecl GD, llvm::GlobalValue *GV) {
   const auto *D = cast<ValueDecl>(GD.getDecl());
 
   if (D->getType()->isMetaType()) {
-    getDiags().Report(D->getLocation(), diag::err_runtime_meta_info);
-    return;
+    if (!isa<VarDecl>(D) && cast<VarDecl>(D)->isConstexpr()) {
+      getDiags().Report(D->getLocation(), diag::err_runtime_meta_info);
+      return;
+    }
   }
 
   PrettyStackTraceDecl CrashInfo(const_cast<ValueDecl *>(D), D->getLocation(),
