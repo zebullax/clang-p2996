@@ -938,7 +938,7 @@ ExprResult Sema::BuildReflectionSpliceExpr(
                                              SS.getWithLocInContext(Context),
                                              SourceLocation(), DeclNameInfo,
                                              false, TArgs, DeclSet.begin(),
-                                             DeclSet.end(), false);
+                                             DeclSet.end(), false, false);
 
       Operand = CXXSpliceExpr::Create(Context, VK_LValue, TemplateKWLoc,
                                       LSplice, Operand, RSplice, TArgs,

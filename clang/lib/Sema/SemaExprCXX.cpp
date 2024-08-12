@@ -715,7 +715,7 @@ getUuidAttrOfType(Sema &SemaRef, QualType QT,
                   llvm::SmallSetVector<const UuidAttr *, 1> &UuidAttrs) {
   // Optionally remove one level of pointer, reference or array indirection.
   const Type *Ty = QT.getTypePtr();
-  if (QT->isPointerType() || QT->isReferenceType())
+  if (QT->isPointerOrReferenceType())
     Ty = QT->getPointeeType().getTypePtr();
   else if (QT->isArrayType())
     Ty = Ty->getBaseElementTypeUnsafe();
@@ -4986,7 +4986,6 @@ static bool CheckUnaryTypeTraitTypeCompleteness(Sema &S, TypeTrait UTT,
   case UTT_IsArray:
   case UTT_IsBoundedArray:
   case UTT_IsPointer:
-  case UTT_IsNullPointer:
   case UTT_IsReferenceable:
   case UTT_IsLvalueReference:
   case UTT_IsRvalueReference:
@@ -5245,8 +5244,6 @@ static bool EvaluateUnaryTypeTrait(Sema &Self, TypeTrait UTT,
     return T->isIncompleteArrayType();
   case UTT_IsPointer:
     return T->isAnyPointerType();
-  case UTT_IsNullPointer:
-    return T->isNullPtrType();
   case UTT_IsLvalueReference:
     return T->isLValueReferenceType();
   case UTT_IsRvalueReference:

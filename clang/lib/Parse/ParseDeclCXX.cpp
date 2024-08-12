@@ -492,7 +492,7 @@ Decl *Parser::ParseLinkage(ParsingDeclSpec &DS, DeclaratorContext Context) {
 ///
 /// HLSL: Parse export function declaration.
 ///
-///      export-function-declaration: 
+///      export-function-declaration:
 ///         'export' function-declaration
 /// 
 ///      export-declaration-group:
@@ -1905,7 +1905,6 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
           tok::kw___is_nothrow_constructible,
           tok::kw___is_nothrow_convertible,
           tok::kw___is_nothrow_destructible,
-          tok::kw___is_nullptr,
           tok::kw___is_object,
           tok::kw___is_pod,
           tok::kw___is_pointer,

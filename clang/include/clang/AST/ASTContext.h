@@ -1185,6 +1185,8 @@ public:
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
 #define AMDGPU_TYPE(Name, Id, SingletonId) CanQualType SingletonId;
 #include "clang/Basic/AMDGPUTypes.def"
+#define HLSL_INTANGIBLE_TYPE(Name, Id, SingletonId) CanQualType SingletonId;
+#include "clang/Basic/HLSLIntangibleTypes.def"
 
   // Types for deductions in C++0x [stmt.ranged]'s desugaring. Built on demand.
   mutable QualType AutoDeductTy;     // Deduction against 'auto'.
@@ -1381,7 +1383,7 @@ public:
                            bool AsWritten = false);
 
   /// Get a function type and produce the equivalent function type where
-  /// pointer size address spaces in the return type and parameter tyeps are
+  /// pointer size address spaces in the return type and parameter types are
   /// replaced with the default address space.
   QualType getFunctionTypeWithoutPtrSizes(QualType T);
 
