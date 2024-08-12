@@ -2347,23 +2347,25 @@ static TemplateArgument TArgFromReflection(Sema &S, EvalFn Evaluator,
   }
   case ReflectionKind::Declaration: {
     ValueDecl *Decl = RV.getReflectedDecl();
+
+    // Don't worry about the cost of creating an expression here: The template
+    // substitution machinery will otherwise create one from the argument
+    // anyway, so we aren't really losing any efficiency here.
     Expr *Synthesized =
         DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
                             SourceLocation(), Decl, false, Loc,
                             Decl->getType(), VK_LValue, Decl, nullptr);
-    // TODO(P2996): Just throw this in an lvalue APValue.
-    APValue R;
-    if (!Evaluator(R, Synthesized, true))
-      break;
 
-    if (Synthesized->getType()->isIntegralOrEnumerationType())
+    if (Decl->getType()->isIntegralOrEnumerationType()) {
+      APValue R;
+      if (!Evaluator(R, Synthesized, true))
+        break;
+
       return TemplateArgument(S.Context, R.getInt(),
                               Synthesized->getType().getCanonicalType());
-    else if(Synthesized->getType()->isReflectionType())
-      return TemplateArgument(S.Context, S.Context.MetaInfoTy, R);
-    else
-      return TemplateArgument(Synthesized);
-    break;
+    }
+
+    return TemplateArgument(Synthesized);
   }
   case ReflectionKind::Template:
     return TemplateArgument(RV.getReflectedTemplate());
