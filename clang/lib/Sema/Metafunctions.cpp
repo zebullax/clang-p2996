@@ -142,6 +142,10 @@ static bool is_private(APValue &Result, Sema &S, EvalFn Evaluator,
                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
                        ArrayRef<Expr *> Args);
 
+static bool is_access_specified(APValue &Result, Sema &S, EvalFn Evaluator,
+                                DiagFn Diagnoser, QualType ResultTy,
+                                SourceRange Range, ArrayRef<Expr *> Args);
+
 static bool access_context(APValue &Result, Sema &S, EvalFn Evaluator,
                            DiagFn Diagnoser, QualType ResultTy,
                            SourceRange Range, ArrayRef<Expr *> Args);
@@ -502,6 +506,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_public },
   { Metafunction::MFRK_bool, 1, 1, is_protected },
   { Metafunction::MFRK_bool, 1, 1, is_private },
+  { Metafunction::MFRK_bool, 1, 1, is_access_specified },
   { Metafunction::MFRK_metaInfo, 0, 0, access_context },
   { Metafunction::MFRK_bool, 1, 2, is_accessible },
   { Metafunction::MFRK_bool, 1, 1, is_virtual },
@@ -2897,6 +2902,59 @@ bool is_private(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     CXXBaseSpecifier *Base = RV.getReflectedBaseSpecifier();
     bool IsPrivate = (Base->getAccessSpecifier() == AS_private);
     return SetAndSucceed(Result, makeBool(S.Context, IsPrivate));
+  }
+  case ReflectionKind::Null:
+  case ReflectionKind::Object:
+  case ReflectionKind::Value:
+  case ReflectionKind::Namespace:
+  case ReflectionKind::DataMemberSpec:
+    return SetAndSucceed(Result, makeBool(S.Context, false));
+  }
+  llvm_unreachable("invalid reflection type");
+}
+
+bool is_access_specified(APValue &Result, Sema &S, EvalFn Evaluator,
+                         DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
+                         ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  auto findAccessSpec = [](Decl *D) -> AccessSpecifier {
+    DeclContext *DC = D->getDeclContext();
+    for (auto I = DC->decls_begin(); *I != D; ++I) {
+      assert(I != DC->decls_end());
+      if (auto *ASD = dyn_cast<AccessSpecDecl>(*I))
+        return ASD->getAccess();
+    }
+    return AS_none;
+  };
+
+  APValue RV;
+  if (!Evaluator(RV, Args[0], true))
+    return true;
+
+  switch (RV.getReflectionKind()) {
+  case ReflectionKind::Type: {
+    bool IsSpecified = false;
+    if (Decl *D = findTypeDecl(RV.getReflectedType()))
+      IsSpecified = findAccessSpec(D) != AS_none;
+
+    return SetAndSucceed(Result, makeBool(S.Context, IsSpecified));
+  }
+  case ReflectionKind::Declaration: {
+    bool IsSpecified = findAccessSpec(RV.getReflectedDecl()) != AS_none;
+    return SetAndSucceed(Result, makeBool(S.Context, IsSpecified));
+  }
+  case ReflectionKind::Template: {
+    Decl *D = RV.getReflectedTemplate().getAsTemplateDecl();
+
+    bool IsSpecified = findAccessSpec(D) != AS_none;
+    return SetAndSucceed(Result, makeBool(S.Context, IsSpecified));
+  }
+  case ReflectionKind::BaseSpecifier: {
+    CXXBaseSpecifier *Base = RV.getReflectedBaseSpecifier();
+    bool IsSpecified = (Base->getAccessSpecifierAsWritten() != AS_none);
+    return SetAndSucceed(Result, makeBool(S.Context, IsSpecified));
   }
   case ReflectionKind::Null:
   case ReflectionKind::Object:

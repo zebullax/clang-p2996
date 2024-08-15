@@ -126,6 +126,7 @@ template <typename Ty>
 consteval auto is_public(info) -> bool;
 consteval auto is_protected(info) -> bool;
 consteval auto is_private(info) -> bool;
+consteval auto is_access_specified(info) -> bool;
 consteval auto is_virtual(info) -> bool;
 consteval auto is_pure_virtual(info) -> bool;
 consteval auto is_override(info) -> bool;
@@ -430,6 +431,7 @@ enum : unsigned {
   __metafn_is_public,
   __metafn_is_protected,
   __metafn_is_private,
+  __metafn_is_access_specified,
   __metafn_access_context,
   __metafn_is_accessible,
   __metafn_is_virtual,
@@ -941,6 +943,11 @@ consteval auto is_protected(info r) -> bool {
 // Returns whether the reflected entity is a private class member.
 consteval auto is_private(info r) -> bool {
   return __metafunction(detail::__metafn_is_private, r);
+}
+
+// Returns whether the visibility of the reflected entity was specified.
+consteval auto is_access_specified(info r) -> bool {
+  return __metafunction(detail::__metafn_is_access_specified, r);
 }
 
 // Returns whether the reflected entity is a virtual member function or a

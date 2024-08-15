@@ -27,13 +27,13 @@ struct ProtectedBase { int mem; };
 struct PrivateBase { int mem; };
 
 struct Access
-    : public PublicBase, protected ProtectedBase, private PrivateBase {
-public:
+    : PublicBase, protected ProtectedBase, private PrivateBase {
     static consteval std::meta::access_context token() {
       return std::meta::access_context::current();
     }
 
     int pub;
+public:
     struct PublicCls {};
     template <typename T> void PublicTFn();
 protected:
@@ -48,10 +48,14 @@ private:
     void complete_class_context() {
         // Public members.
         static_assert(is_public(^pub));
+        static_assert(!is_access_specified(^pub));
         static_assert(is_public(^PublicCls));
+        static_assert(is_access_specified(^PublicCls));
         static_assert(is_public(^PublicTFn));
+        static_assert(is_access_specified(^PublicTFn));
         static_assert(is_public(bases_of(^Access)[0]));
-        
+        static_assert(!is_access_specified(bases_of(^Access)[0]));
+
         // Not public members.
         static_assert(!is_public(^prot));
         static_assert(!is_public(^priv));
