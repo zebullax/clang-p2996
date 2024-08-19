@@ -155,7 +155,8 @@ consteval auto is_namespace(info) -> bool;
 consteval auto is_function(info) -> bool;
 consteval auto is_variable(info) -> bool;
 consteval auto is_type(info) -> bool;
-consteval auto is_alias(info) -> bool;
+consteval auto is_type_alias(info) -> bool;
+consteval auto is_namespace_alias(info) -> bool;
 consteval auto is_incomplete_type(info) -> bool;
 consteval auto is_template(info) -> bool;
 consteval auto is_function_template(info) -> bool;
@@ -1064,8 +1065,13 @@ consteval auto is_type(info r) -> bool {
 }
 
 // Returns true if the reflected entity is an alias.
-consteval auto is_alias(info r) -> bool {
-  return __metafunction(detail::__metafn_is_alias, r);
+consteval auto is_type_alias(info r) -> bool {
+  return is_type(r) && __metafunction(detail::__metafn_is_alias, r);
+}
+
+// Returns true if the reflected entity is an alias.
+consteval auto is_namespace_alias(info r) -> bool {
+  return is_namespace(r) && __metafunction(detail::__metafn_is_alias, r);
 }
 
 // Returns true if the reflected entity is an incomplete type.
@@ -2535,7 +2541,7 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
     if (R == ^long double) return string_constant("long double");
 
     if (type_is_unsigned(R)) result += string_constant("unsigned ");
-    if constexpr (!is_alias(R)) {
+    if constexpr (!is_type_alias(R)) {
       auto U = type_make_signed(R);
       if (U == ^short) return result + string_constant("short");
       if (U == ^int) return result + string_constant("int");

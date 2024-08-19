@@ -25,7 +25,7 @@ static_assert(Example::rNull == std::meta::info{});
                             // ====================
 
 static_assert(is_type(Example::rAlias));
-static_assert(is_alias(Example::rAlias));
+static_assert(is_type_alias(Example::rAlias));
 static_assert(dealias(Example::rAlias) == ^int);
 
                            // ======================

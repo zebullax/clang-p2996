@@ -93,7 +93,7 @@ static_assert(
                         std::ranges::to<std::vector>()) ==
     std::vector{^Cls::memfn1, ^Cls::memfn2});
 static_assert(
-    (members_of(^Cls) | std::views::filter(std::meta::is_alias) |
+    (members_of(^Cls) | std::views::filter(std::meta::is_type_alias) |
                         std::ranges::to<std::vector>()) ==
     std::vector{^Cls::Alias});
 
@@ -177,9 +177,10 @@ static_assert((members_of(^myns) | std::views::filter(std::meta::is_template) |
                                    std::ranges::to<std::vector>()) ==
               std::vector{^myns::TCls, ^myns::TFn, ^myns::TVar, ^myns::TAlias,
                           ^myns::Concept});
-static_assert((members_of(^myns) | std::views::filter(std::meta::is_template) |
-                                   std::views::filter(std::meta::is_alias) |
-                                   std::ranges::to<std::vector>()) ==
+static_assert((members_of(^myns) |
+                   std::views::filter(std::meta::is_template) |
+                   std::views::filter(std::meta::is_alias_template) |
+                   std::ranges::to<std::vector>()) ==
               std::vector{^myns::TAlias});
 }  // namespace_members
 
