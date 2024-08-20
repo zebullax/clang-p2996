@@ -1234,11 +1234,8 @@ consteval auto is_user_provided(info r) -> bool {
 }
 
 // Returns a reflection of the value held by the provided argument.
-template <typename T>
+template <typename T> requires (!is_reference_v<T>)
 consteval auto reflect_value(T r) -> info {
-  static_assert(!is_reference_v<decltype(r)>,
-                "values cannot have reference type");
-
   constexpr info Ty = type_of(^r);
 
   return __metafunction(detail::__metafn_reflect_result, Ty,
@@ -1246,28 +1243,15 @@ consteval auto reflect_value(T r) -> info {
 }
 
 // Returns a reflection of the object designated by the provided argument.
-template <typename T>
+template <typename T> requires (!is_function_v<remove_reference_t<T>>)
 consteval auto reflect_object(T &r) -> info {
-  constexpr auto Ty = type_of(^r);
-
-  static_assert(!is_function_v<remove_reference<typename [:Ty:]>>,
-                "use 'reflect_function' for references to functions");
-  return __metafunction(detail::__metafn_reflect_result, Ty, r);
+  return __metafunction(detail::__metafn_reflect_result, type_of(^r), r);
 }
 
 // Returns a reflection of the object designated by the provided argument.
-template <typename T>
+template <typename T> requires (is_function_v<remove_reference_t<T>>)
 consteval auto reflect_function(T &r) -> info {
-  constexpr auto Ty = type_of(^r);
-  using UnrefTy = remove_reference_t<[:Ty:]>;
-
-  constexpr bool IsPtr = is_pointer_v<UnrefTy>;
-  static_assert(!IsPtr, "use 'reflect_value' for pointers to functions");
-  if constexpr (!IsPtr)
-    static_assert(is_function_v<UnrefTy>,
-                  "use 'reflect_object' for references to objects");
-
-  return __metafunction(detail::__metafn_reflect_result, Ty, r);
+  return __metafunction(detail::__metafn_reflect_result, type_of(^r), r);
 }
 
 
