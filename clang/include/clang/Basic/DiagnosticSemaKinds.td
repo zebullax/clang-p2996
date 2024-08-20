@@ -3102,7 +3102,6 @@ def err_placeholder_constraints_not_satisfied : Error<
   "deduced type %0 does not satisfy %1">;
 
 // Reflection
-def err_meta_type_constexpr : Error<"meta type variables must be constexpr">;
 def err_reflect_general_expression : Error<
   "reflection operand must be a named entity">;
 def err_reflect_overload_set : Error<

@@ -167,10 +167,11 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
     assert(VD.isLocalVarDecl() &&
            "Should not see file-scope variables inside a function!");
 
-    // Meta types have no runtime meaning.
-    if (VD.getType()->isMetaType()) {
+    // Consteval-only types have no runtime meaning.
+    if (VD.getType()->isConstevalOnly()) {
       if (!VD.isConstexpr())
-        CGM.getDiags().Report(VD.getLocation(), diag::err_runtime_meta_info);
+        CGM.getDiags().Report(VD.getLocation(),
+                              diag::err_runtime_consteval_only_type);
       return;
     }
 

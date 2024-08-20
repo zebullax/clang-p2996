@@ -1784,10 +1784,10 @@ void ScalarExprEmitter::EmitBinOpCheck(
 //===----------------------------------------------------------------------===//
 
 Value *ScalarExprEmitter::VisitExpr(Expr *E) {
-  if (E->getType()->isMetaType()) {
+  if (E->getType()->isConstevalOnly()) {
     assert(!E->isIntegerConstantExpr(CGF.getContext()) &&
            "constexpr expressions should not reach here");
-    CGF.ErrorNonConstexprMetaType(E);
+    CGF.ErrorNonConstexprConstevalOnlyType(E);
   } else {
     CGF.ErrorUnsupported(E, "scalar expression");
     if (E->getType()->isVoidType())

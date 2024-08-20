@@ -39,8 +39,7 @@ consteval auto u8display_string_of(info) -> u8string_view;
 
 consteval auto has_identifier(info) -> bool;
 
-enum class operators;
-using enum operators;
+enum operators;
 
 consteval auto operator_of(info) -> operators;
 
@@ -739,18 +738,17 @@ consteval auto u8display_string_of(info r) -> u8string_view;
 
 // Enumeration of all overloadable operators.
 enum class operators {
-  op_new = 1, op_delete, op_array_new, op_array_delete, op_co_await,
-  op_parentheses, op_square_brackets, op_arrow, op_arrow_asterisk, op_tilde,
-  op_exclamation_mark, op_plus, op_minus, op_asterisk, op_solidus, op_percent,
-  op_caret, op_ampersand, op_pipe, op_equals, op_plus_equals, op_minus_equals,
-  op_asterisk_equals, op_solidus_equals, op_percent_equals, op_caret_equals,
-  op_ampersand_equals, op_pipe_equals, op_equals_equals, op_exclamation_equals,
-  op_less, op_greater, op_less_equals, op_greater_equals, op_three_way_compare,
-  op_ampersand_ampersand, op_pipe_pipe, op_less_less, op_greater_greater,
-  op_less_less_equals, op_greater_greater_equals, op_plus_plus, op_minus_minus,
-  op_comma,
+  new_object = 1, delete_object, new_array, delete_array, coroutine_await,
+  parentheses, square_brackets, arrow, arrow_asterisk, tilde,
+  exclamation_mark, plus, minus, asterisk, solidus, percent,
+  caret, ampersand, pipe, equals, plus_equals, minus_equals,
+  asterisk_equals, solidus_equals, percent_equals, caret_equals,
+  ampersand_equals, pipe_equals, equals_equals, exclamation_equals,
+  less, greater, less_equals, greater_equals, three_way_compare,
+  ampersand_ampersand, pipe_pipe, less_less, greater_greater,
+  less_less_equals, greater_greater_equals, plus_plus, minus_minus,
+  comma,
 };
-using enum operators;
 
 // Returns the operator overloaded by the represented operator function or
 // operator function template.
@@ -2452,11 +2450,11 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
 
     string_t result = "operator";
     switch (op) {
-    case std::meta::op_new:
-    case std::meta::op_delete:
-    case std::meta::op_array_new:
-    case std::meta::op_array_delete:
-    case std::meta::op_co_await:
+    case std::meta::operators::new_object:
+    case std::meta::operators::delete_object:
+    case std::meta::operators::new_array:
+    case std::meta::operators::delete_array:
+    case std::meta::operators::coroutine_await:
       result += " ";
       [[fallthrough]];
     default:
@@ -2501,11 +2499,11 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
 
     result = "operator";
     switch (op) {
-    case std::meta::op_new:
-    case std::meta::op_delete:
-    case std::meta::op_array_new:
-    case std::meta::op_array_delete:
-    case std::meta::op_co_await:
+    case std::meta::operators::new_object:
+    case std::meta::operators::delete_object:
+    case std::meta::operators::new_array:
+    case std::meta::operators::delete_array:
+    case std::meta::operators::coroutine_await:
       result += " ";
       [[fallthrough]];
     default:

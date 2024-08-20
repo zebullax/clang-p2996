@@ -4130,9 +4130,10 @@ void CodeGenModule::EmitMultiVersionFunctionDefinition(GlobalDecl GD,
 void CodeGenModule::EmitGlobalDefinition(GlobalDecl GD, llvm::GlobalValue *GV) {
   const auto *D = cast<ValueDecl>(GD.getDecl());
 
-  if (D->getType()->isMetaType()) {
+  if (D->getType()->isConstevalOnly()) {
     if (!isa<VarDecl>(D) && cast<VarDecl>(D)->isConstexpr()) {
-      getDiags().Report(D->getLocation(), diag::err_runtime_meta_info);
+      getDiags().Report(D->getLocation(),
+                        diag::err_runtime_consteval_only_type);
       return;
     }
   }

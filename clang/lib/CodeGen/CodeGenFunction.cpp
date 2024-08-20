@@ -2064,11 +2064,12 @@ void CodeGenFunction::ErrorUnsupported(const Stmt *S, const char *Type) {
   CGM.ErrorUnsupported(S, Type);
 }
 
-/// ErrorNonConstexprMetaType - Print out an error that meta type values must be
-/// constexpr.
-void CodeGenFunction::ErrorNonConstexprMetaType(const Stmt *S) {
+/// ErrorNonConstexprConstevalOnlyType - Print out an error that values of
+/// consteval-only types must be constexpr.
+void CodeGenFunction::ErrorNonConstexprConstevalOnlyType(const Stmt *S) {
   CGM.Error(S->getBeginLoc(),
-            "values of meta types may only appear in constexpr contexts");
+            "values of consteval-only types may only appear in constexpr "
+            "contexts");
 }
 
 /// emitNonZeroVLAInit - Emit the "zero" initialization of a

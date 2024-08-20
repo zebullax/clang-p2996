@@ -4995,7 +4995,7 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
   setParamDestroyedInCallee(false);
   setArgPassingRestrictions(RecordArgPassingKind::CanPassInRegs);
   setIsRandomized(false);
-  setIsMetaType(false);
+  setIsConstevalOnly(false);
   setODRHash(0);
 }
 
@@ -5071,17 +5071,18 @@ void RecordDecl::completeDefinition() {
 
   ASTContext &Ctx = getASTContext();
 
-  // Compute whether this is a meta type.
+  // Compute whether this is a consteval-only type.
   for (FieldDecl *FD : fields()) {
-    if (FD->getType()->isMetaType()) {
-      setIsMetaType(true);
+    if (FD->getType()->isConstevalOnly()) {
+      setIsConstevalOnly(true);
       break;
     }
   }
-  if (auto CXXRD = dyn_cast<CXXRecordDecl>(this); CXXRD && !isMetaType()) {
+  if (auto CXXRD = dyn_cast<CXXRecordDecl>(this);
+      CXXRD && !isConstevalOnly()) {
     for (CXXBaseSpecifier BaseSpecifier : CXXRD->bases()) {
-      if (BaseSpecifier.getType()->isMetaType()) {
-        setIsMetaType(true);
+      if (BaseSpecifier.getType()->isConstevalOnly()) {
+        setIsConstevalOnly(true);
         break;
       }
     }

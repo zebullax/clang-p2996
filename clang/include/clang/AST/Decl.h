@@ -4296,9 +4296,9 @@ public:
 
   void setIsRandomized(bool V) { RecordDeclBits.IsRandomized = V; }
 
-  bool isMetaType() const { return RecordDeclBits.IsMetaType; }
+  bool isConstevalOnly() const { return RecordDeclBits.IsConstevalOnly; }
 
-  void setIsMetaType(bool V) { RecordDeclBits.IsMetaType = V; }
+  void setIsConstevalOnly(bool V) { RecordDeclBits.IsConstevalOnly = V; }
 
   void reorderDecls(const SmallVectorImpl<Decl *> &Decls);
 

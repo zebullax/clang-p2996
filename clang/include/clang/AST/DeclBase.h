@@ -1679,9 +1679,9 @@ class DeclContext {
     LLVM_PREFERRED_TYPE(bool)
     uint64_t IsRandomized : 1;
 
-    /// Indicates whether this struct is a meta type.
+    /// Indicates whether this struct is a consteval-only type.
     LLVM_PREFERRED_TYPE(bool)
-    uint64_t IsMetaType : 1;
+    uint64_t IsConstevalOnly : 1;
 
     /// True if a valid hash is stored in ODRHash. This should shave off some
     /// extra storage and prevent CXXRecordDecl to store unused bits.
