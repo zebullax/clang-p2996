@@ -183,7 +183,7 @@ consteval auto is_assignment(info) -> bool;
 consteval auto is_copy_assignment(info) -> bool;
 consteval auto is_move_assignment(info) -> bool;
 consteval auto is_destructor(info) -> bool;
-consteval auto is_special_member(info) -> bool;
+consteval auto is_special_member_function(info) -> bool;
 consteval auto is_user_provided(info) -> bool;
 
 // define_class
@@ -494,7 +494,7 @@ enum : unsigned {
   __metafn_is_copy_assignment,
   __metafn_is_move_assignment,
   __metafn_is_destructor,
-  __metafn_is_special_member,
+  __metafn_is_special_member_function,
   __metafn_is_user_provided,
   __metafn_reflect_result,
   __metafn_reflect_invoke,
@@ -1224,8 +1224,8 @@ consteval auto is_destructor(info r) -> bool {
 }
 
 // Returns whether the reflected entity is a special member function.
-consteval auto is_special_member(info r) -> bool {
-  return __metafunction(detail::__metafn_is_special_member, r);
+consteval auto is_special_member_function(info r) -> bool {
+  return __metafunction(detail::__metafn_is_special_member_function, r);
 }
 
 // Returns whether the reflected entity is a user-provided function.

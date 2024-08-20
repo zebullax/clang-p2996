@@ -33,7 +33,7 @@ static_assert(members_of(^Empty).size() == 6);
 static_assert(
     (members_of(^Empty) |
         std::views::filter(std::meta::is_defaulted) |
-        std::views::filter(std::meta::is_special_member) |
+        std::views::filter(std::meta::is_special_member_function) |
         std::ranges::to<std::vector>()).size() == 6);
 
 struct NotAMember {};
@@ -88,7 +88,7 @@ static_assert(
     (members_of(^Cls) | std::views::filter(std::meta::is_function) |
                         std::views::filter([](auto R) {
                           return !is_static_member(R) &&
-                                 !is_special_member(R);
+                                 !is_special_member_function(R);
                         }) |
                         std::ranges::to<std::vector>()) ==
     std::vector{^Cls::memfn1, ^Cls::memfn2});

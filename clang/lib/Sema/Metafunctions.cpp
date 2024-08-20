@@ -397,9 +397,10 @@ static bool is_destructor(APValue &Result, Sema &S, EvalFn Evaluator,
                           DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_special_member(APValue &Result, Sema &S, EvalFn Evaluator,
-                              DiagFn Diagnoser, QualType ResultTy,
-                              SourceRange Range, ArrayRef<Expr *> Args);
+static bool is_special_member_function(APValue &Result, Sema &S,
+                                       EvalFn Evaluator, DiagFn Diagnoser,
+                                       QualType ResultTy, SourceRange Range,
+                                       ArrayRef<Expr *> Args);
 
 static bool is_user_provided(APValue &Result, Sema &S, EvalFn Evaluator,
                              DiagFn Diagnoser, QualType ResultTy,
@@ -577,7 +578,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_copy_assignment },
   { Metafunction::MFRK_bool, 1, 1, is_move_assignment },
   { Metafunction::MFRK_bool, 1, 1, is_destructor },
-  { Metafunction::MFRK_bool, 1, 1, is_special_member },
+  { Metafunction::MFRK_bool, 1, 1, is_special_member_function },
   { Metafunction::MFRK_bool, 1, 1, is_user_provided },
   { Metafunction::MFRK_metaInfo, 2, 2, reflect_result },
   { Metafunction::MFRK_metaInfo, 5, 5, reflect_invoke },
@@ -4376,9 +4377,9 @@ bool is_destructor(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_special_member(APValue &Result, Sema &S, EvalFn Evaluator,
-                       DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                       ArrayRef<Expr *> Args) {
+bool is_special_member_function(APValue &Result, Sema &S, EvalFn Evaluator,
+                                DiagFn Diagnoser, QualType ResultTy,
+                                SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
   assert(ResultTy == S.Context.BoolTy);
 

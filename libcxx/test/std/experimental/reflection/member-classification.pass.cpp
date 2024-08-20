@@ -246,24 +246,25 @@ static_assert((members_of(^S) | std::views::filter(std::meta::is_constructor) |
 static_assert((members_of(^S) | std::views::filter(std::meta::is_destructor) |
                                 std::ranges::to<std::vector>()).size() == 1);
 static_assert(
-    (members_of(^S) | std::views::filter(std::meta::is_special_member) |
-                      std::ranges::to<std::vector>()).size() == 6);
+    (members_of(^S) |
+         std::views::filter(std::meta::is_special_member_function) |
+         std::ranges::to<std::vector>()).size() == 6);
 
-static_assert(!is_special_member(^S::mem));
-static_assert(!is_special_member(^S::memfn));
-static_assert(!is_special_member(^S::TMemFn));
-static_assert(!is_special_member(^S::Inner));
+static_assert(!is_special_member_function(^S::mem));
+static_assert(!is_special_member_function(^S::memfn));
+static_assert(!is_special_member_function(^S::TMemFn));
+static_assert(!is_special_member_function(^S::Inner));
 
 int x;
 void fn();
 namespace inner {}
 template <typename T> void TFn();
-static_assert(!is_special_member(std::meta::reflect_value(3)));
-static_assert(!is_special_member(^int));
-static_assert(!is_special_member(^TFn));
-static_assert(!is_special_member(^TFn<int>));
-static_assert(!is_special_member(^::));
-static_assert(!is_special_member(^inner));
+static_assert(!is_special_member_function(std::meta::reflect_value(3)));
+static_assert(!is_special_member_function(^int));
+static_assert(!is_special_member_function(^TFn));
+static_assert(!is_special_member_function(^TFn<int>));
+static_assert(!is_special_member_function(^::));
+static_assert(!is_special_member_function(^inner));
 }  // special_members
 
                         // =============================
