@@ -38,6 +38,10 @@ void foo(int param) {
     struct S { std::source_location mem; };
     static_assert(source_location_of(^S).function_name() == FnName);
 
+    struct C : S {};
+    static_assert(source_location_of(bases_of(^C)[0]).line() ==
+                  std::source_location::current().line() - 2);
+
     // Check that it works with aliases.
     using intAlias = int;
     static_assert(source_location_of(^intAlias).function_name() == FnName);
@@ -53,6 +57,12 @@ void foo(int param) {
 
     // Check that it works with built-ins.
     static_assert(source_location_of(^int).file_name() == std::string_view());
+
+    // Check that it doesn't fail for nonsense queries.
+    constexpr std::source_location a = source_location_of(data_member_spec(^int,
+                                                                           {}));
+    constexpr std::source_location b {};
+    static_assert(a.line() == b.line() && a.column() == b.column());
 }
 
 

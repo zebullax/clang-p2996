@@ -1985,15 +1985,14 @@ bool source_location_of(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Namespace:
     return findDeclLoc(Result, S.Context, Evaluator, ResultTy,
                        RV.getReflectedNamespace());
+  case ReflectionKind::BaseSpecifier:
+    return findBaseSpecLoc(Result, S.Context, Evaluator, ResultTy,
+                           RV.getReflectedBaseSpecifier());
   case ReflectionKind::Object:
   case ReflectionKind::Value:
-    // TODO(P2996): Passing 'nullptr' here (and for base spec) can't be right.
-    return findDeclLoc(Result, S.Context, Evaluator, ResultTy, nullptr);
-  case ReflectionKind::BaseSpecifier:
-    return findBaseSpecLoc(Result, S.Context, Evaluator, ResultTy, nullptr);
   case ReflectionKind::Null:
   case ReflectionKind::DataMemberSpec:
-    return true;
+    return findDeclLoc(Result, S.Context, Evaluator, ResultTy, nullptr);
   }
   llvm_unreachable("unknown reflection kind");
 }
