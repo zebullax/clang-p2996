@@ -188,6 +188,7 @@ class TemplateSpecCandidateSet;
 class Token;
 class TypeConstraint;
 class TypoCorrectionConsumer;
+class TypeLocBuilder;
 class UnresolvedSetImpl;
 class UnresolvedSetIterator;
 class VisibleDeclConsumer;
