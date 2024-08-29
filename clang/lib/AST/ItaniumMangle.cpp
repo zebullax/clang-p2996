@@ -4797,6 +4797,15 @@ void CXXNameMangler::mangleReflection(const APValue &R) {
       Out << 'B' << (*TDMS->BitWidth);
     break;
   }
+  case ReflectionKind::Annotation: {
+    Out << 'a';
+
+    // TODO(P2996): This is insufficient. Some representation of the annotated
+    // entity will probably have to be mangled alongside the annotation. Or
+    // perhaps just mangle some 'entity$index'-schema, idk.
+    mangleExpression(R.getReflectedAnnotation()->getArg());
+    break;
+  }
   }
   Out << 'E';
 }

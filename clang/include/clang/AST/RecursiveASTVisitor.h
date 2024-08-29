@@ -2973,6 +2973,10 @@ DEF_TRAVERSE_STMT(CXXReflectExpr, {
       TRY_TO(TraverseTemplateName(RV.getReflectedTemplate()));
       break;
     }
+    case ReflectionKind::Annotation: {
+      TRY_TO(TraverseStmt(RV.getReflectedAnnotation()->getArg()));
+      break;
+    }
     case ReflectionKind::Null:
     case ReflectionKind::Object:
     case ReflectionKind::Value:

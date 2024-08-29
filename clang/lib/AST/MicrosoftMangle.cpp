@@ -2192,6 +2192,7 @@ void MicrosoftCXXNameMangler::mangleReflection(const APValue &R) {
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     llvm_unreachable("unimplemented");
   }
   Out << 'E';

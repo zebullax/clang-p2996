@@ -17,7 +17,8 @@ def metafn_expected_reflection_of_but_got : Note<
 def metafn_no_associated_property : Note<
   "%0 has no %select{type|parent}1">;
 def metafn_cannot_query_property : Note<"cannot query the "
-  "%select{type|object|value|size|alignment|parameters|return type}0 of %1">;
+  "%select{type|object|value|size|alignment|parameters|return type|"
+           "annotations}0 of %1">;
 
 // Ranges of entities.
 def metafn_cannot_introspect_type : Note<
@@ -65,8 +66,8 @@ def metafn_cannot_extract : Note<
   "cannot extract a %select{value|reference|pointer to member}0 from a "
   "reflection of %1">;
 def metafn_extract_type_mismatch : Note<
-  "reflected %select{value|object|enum constant}0 of type %1 cannot be "
-  "extracted as a %select{value of|reference to}2 type %3">;
+  "reflected %select{value|object|enum constant|annotation}0 of type %1 cannot "
+  "be extracted as a %select{value of|reference to}2 type %3">;
 def metafn_extract_entity_type_mismatch : Note<
   "a pointer of type %0 cannot be extracted from a reflection of %1 whose "
   "pointer has type %2">;
@@ -85,4 +86,8 @@ def metafn_name_invalid_identifier : Note<
   "provided name '%0' is not a valid identifier">;
 def metafn_already_complete_type : Note<
   "%0 is already a complete type">;
+
+// Annotation injection.
+def metafn_cannot_annotate : Note<"cannot attach an annotation to %1">;
+
 }  // end of metafn component

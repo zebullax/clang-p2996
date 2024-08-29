@@ -57,7 +57,10 @@ public:
 
     /// The attibute has no source code manifestation and is only created
     /// implicitly.
-    AS_Implicit
+    AS_Implicit,
+
+    /// The attribute is a C++2c annotation.
+    AS_Annotation,
   };
   enum Kind {
 #define PARSED_ATTR(NAME) AT_##NAME,
@@ -66,6 +69,7 @@ public:
     NoSemaHandlerAttribute,
     IgnoredAttribute,
     UnknownAttribute,
+    AnnotationAttribute,
   };
 
 private:
@@ -122,6 +126,7 @@ public:
     static Form ContextSensitiveKeyword() { return AS_ContextSensitiveKeyword; }
     static Form HLSLAnnotation() { return AS_HLSLAnnotation; }
     static Form Implicit() { return AS_Implicit; }
+    static Form Annotation() { return AS_Annotation; }
 
   private:
     constexpr Form(Syntax SyntaxUsed)
@@ -146,7 +151,7 @@ public:
         SpellingIndex(FormUsed.getSpellingIndex()),
         IsAlignas(FormUsed.isAlignas()),
         IsRegularKeywordAttribute(FormUsed.isRegularKeywordAttribute()) {
-    assert(SyntaxUsed >= AS_GNU && SyntaxUsed <= AS_Implicit &&
+    assert(SyntaxUsed >= AS_GNU && SyntaxUsed <= AS_Annotation &&
            "Invalid syntax!");
   }
 
@@ -227,6 +232,8 @@ public:
   bool isContextSensitiveKeywordAttribute() const {
     return SyntaxUsed == AS_ContextSensitiveKeyword;
   }
+
+  bool isAnnotation() const { return SyntaxUsed == AS_Annotation; }
 
   unsigned getAttributeSpellingListIndex() const {
     assert((isAttributeSpellingListCalculated() || AttrName) &&

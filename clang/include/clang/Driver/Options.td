@@ -3483,6 +3483,11 @@ defm expansion_statements : BoolFOption<"expansion-statements",
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
           "Enable proposed expansion statements as described by P1306">,
   NegFlag<SetFalse>>;
+defm annotation_attributes : BoolFOption<"annotation-attributes",
+  LangOpts<"AnnotationAttributes">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option],
+          "Enable proposed annotation attributes">,
+  NegFlag<SetFalse>>;
 
 defm retain_subst_template_type_parm_type_ast_nodes : BoolFOption<"retain-subst-template-type-parm-type-ast-nodes",
   LangOpts<"RetainSubstTemplateTypeParmTypeAstNodes">, DefaultFalse,

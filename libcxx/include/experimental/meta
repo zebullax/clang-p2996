@@ -159,6 +159,7 @@ consteval auto is_type(info) -> bool;
 consteval auto is_type_alias(info) -> bool;
 consteval auto is_namespace_alias(info) -> bool;
 consteval auto is_complete_type(info) -> bool;
+consteval auto has_complete_definition(info) -> bool;
 consteval auto is_template(info) -> bool;
 consteval auto is_function_template(info) -> bool;
 consteval auto is_variable_template(info) -> bool;
@@ -372,6 +373,14 @@ consteval auto is_explicit_object_parameter(info) -> bool;
 consteval auto is_function_parameter(info) -> bool;
 consteval auto return_type_of(info) -> info;
 
+// annotations (P3XYZ)
+consteval auto annotations_of(info) -> vector<info>;
+consteval auto annotations_of(info, info) -> vector<info>;
+template <typename T>
+  consteval auto annotation_of_type(info) -> optional<info>;
+consteval auto is_annotation(info) -> bool;
+consteval auto annotate(info) -> info;
+
 } // namespace reflection_v2
 } // namespace meta
 } // namespace std
@@ -474,6 +483,7 @@ enum : unsigned {
   __metafn_is_type,
   __metafn_is_alias,
   __metafn_is_complete_type,
+  __metafn_has_complete_definition,
   __metafn_is_template,
   __metafn_is_function_template,
   __metafn_is_variable_template,
@@ -521,6 +531,11 @@ enum : unsigned {
   __metafn_is_explicit_object_parameter,
   __metafn_is_function_parameter,
   __metafn_return_type_of,
+
+  // P3XYZ annotation metafunctions
+  __metafn_get_ith_annotation_of,
+  __metafn_is_annotation,
+  __metafn_annotate,
 };
 
 consteval auto __workaround_expand_compiler_builtins(info type) -> info;
@@ -714,6 +729,23 @@ struct front_parameter_of_fn {
 
 #endif  // __has_feature(parameter_reflection)
 
+// TODO(P2996): Guard on feature flag.
+
+struct next_annotation_of {
+  consteval info operator()(auto /*currItrInfo */, info reflectedEntity,
+                            size_t idx) const {
+    return __metafunction(detail::__metafn_get_ith_annotation_of,
+                          reflectedEntity, LIFT(sentinel), idx);
+  }
+};
+
+struct front_annotation_of {
+  consteval info operator()(info reflectedEntity) const {
+    return __metafunction(detail::__metafn_get_ith_annotation_of,
+                          reflectedEntity, LIFT(sentinel), 0);
+  }
+};
+
 }  // namespace __range_of_infos
 
 // -----------------------------------------------------------------------------
@@ -895,7 +927,15 @@ consteval auto subobjects_of(info r) -> vector<info> {
   return subobjects;
 }
 
+// Returns true if the reflected entity has a complete definition.
+consteval auto has_complete_definition(info r) -> bool {
+  return __metafunction(detail::__metafn_has_complete_definition, r);
+}
+
 consteval auto enumerators_of(info r) -> vector<info> {
+  if (!has_complete_definition(r))
+    throw "Reflection must represent an enumeration with a definition";
+
   using iterator =
     __range_of_infos::iterator<__range_of_infos::front_enumerator_of_fn,
                                __range_of_infos::next_enumerator_of_fn,
@@ -1429,6 +1469,9 @@ consteval auto data_member_spec(info member_type,
         throw "Cannot specify both width and no_unique_address for data member";
       if (width < 0)
         throw "Cannot specify a negative width for data member";
+      if (!extract<bool>(substitute(LIFT(is_integral_v), {member_type})) &&
+          !extract<bool>(substitute(LIFT(is_enum_v), {member_type})))
+        throw "Bit field must have integral or enumeral type";
     } else {
       if (options.width.has_value() && !name_string.empty())
         throw "Bit-fields of zero width must be unnamed";
@@ -2071,6 +2114,54 @@ consteval auto return_type_of(info r) -> info {
 }
 
 #endif  // __has_feature(parameter_reflection)
+
+#if __has_feature(annotation_attributes)
+
+consteval auto annotations_of(info r) -> vector<info> {
+  using iterator =
+    __range_of_infos::iterator<__range_of_infos::front_annotation_of,
+                                __range_of_infos::next_annotation_of,
+                                __range_of_infos::map_identity_fn>;
+  using range = __range_of_infos::range<iterator>;
+  auto rng = range{r};
+  return vector<info>{rng.begin(), rng.end()};
+}
+
+consteval auto annotations_of(info r, info ty) -> vector<info> {
+  if (!is_type(ty))
+    throw "Expected a reflection of a type";
+
+  return annotations_of(r) | views::filter([=](info annot) {
+    return type_of(annot) == ty;
+  }) | ranges::to<vector>();
+}
+
+template<typename T>
+consteval optional<T> annotation_of_type(info r) {
+  auto v = annotations_of(r, ^^T);
+  optional<T> result{};
+  for (info a: v) {
+    if (result.has_value()) {
+      if (extract<T>(a) != result) {
+        throw "inconsistent annotations";
+      }
+    } else {
+      result = extract<T>(a);
+    }
+  }
+  return result;
+}
+
+consteval auto is_annotation(info r) -> bool {
+  return __metafunction(detail::__metafn_is_annotation, r);
+}
+
+consteval auto annotate(info entity, info val) -> info {
+  return __metafunction(detail::__metafn_annotate, entity, val);
+}
+
+#endif  // __has_feature(annotation_attributes)
+
 
 template <typename Ty>
 [[deprecated("separated into 'reflect_value', 'reflect_result', and "

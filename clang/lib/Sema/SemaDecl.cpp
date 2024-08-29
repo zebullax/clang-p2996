@@ -2870,6 +2870,9 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
   else if (isa<SuppressAttr>(Attr))
     // Do nothing. Each redeclaration should be suppressed separately.
     NewAttr = nullptr;
+  else if (isa<CXX26AnnotationAttr>(Attr))
+    // Do nothing. Annotation introspection walks all redeclarations.
+    NewAttr = nullptr;
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 

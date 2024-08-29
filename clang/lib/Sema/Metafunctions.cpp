@@ -27,6 +27,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Metafunction.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Template.h"
@@ -288,6 +289,10 @@ static bool is_complete_type(APValue &Result, Sema &S, EvalFn Evaluator,
                              DiagFn Diagnoser, QualType ResultTy,
                              SourceRange Range, ArrayRef<Expr *> Args);
 
+static bool has_complete_definition(APValue &Result, Sema &S, EvalFn Evaluator,
+                                    DiagFn Diagnoser, QualType ResultTy,
+                                    SourceRange Range, ArrayRef<Expr *> Args);
+
 static bool is_template(APValue &Result, Sema &S, EvalFn Evaluator,
                         DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
                         ArrayRef<Expr *> Args);
@@ -480,6 +485,19 @@ static bool return_type_of(APValue &Result, Sema &S, EvalFn Evaluator,
                            DiagFn Diagnoser, QualType ResultTy,
                            SourceRange Range, ArrayRef<Expr *> Args);
 
+static bool get_ith_annotation_of(APValue &Result, Sema &S, EvalFn Evaluator,
+                                  DiagFn Diagnoser, QualType ResultTy,
+                                  SourceRange Range, ArrayRef<Expr *> Args);
+
+static bool is_annotation(APValue &Result, Sema &S, EvalFn Evaluator,
+                          DiagFn Diagnoser, QualType ResultTy,
+                          SourceRange Range, ArrayRef<Expr *> Args);
+
+static bool annotate(APValue &Result, Sema &S, EvalFn Evaluator,
+                     DiagFn Diagnoser, QualType ResultTy,
+                     SourceRange Range, ArrayRef<Expr *> Args);
+
+
 // -----------------------------------------------------------------------------
 // Metafunction table
 //
@@ -552,6 +570,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_type },
   { Metafunction::MFRK_bool, 1, 1, is_alias },
   { Metafunction::MFRK_bool, 1, 1, is_complete_type },
+  { Metafunction::MFRK_bool, 1, 1, has_complete_definition },
   { Metafunction::MFRK_bool, 1, 1, is_template },
   { Metafunction::MFRK_bool, 1, 1, is_function_template },
   { Metafunction::MFRK_bool, 1, 1, is_variable_template },
@@ -599,6 +618,11 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_explicit_object_parameter },
   { Metafunction::MFRK_bool, 1, 1, is_function_parameter },
   { Metafunction::MFRK_metaInfo, 1, 1, return_type_of },
+
+  // PXYZ annotation metafunction extensions
+  { Metafunction::MFRK_metaInfo, 3, 3, get_ith_annotation_of },
+  { Metafunction::MFRK_bool, 1, 1, is_annotation },
+  { Metafunction::MFRK_metaInfo, 2, 2, annotate },
 };
 constexpr const unsigned NumMetafunctions = sizeof(Metafunctions) /
                                             sizeof(Metafunction);
@@ -653,6 +677,10 @@ static APValue makeReflection(CXXBaseSpecifier *Base) {
 
 static APValue makeReflection(TagDataMemberSpec *TDMS) {
   return APValue(ReflectionKind::DataMemberSpec, TDMS);
+}
+
+static APValue makeReflection(CXX26AnnotationAttr *A) {
+  return APValue(ReflectionKind::Annotation, A);
 }
 
 static Expr *makeStrLiteral(StringRef Str, ASTContext &C, bool Utf8) {
@@ -831,8 +859,17 @@ static bool findBaseSpecLoc(APValue &Result, ASTContext &C, EvalFn Evaluator,
                             QualType ResultTy, CXXBaseSpecifier *B) {
   SourceLocExpr *SLE =
           new (C) SourceLocExpr(C, SourceLocIdentKind::SourceLocStruct,
-                                ResultTy, B->getBeginLoc(),
-                                SourceLocation(), nullptr);
+                                ResultTy, B->getBeginLoc(), SourceLocation(),
+                                nullptr);
+  return !Evaluator(Result, SLE, true);
+}
+
+static bool findAnnotLoc(APValue &Result, ASTContext &C, EvalFn Evaluator,
+                         QualType ResultTy, CXX26AnnotationAttr *A) {
+  SourceLocExpr *SLE =
+          new (C) SourceLocExpr(C, SourceLocIdentKind::SourceLocStruct,
+                                ResultTy, A->getEqLoc(), SourceLocation(),
+                                nullptr);
   return !Evaluator(Result, SLE, true);
 }
 
@@ -1370,6 +1407,9 @@ StringRef DescriptionOf(APValue RV, bool Granular = true) {
   case ReflectionKind::DataMemberSpec: {
     return "a description of a non-static data member";
   }
+  case ReflectionKind::Annotation: {
+    return "an annotation";
+  }
   }
 }
 
@@ -1425,7 +1465,8 @@ bool get_begin_enumerator_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Value:
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
-  case ReflectionKind::DataMemberSpec: {
+  case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation: {
     return DiagnoseReflectionKind(Diagnoser, Range, "an enum type",
                                   DescriptionOf(RV));
   }
@@ -1463,7 +1504,8 @@ bool get_next_enumerator_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Value:
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
-  case ReflectionKind::DataMemberSpec: {
+  case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation: {
     llvm_unreachable("should have failed in 'get_begin_enumerator_decl_of'");
   }
   }
@@ -1519,6 +1561,7 @@ bool get_ith_base_of(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return DiagnoseReflectionKind(Diagnoser, Range, "a class type",
                                   DescriptionOf(RV));
   }
@@ -1571,6 +1614,7 @@ bool get_ith_template_argument_of(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return DiagnoseReflectionKind(Diagnoser, Range, "a template specialization",
                                   DescriptionOf(RV));
   }
@@ -1658,6 +1702,7 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Value:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return true;
   }
   llvm_unreachable("unknown reflection kind");
@@ -1826,6 +1871,7 @@ bool identifier_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Object:
   case ReflectionKind::Value:
   case ReflectionKind::BaseSpecifier:
+  case ReflectionKind::Annotation:
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_have_name)
         << DescriptionOf(RV) << Range;
   }
@@ -1903,6 +1949,7 @@ bool has_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::Object:
   case ReflectionKind::Value:
+  case ReflectionKind::Annotation:
     break;
   }
 
@@ -1988,6 +2035,9 @@ bool source_location_of(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::BaseSpecifier:
     return findBaseSpecLoc(Result, S.Context, Evaluator, ResultTy,
                            RV.getReflectedBaseSpecifier());
+  case ReflectionKind::Annotation:
+    return findAnnotLoc(Result, S.Context, Evaluator, ResultTy,
+                        RV.getReflectedAnnotation());
   case ReflectionKind::Object:
   case ReflectionKind::Value:
   case ReflectionKind::Null:
@@ -2049,6 +2099,12 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
                      /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
   }
+  case ReflectionKind::Annotation: {
+    QualType QT = RV.getReflectedAnnotation()->getArg()->getType();
+    QT = desugarType(QT, /*UnwrapAliases=*/false, /*DropCV=*/false,
+                     /*DropRefs=*/false);
+    return SetAndSucceed(Result, makeReflection(QT));
+  }
   }
   llvm_unreachable("unknown reflection kind");
 }
@@ -2073,8 +2129,9 @@ bool parent_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Null:
   case ReflectionKind::Object:
   case ReflectionKind::Value:
-  case ReflectionKind::DataMemberSpec:
   case ReflectionKind::BaseSpecifier:
+  case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     if (Diagnoser)
       return Diagnoser(Range.getBegin(), diag::metafn_no_associated_property)
           << DescriptionOf(RV) << 1 << Range;
@@ -2126,6 +2183,7 @@ bool dealias(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Template:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, RV);
   case ReflectionKind::Type: {
     QualType QT = RV.getReflectedType();
@@ -2185,6 +2243,7 @@ bool object_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
         << 1 << DescriptionOf(RV) << Range;
   }
@@ -2269,6 +2328,11 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     QualType ValueTy = S.ComputeResultType(QT, Value);
     return SetAndSucceed(Result, Value.Lift(ValueTy));
   }
+  case ReflectionKind::Annotation: {
+    CXX26AnnotationAttr *A = RV.getReflectedAnnotation();
+    APValue Value = RV.getReflectedAnnotation()->getValue();
+    return SetAndSucceed(Result, A->getValue().Lift(A->getArg()->getType()));
+  }
   case ReflectionKind::Null:
   case ReflectionKind::Type:
   case ReflectionKind::Template:
@@ -2314,6 +2378,7 @@ bool template_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return DiagnoseReflectionKind(Diagnoser, Range, "a template specialization",
                                   DescriptionOf(RV));
     return true;
@@ -2335,6 +2400,7 @@ static bool CanActAsTemplateArg(const APValue &RV) {
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
   case ReflectionKind::Null:
     return false;
   }
@@ -2691,6 +2757,23 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
 
     return SetAndSucceed(Result, RV.getReflectedValue());
   }
+  case ReflectionKind::Annotation: {
+    if (ReturnsLValue)
+      return Diagnoser(Range.getBegin(), diag::metafn_cannot_extract)
+          << 1 << DescriptionOf(RV) << Range;
+
+    CXX26AnnotationAttr *A = RV.getReflectedAnnotation();
+    if (auto *RD = A->getArg()->getType()->getAsCXXRecordDecl();
+        RD && RD->isLambda() && ResultTy->isPointerType())
+      return extractLambda(Result, RD);
+
+    if (A->getArg()->getType().getCanonicalType().getTypePtr() !=
+        ResultTy.getCanonicalType().getTypePtr())
+      return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
+          << 3 << A->getArg()->getType() << ReturnsLValue << ResultTy << Range;
+
+    return SetAndSucceed(Result, A->getValue());
+  }
   case ReflectionKind::Declaration: {
     ValueDecl *Decl = RV.getReflectedDecl();
     ensureInstantiated(S, Decl, Args[1]->getSourceRange());
@@ -2835,6 +2918,7 @@ bool is_public(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Object:
   case ReflectionKind::Value:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
   case ReflectionKind::Namespace:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   }
@@ -2877,6 +2961,7 @@ bool is_protected(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Object:
   case ReflectionKind::Value:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
   case ReflectionKind::Namespace:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   }
@@ -2920,6 +3005,7 @@ bool is_private(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Value:
   case ReflectionKind::Namespace:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   }
   llvm_unreachable("invalid reflection type");
@@ -2973,6 +3059,7 @@ bool is_access_specified(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Value:
   case ReflectionKind::Namespace:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   }
   llvm_unreachable("invalid reflection type");
@@ -3086,6 +3173,7 @@ bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Value:
   case ReflectionKind::Namespace:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return DiagnoseReflectionKind(Diagnoser, Range, "a class member",
                                   DescriptionOf(RV));
   }
@@ -3119,6 +3207,7 @@ bool is_virtual(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Template:
   case ReflectionKind::Namespace:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, IsVirtual));
   }
   llvm_unreachable("invalid reflection type");
@@ -3143,6 +3232,7 @@ bool is_pure_virtual(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionKind::Declaration: {
     bool IsPureVirtual = false;
@@ -3174,6 +3264,7 @@ bool is_override(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionKind::Declaration: {
     if (const auto *MD = dyn_cast<CXXMethodDecl>(RV.getReflectedDecl()))
@@ -3202,6 +3293,7 @@ bool is_deleted(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionKind::Declaration: {
     bool IsDeleted = false;
@@ -3231,6 +3323,7 @@ bool is_defaulted(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionKind::Declaration: {
     bool IsDefaulted = false;
@@ -3260,6 +3353,7 @@ bool is_explicit(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
   case ReflectionKind::Template:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionKind::Declaration: {
@@ -3293,6 +3387,7 @@ bool is_noexcept(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionKind::Type: {
     const QualType QT = RV.getReflectedType();
@@ -3361,6 +3456,7 @@ bool is_const(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionKind::Type: {
     bool result = isConstQualifiedType(RV.getReflectedType());
@@ -3399,6 +3495,7 @@ bool is_volatile(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionKind::Type: {
     bool result = isVolatileQualifiedType(RV.getReflectedType());
@@ -3736,6 +3833,7 @@ bool is_static_member(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, result));
   }
   llvm_unreachable("unknown reflection kind");
@@ -3851,6 +3949,7 @@ bool is_alias(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Declaration:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   }
   llvm_unreachable("unknown reflection kind");
@@ -3875,6 +3974,45 @@ bool is_complete_type(APValue &Result, Sema &S, EvalFn Evaluator,
 
     result = !RV.getReflectedType()->isIncompleteType();
   }
+  return SetAndSucceed(Result, makeBool(S.Context, result));
+}
+
+bool has_complete_definition(APValue &Result, Sema &S, EvalFn Evaluator,
+                             DiagFn Diagnoser, QualType ResultTy,
+                             SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue RV;
+  if (!Evaluator(RV, Args[0], true))
+    return true;
+
+  bool result = false;
+  switch (RV.getReflectionKind()) {
+  case ReflectionKind::Type:
+    if (Decl *typeDecl = findTypeDecl(RV.getReflectedType())) {
+      if (auto *TD = dyn_cast<TagDecl>(typeDecl))
+        result = (TD->getDefinition() != nullptr &&
+                  !TD->getDefinition()->isBeingDefined());
+    }
+    break;
+  case ReflectionKind::Declaration: {
+    if (auto *FD = dyn_cast<FunctionDecl>(RV.getReflectedDecl()))
+      result = (FD->getDefinition() != nullptr &&
+                FD->getDefinition()->hasBody());
+    break;
+  }
+  case ReflectionKind::Null:
+  case ReflectionKind::Object:
+  case ReflectionKind::Value:
+  case ReflectionKind::Template:
+  case ReflectionKind::Namespace:
+  case ReflectionKind::BaseSpecifier:
+  case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
+    break;
+  }
+
   return SetAndSucceed(Result, makeBool(S.Context, result));
 }
 
@@ -4135,6 +4273,7 @@ bool has_template_arguments(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   }
   llvm_unreachable("unknown reflection kind");
@@ -4231,6 +4370,7 @@ bool is_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Template:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionKind::Declaration: {
     bool result = isa<CXXConstructorDecl>(RV.getReflectedDecl());
@@ -4367,6 +4507,7 @@ bool is_destructor(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionKind::Declaration: {
     bool result = isa<CXXDestructorDecl>(RV.getReflectedDecl());
@@ -4394,6 +4535,7 @@ bool is_special_member_function(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return SetAndSucceed(Result, makeBool(S.Context, false));
   case ReflectionKind::Declaration: {
     bool IsSpecial = false;
@@ -4593,6 +4735,7 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_invoke)
         << DescriptionOf(Scratch) << Range;
   case ReflectionKind::Object: {
@@ -5080,6 +5223,7 @@ bool offset_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return DiagnoseReflectionKind(Diagnoser, Range, "a non-static data member",
                                   DescriptionOf(RV));
   case ReflectionKind::Declaration: {
@@ -5140,6 +5284,7 @@ bool size_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Template:
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
+  case ReflectionKind::Annotation:
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
         << 3 << DescriptionOf(RV);
   }
@@ -5165,6 +5310,7 @@ bool bit_offset_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return DiagnoseReflectionKind(Diagnoser, Range, "a non-static data member",
                                   DescriptionOf(RV));
   case ReflectionKind::Declaration: {
@@ -5231,6 +5377,7 @@ bool bit_size_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Template:
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
+  case ReflectionKind::Annotation:
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
         << 3 << DescriptionOf(RV);
   }
@@ -5293,6 +5440,7 @@ bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Template:
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
+  case ReflectionKind::Annotation:
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
         << 4 << DescriptionOf(RV);
   }
@@ -5410,6 +5558,7 @@ bool get_ith_parameter_of(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return true;
   }
   return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
@@ -5443,6 +5592,7 @@ bool has_consistent_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return has_identifier(Result, S, Evaluator, Diagnoser, ResultTy, Range,
                           Args);
   }
@@ -5467,6 +5617,7 @@ bool has_ellipsis_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
       << 5 << DescriptionOf(RV) << Range;
   case ReflectionKind::Type:
@@ -5512,6 +5663,7 @@ bool has_default_argument(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return DiagnoseReflectionKind(Diagnoser, Range, "a function parameter",
                                   DescriptionOf(RV));
   }
@@ -5583,8 +5735,160 @@ bool return_type_of(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
         << 6 << DescriptionOf(RV) << Range;
+  }
+  llvm_unreachable("unknown reflection kind");
+}
+
+bool get_ith_annotation_of(APValue &Result, Sema &S, EvalFn Evaluator,
+                           DiagFn Diagnoser, QualType ResultTy,
+                           SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.MetaInfoTy);
+
+  auto findAnnotation = [&](Decl *D, size_t idx, APValue Sentinel) {
+    D = D->getMostRecentDecl();
+
+    while (D) {
+      auto Annots = D->attrs();
+      for (auto It = Annots.begin(); It != Annots.end(); ++It)
+        if (isa<CXX26AnnotationAttr>(*It))
+          if (idx-- == 0)
+            return makeReflection(dyn_cast<CXX26AnnotationAttr>(*It));
+      D = D->getPreviousDecl();
+    }
+    return Sentinel;
+  };
+
+  APValue RV;
+  if (!Evaluator(RV, Args[0], true))
+    return true;
+
+  APValue Sentinel;
+  if (!Evaluator(Sentinel, Args[1], true))
+    return true;
+  assert(Sentinel.isReflectedType());
+
+  APValue Idx;
+  if (!Evaluator(Idx, Args[2], true))
+    return true;
+  size_t idx = Idx.getInt().getExtValue();
+
+  switch (RV.getReflectionKind()) {
+  case ReflectionKind::Type: {
+    NamedDecl *typeDecl = findTypeDecl(RV.getReflectedType());
+    ensureInstantiated(S, typeDecl, Range);
+
+    return SetAndSucceed(Result, findAnnotation(typeDecl, idx, Sentinel));
+  }
+  case ReflectionKind::Declaration: {
+    ValueDecl *VD = RV.getReflectedDecl();
+
+    return SetAndSucceed(Result, findAnnotation(VD, idx, Sentinel));
+  }
+  case ReflectionKind::Namespace: {
+    Decl *D = RV.getReflectedNamespace();
+
+    return SetAndSucceed(Result, findAnnotation(D, idx, Sentinel));
+  }
+  // Disallow reflecting annotations of unspecialized templates, as they might
+  // contain a dependent name.
+  case ReflectionKind::Template: /*{
+    Decl *D = RV.getReflectedTemplate().getAsTemplateDecl()->getTemplatedDecl();
+
+    return SetAndSucceed(Result, findAnnotation(D, idx, Sentinel));
+  }*/
+  case ReflectionKind::Null:
+  case ReflectionKind::Object:
+  case ReflectionKind::Value:
+  case ReflectionKind::BaseSpecifier:
+  case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
+    return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
+        << 7 << DescriptionOf(RV) << Range;
+  }
+  llvm_unreachable("unknown reflection kind");
+}
+
+bool is_annotation(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
+                   QualType ResultTy, SourceRange Range,
+                   ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.BoolTy);
+
+  APValue RV;
+  if (!Evaluator(RV, Args[0], true))
+    return true;
+
+  return SetAndSucceed(Result, makeBool(S.Context, RV.isReflectedAnnotation()));
+}
+
+bool annotate(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
+              QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(Args[1]->getType()->isReflectionType());
+  assert(ResultTy == S.Context.MetaInfoTy);
+
+  APValue Appertainee;
+  if (!Evaluator(Appertainee, Args[0], true))
+    return true;
+
+  APValue Value;
+  if (!Evaluator(Value, Args[1], true) || !Value.isReflectedValue())
+    return true;
+
+  CXX26AnnotationAttr *Annot = nullptr;
+  {
+    Expr *OVE = new (S.Context) OpaqueValueExpr(
+            Range.getBegin(),
+            Value.getTypeOfReflectedResult(S.Context),
+            VK_PRValue);
+    Expr *CE = ConstantExpr::Create(S.Context, OVE, Value.getReflectedValue());
+
+    IdentifierTable &IT = S.PP.getIdentifierTable();
+    IdentifierInfo &Placeholder = IT.get("__annotation_placeholder");
+
+    AttributeFactory AF;
+    ParsedAttributes PAs(AF);
+    ParsedAttr *PA = PAs.addNew(&Placeholder, Range, nullptr, Range.getBegin(),
+                                nullptr, 0, ParsedAttr::Form::Annotation());
+
+    Annot = CXX26AnnotationAttr::Create(S.Context, CE, *PA);
+    Annot->setValue(Value.getReflectedValue());
+    Annot->setEqLoc(Range.getBegin());
+  }
+
+  switch (Appertainee.getReflectionKind()) {
+  case ReflectionKind::Type: {
+    Decl *D = findTypeDecl(Appertainee.getReflectedType());
+    D->getMostRecentDecl()->addAttr(Annot);
+    return SetAndSucceed(Result, makeReflection(Annot));
+  }
+  case ReflectionKind::Declaration: {
+    Decl *D = Appertainee.getReflectedDecl();
+    D->getMostRecentDecl()->addAttr(Annot);
+    return SetAndSucceed(Result, makeReflection(Annot));
+  }
+  case ReflectionKind::Namespace: {
+    Decl *D = Appertainee.getReflectedNamespace();
+    D->getMostRecentDecl()->addAttr(Annot);
+    return SetAndSucceed(Result, makeReflection(Annot));
+  }
+  case ReflectionKind::Template: {
+    Decl *D = Appertainee.getReflectedTemplate().getAsTemplateDecl();
+    D->getMostRecentDecl()->addAttr(Annot);
+    return SetAndSucceed(Result, makeReflection(Annot));
+  }
+  case ReflectionKind::Null:
+  case ReflectionKind::Object:
+  case ReflectionKind::Value:
+  case ReflectionKind::BaseSpecifier:
+  case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
+    return Diagnoser(Range.getBegin(), diag::metafn_cannot_annotate)
+        << DescriptionOf(Appertainee) << Range;
   }
   llvm_unreachable("unknown reflection kind");
 }

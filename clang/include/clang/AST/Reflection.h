@@ -99,6 +99,9 @@ enum class ReflectionKind {
   /// to do this. One idea is to allow a reflection of a type erased struct,
   /// but the current design seems tolerable for now.
   DataMemberSpec,
+
+  /// \brief A reflection of an annotation (P2996 ext).
+  Annotation,
 };
 
 

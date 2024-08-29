@@ -1735,6 +1735,8 @@ def err_cannot_reflect_operand : Error<
   "cannot reflect the provided operand">;
 def err_expansion_statements_disabled : Error<
   "'template for' statements are not enabled; use '-fexpansion-statements'">;
+def err_annotation_with_using : Error<
+  "annotations are not permitted following an attribute-using-prefix">;
 }
 
 let CategoryName = "Generics Issue" in {

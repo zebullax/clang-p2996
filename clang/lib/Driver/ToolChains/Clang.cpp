@@ -7410,6 +7410,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // -fexpansion-statements is likewise off by default.
   Args.addOptInFlag(CmdArgs, options::OPT_fexpansion_statements,
                     options::OPT_fno_expansion_statements);
+  // -fannotation-attributes is likewise off by default.
+  Args.addOptInFlag(CmdArgs, options::OPT_fannotation_attributes,
+                    options::OPT_fno_annotation_attributes);
 
   // -fsized-deallocation is on by default in C++14 onwards and otherwise off
   // by default.

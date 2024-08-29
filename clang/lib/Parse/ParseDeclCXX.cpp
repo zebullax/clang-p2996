@@ -5091,6 +5091,17 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
     SourceLocation ScopeLoc, AttrLoc;
     IdentifierInfo *ScopeName = nullptr, *AttrName = nullptr;
 
+    if (Tok.is(tok::equal) && getLangOpts().AnnotationAttributes) {
+      // This is a C++2c annotation.
+      if (CommonScopeName) {
+        Diag(Tok.getLocation(), diag::err_annotation_with_using);
+        SkipUntil(tok::r_square, tok::colon, tok::r_splice, StopBeforeMatch);
+      } else {
+        ParseAnnotationSpecifier(Attrs, EndLoc);
+      }
+      continue;
+    }
+
     AttrName = TryParseCXX11AttributeIdentifier(
         AttrLoc, SemaCodeCompletion::AttributeCompletion::Attribute,
         CommonScopeName);

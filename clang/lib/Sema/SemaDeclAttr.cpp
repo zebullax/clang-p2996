@@ -2032,6 +2032,20 @@ static void handleAttrWithMessage(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(::new (S.Context) AttrTy(S.Context, AL, Str));
 }
 
+/// Handle an annotation (C++2c).
+static void handleCXX2CAnnotation(Sema &S, Decl *D, const ParsedAttr &AL) {
+  Expr *CE = AL.getArgAsExpr(0);
+
+  Expr::EvalResult Result;
+  if (!CE->isValueDependent() && !CE->EvaluateAsRValue(Result, S.Context, true)) {
+    llvm_unreachable("failed to evaluate annotation expression");
+  }
+  auto *Annot = CXX26AnnotationAttr::Create(S.Context, CE, AL);
+  Annot->setValue(Result.Val);
+  Annot->setEqLoc(AL.getLoc());
+  D->addAttr(Annot);
+}
+
 static bool checkAvailabilityAttr(Sema &S, SourceRange Range,
                                   IdentifierInfo *Platform,
                                   VersionTuple Introduced,
@@ -7120,6 +7134,10 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_VTablePointerAuthentication:
     handleVTablePointerAuthentication(S, D, AL);
     break;
+
+  case ParsedAttr::AnnotationAttribute:
+    handleCXX2CAnnotation(S, D, AL);
+    break;
   }
 }
 
@@ -7474,7 +7492,6 @@ static void handleDelayedForbiddenType(Sema &S, DelayedDiagnostic &DD,
       << DD.getForbiddenTypeOperand() << DD.getForbiddenTypeArgument();
   DD.Triggered = true;
 }
-
 
 void Sema::PopParsingDeclaration(ParsingDeclState state, Decl *decl) {
   assert(DelayedDiagnostics.getCurrentPool());

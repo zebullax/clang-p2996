@@ -2053,9 +2053,11 @@ public:
     assert(llvm::all_of(DeclarationAttrs,
                         [](const ParsedAttr &AL) {
                           return (AL.isStandardAttributeSyntax() ||
-                                  AL.isRegularKeywordAttribute());
+                                  AL.isRegularKeywordAttribute() ||
+                                  AL.isAnnotation());
                         }) &&
-           "DeclarationAttrs may only contain [[]] and keyword attributes");
+           "DeclarationAttrs may only contain [[]], keyword attributes, and "
+           "annotations");
   }
 
   ~Declarator() {

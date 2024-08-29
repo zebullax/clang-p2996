@@ -3365,6 +3365,27 @@ void Parser::ParseAlignmentSpecifier(ParsedAttributes &Attrs,
   }
 }
 
+void Parser::ParseAnnotationSpecifier(ParsedAttributes &Attrs,
+                                      SourceLocation *EndLoc) {
+  assert(Tok.is(tok::equal) && "not an annotation");
+  SourceLocation EqLoc = ConsumeToken();
+
+  ExprResult AnnotExpr = ParseConstantExpression();
+  if (AnnotExpr.isInvalid() || AnnotExpr.get()->containsErrors())
+    return;
+
+  IdentifierTable &IT = Actions.PP.getIdentifierTable();
+  IdentifierInfo &Placeholder = IT.get("__annotation_placeholder");
+
+  ArgsVector ArgExprs;
+  ArgExprs.push_back(AnnotExpr.get());
+  Attrs.addNew(&Placeholder, EqLoc, nullptr, EqLoc, ArgExprs.data(), 1,
+               ParsedAttr::Form::Annotation());
+
+  if (EndLoc)
+    *EndLoc = AnnotExpr.get()->getEndLoc();
+}
+
 void Parser::DistributeCLateParsedAttrs(Decl *Dcl,
                                         LateParsedAttrList *LateAttrs) {
   if (!LateAttrs)

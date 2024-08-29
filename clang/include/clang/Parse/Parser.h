@@ -3962,6 +3962,9 @@ private:
                                          bool TypeConstraint = false,
                                          bool Complain = true);
 
+  void ParseAnnotationSpecifier(ParsedAttributes &Attrs,
+                                SourceLocation *endLoc = nullptr);
+
   //===--------------------------------------------------------------------===//
   // Preprocessor code-completion pass-through
   void CodeCompleteDirective(bool InConditional) override;

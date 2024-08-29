@@ -33,6 +33,7 @@ template <typename T> class BasicReaderBase;
   class AddrLabelExpr;
   class ASTContext;
   class CharUnits;
+  class CXX26AnnotationAttr;
   class CXXRecordDecl;
   class Decl;
   class DiagnosticBuilder;
@@ -484,6 +485,9 @@ public:
     return isReflection() &&
            getReflectionKind() == ReflectionKind::DataMemberSpec;
   }
+  bool isReflectedAnnotation() const {
+    return isReflection() && getReflectionKind() == ReflectionKind::Annotation;
+  }
 
   void dump() const;
   void dump(raw_ostream &OS, const ASTContext &Context) const;
@@ -673,6 +677,7 @@ public:
   Decl *getReflectedNamespace() const;
   CXXBaseSpecifier *getReflectedBaseSpecifier() const;
   TagDataMemberSpec *getReflectedDataMemberSpec() const;
+  CXX26AnnotationAttr *getReflectedAnnotation() const;
 
   void setInt(APSInt I) {
     assert(isInt() && "Invalid accessor");

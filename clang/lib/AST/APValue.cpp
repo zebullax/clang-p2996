@@ -15,6 +15,7 @@
 #include "clang/AST/APValue.h"
 #include "Linkage.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/CharUnits.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
@@ -546,6 +547,7 @@ static void profileReflection(llvm::FoldingSetNodeID &ID, APValue V) {
   }
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
+  case ReflectionKind::Annotation:
     ID.AddPointer(V.getOpaqueReflectionData());
     return;
   case ReflectionKind::DataMemberSpec: {
@@ -934,6 +936,13 @@ TagDataMemberSpec *APValue::getReflectedDataMemberSpec() const {
           const_cast<void *>(getOpaqueReflectionData()));
 }
 
+CXX26AnnotationAttr *APValue::getReflectedAnnotation() const {
+  assert(getReflectionKind() == ReflectionKind::Annotation &&
+         "not a reflection of an annotation");
+  return reinterpret_cast<CXX26AnnotationAttr *>(
+          const_cast<void *>(getOpaqueReflectionData()));
+}
+
 static double GetApproxValue(const llvm::APFloat &F) {
   llvm::APFloat V = F;
   bool ignored;
@@ -1284,8 +1293,11 @@ void APValue::printPretty(raw_ostream &Out, const PrintingPolicy &Policy,
     case ReflectionKind::DataMemberSpec:
       Repr = "data-member-spec";
       break;
+    case ReflectionKind::Annotation:
+      Repr = "annotation";
+      break;
     }
-    Out << "^(" << Repr << ")";
+    Out << "^^(" << Repr << ")";
     return;
   }
   llvm_unreachable("Unknown APValue kind!");
@@ -1624,6 +1636,7 @@ void APValue::setReflection(ReflectionKind RK, const void *Ptr) {
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     SelfData.Kind = RK;
     SelfData.Data = Ptr;
     return;

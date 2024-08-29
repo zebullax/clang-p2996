@@ -8920,6 +8920,7 @@ TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
   case ReflectionKind::Null:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     llvm_unreachable("reflect expression should not have this reflection kind");
   }
   llvm_unreachable("invalid reflection");

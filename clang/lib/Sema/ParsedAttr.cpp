@@ -117,6 +117,13 @@ const ParsedAttrInfo &ParsedAttrInfo::get(const AttributeCommonInfo &A) {
   if ((size_t)A.getParsedKind() < std::size(AttrInfoMap))
     return *AttrInfoMap[A.getParsedKind()];
 
+  // If this is an annotation then return an appropriate ParsedAttrInfo.
+  static const ParsedAttrInfo AnnotationAttrInfo(
+      AttributeCommonInfo::AnnotationAttribute, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0, {},
+      nullptr);
+  if (A.getSyntax() == AttributeCommonInfo::AS_Annotation)
+    return AnnotationAttrInfo;
+
   // If this is an ignored attribute then return an appropriate ParsedAttrInfo.
   static const ParsedAttrInfo IgnoredParsedAttrInfo(
       AttributeCommonInfo::IgnoredAttribute);
@@ -225,7 +232,7 @@ bool ParsedAttr::slidesFromDeclToDeclSpecLegacyBehavior() const {
     // atributes.
     return false;
 
-  assert(isStandardAttributeSyntax() || isAlignas());
+  assert(isStandardAttributeSyntax() || isAlignas() || isAnnotation());
 
   // We have historically allowed some type attributes with standard attribute
   // syntax to slide to the decl-specifier-seq, so we have to keep supporting

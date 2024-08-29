@@ -288,11 +288,22 @@ static_assert(is_public(bases_of(^^D2<B1, B3>)[1]));
                                  // ===========
 
 namespace enumerators {
-enum class EnumCls { A, B, C };
+enum class EnumCls;
+static_assert(!has_complete_definition(^^EnumCls));
+
+enum class EnumCls {
+    A,
+    B = has_complete_definition(^^EnumCls) ? 1 : 0,
+    C,
+};
+static_assert(int(EnumCls::B) == 0);
+static_assert(has_complete_definition(^^EnumCls));
 static_assert(enumerators_of(^^EnumCls) ==
               std::vector{^^EnumCls::A, ^^EnumCls::B, ^^EnumCls::C});
 
 struct Cls { enum Enum { A, B, C }; };
+static_assert(!has_complete_definition(^^::));
+static_assert(has_complete_definition(^^Cls::Enum));
 static_assert(enumerators_of(^^Cls::Enum) ==
               std::vector{^^Cls::A, ^^Cls::B, ^^Cls::C});
 
@@ -329,6 +340,42 @@ static_assert(subobjects_of(^^TCls<B1, B2>)[2] ==
               nonstatic_data_members_of(^^TCls<B1, B2>)[0]);
 }  // namespace all_subobjects
 
+                            // ====================
+                            // complete_definitions
+                            // ====================
+
+namespace complete_definitions {
+enum E : int;
+static_assert(!has_complete_definition(^^E));
+
+enum E : int { A = has_complete_definition(^^E) ? 1 : 0 };
+static_assert(E::A == 0);
+static_assert(has_complete_definition(^^E));
+
+struct S;
+static_assert(!has_complete_definition(^^S));
+
+struct S {
+  void fn() {
+    static_assert(has_complete_definition(^^S));
+  }
+  static_assert(!has_complete_definition(^^S));
+};
+static_assert(has_complete_definition(^^S));
+
+void fn();
+static_assert(!has_complete_definition(^^fn));
+
+void fn() {
+  static_assert(!has_complete_definition(^^fn));
+}
+static_assert(has_complete_definition(^^fn));
+
+static_assert(!has_complete_definition(^^::));
+static_assert(!has_complete_definition(^^int));
+static_assert(!has_complete_definition(^^std::vector));
+
+}  // namespace complete_definitions
 
 int main() {
   class_members::usage_example();
