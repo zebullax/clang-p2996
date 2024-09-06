@@ -455,6 +455,10 @@ static bool define_static_string(APValue &Result, Sema &S, EvalFn Evaluator,
                                  DiagFn Diagnoser, QualType ResultTy,
                                  SourceRange Range, ArrayRef<Expr *> Args);
 
+static bool define_static_array(APValue &Result, Sema &S, EvalFn Evaluator,
+                                DiagFn Diagnoser, QualType ResultTy,
+                                SourceRange Range, ArrayRef<Expr *> Args);
+
 // -----------------------------------------------------------------------------
 // P3096 Metafunction declarations
 // -----------------------------------------------------------------------------
@@ -614,6 +618,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_sizeT, 1, 1, bit_size_of },
   { Metafunction::MFRK_sizeT, 1, 1, alignment_of },
   { Metafunction::MFRK_spliceFromArg, 5, 5, define_static_string },
+  { Metafunction::MFRK_spliceFromArg, 4, 4, define_static_array },
 
   // P3096 metafunction extensions
   { Metafunction::MFRK_metaInfo, 3, 3, get_ith_parameter_of },
@@ -5533,6 +5538,86 @@ bool define_static_string(APValue &Result, Sema &S, EvalFn Evaluator,
   return SetAndSucceed(Result,
                        APValue(AnonArr, CharUnits::Zero(), Path, false));
 }
+
+bool define_static_array(APValue &Result, Sema &S, EvalFn Evaluator,
+                         DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(Args[1]->getType()->isReflectionType());
+
+  APValue Scratch;
+
+  // Evaluate the value type.
+  if (!Evaluator(Scratch, Args[1], true))
+    return true;
+  QualType ValueTy = Scratch.getReflectedType();
+
+  // Evaluate the number of elements provided.
+  SmallVector<Expr *, 4> Elems;
+  if (!Evaluator(Scratch, Args[2], true))
+    return true;
+  size_t Length = Scratch.getInt().getExtValue();
+  Elems.resize(Length);
+
+  for (uint64_t k = 0; k < Length; ++k) {
+    llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
+    Expr *Synthesized = IntegerLiteral::Create(S.Context, Idx,
+                                               S.Context.getSizeType(),
+                                               Args[3]->getExprLoc());
+
+    Synthesized = new (S.Context) ArraySubscriptExpr(Args[3],
+                                                     Synthesized, ValueTy,
+                                                     VK_LValue, OK_Ordinary,
+                                                     Range.getBegin());
+    if (Synthesized->isValueDependent() || Synthesized->isTypeDependent())
+      return true;
+
+    APValue Val;
+    if (!Evaluator(Val, Synthesized, true))
+      return true;
+
+    Synthesized = new (S.Context) OpaqueValueExpr(Range.getBegin(), ValueTy,
+                                                  VK_PRValue);
+    Synthesized = ConstantExpr::Create(S.Context, Synthesized, Val);
+
+    Elems[k] = Synthesized;
+  }
+
+  std::string Name;
+  {
+    static int gen_id = 0;
+    llvm::raw_string_ostream NameOut(Name);
+    NameOut << "__gen_array_" << (gen_id++);
+  }
+
+  QualType ArrTy = S.Context.getConstantArrayType(ValueTy,
+                                                  llvm::APSInt::get(Length),
+                                                  Args[2],
+                                                  ArraySizeModifier::Normal,
+                                                  /*IndexTypeQuals=*/0);
+  VarDecl *AnonArr = VarDecl::Create(S.Context,
+                                     S.Context.getTranslationUnitDecl(),
+                                     SourceLocation(), SourceLocation(),
+                                     &S.Context.Idents.get(Name), ArrTy,
+                                     nullptr, SC_Static);
+  {
+    ExprResult ILE = S.ActOnInitList(Range.getBegin(), Elems, Range.getEnd());
+    if (ILE.isInvalid())
+      return true;
+    AnonArr->setConstexpr(true);
+    S.AddInitializerToDecl(AnonArr, ILE.get(), true);
+
+    DeclGroupRef DG(AnonArr);
+    assert(AnonArr->hasLinkage());
+    S.Consumer.HandleTopLevelDecl(DG);
+  }
+  assert(AnonArr->getFormalLinkage() == Linkage::Internal);
+
+  APValue::LValuePathEntry Path[1] = {APValue::LValuePathEntry::ArrayIndex(0)};
+  return SetAndSucceed(Result,
+                       APValue(AnonArr, CharUnits::Zero(), Path, false));
+}
+
 
 bool get_ith_parameter_of(APValue &Result, Sema &S, EvalFn Evaluator,
                           DiagFn Diagnoser, QualType ResultTy,

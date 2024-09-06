@@ -523,6 +523,7 @@ enum : unsigned {
   __metafn_bit_size_of,
   __metafn_alignment_of,
   __metafn_define_static_string,
+  __metafn_define_static_array,
 
   // P3096 metafunctions
   __metafn_get_ith_parameter_of,
@@ -1554,21 +1555,29 @@ consteval auto bit_size_of(info r) -> size_t {
 
 // Returns a static string having the provided contents.
 consteval auto define_static_string(string_view in) -> const char * {
-  if (in.empty())
-    return "";
-
   return __metafunction(detail::__metafn_define_static_string,
                         LIFT(const char *), LIFT(char), in.size(), in.data(),
                         /*IsUtf8=*/false);
 }
 
 consteval auto define_static_string(u8string_view in) -> const char8_t * {
-  if (in.empty())
-    return u8"";
-
   return __metafunction(detail::__metafn_define_static_string,
                         LIFT(const char8_t *), LIFT(char8_t),
                         in.size(), in.data(), /*IsUtf8=*/true);
+}
+
+template <ranges::input_range R>
+    requires (is_constructible_v<ranges::range_value_t<R>,
+                                 ranges::range_reference_t<R>>)
+consteval auto define_static_array(R &&elems)
+    -> span<const ranges::range_value_t<R>> {
+  vector vec(from_range, elems);
+
+  using value_t = ranges::range_value_t<R>;
+  const value_t *arr = __metafunction(detail::__metafn_define_static_array,
+                                      LIFT(const value_t *), LIFT(value_t),
+                                      vec.size(), vec.data());
+  return span<const ranges::range_value_t<R>>(arr, vec.size());
 }
 
 
