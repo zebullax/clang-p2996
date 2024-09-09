@@ -2037,14 +2037,16 @@ static void handleCXX2CAnnotation(Sema &S, Decl *D, const ParsedAttr &AL) {
   Expr *CE = AL.getArgAsExpr(0);
 
   Expr::EvalResult Result;
-  if (!CE->isValueDependent() && !CE->EvaluateAsRValue(Result, S.Context, true)) {
-    S.Diag(CE->getBeginLoc(), diag::err_attribute_argument_type)
-        << "c++26 annotation" << 4 << CE->getSourceRange();
-    return;
-  } else if (!CE->getType()->isStructuralType()) {
-    S.Diag(CE->getBeginLoc(), diag::err_attribute_argument_type)
-        << "c++26 annotation" << 5 << CE->getSourceRange();
-    return;
+  if (!CE->isValueDependent()) {
+    if (!CE->EvaluateAsRValue(Result, S.Context, true)) {
+      S.Diag(CE->getBeginLoc(), diag::err_attribute_argument_type)
+          << "c++26 annotation" << 4 << CE->getSourceRange();
+      return;
+    } else if (!CE->getType()->isStructuralType()) {
+      S.Diag(CE->getBeginLoc(), diag::err_attribute_argument_type)
+          << "c++26 annotation" << 5 << CE->getSourceRange();
+      return;
+    }
   }
   auto *Annot = CXX26AnnotationAttr::Create(S.Context, CE, AL);
   Annot->setValue(Result.Val);
