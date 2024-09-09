@@ -3002,8 +3002,14 @@ DEF_TRAVERSE_STMT(CXXExpansionInitListExpr, {
   for (Expr *SubExpr : S->getSubExprs())
     TRY_TO(TraverseStmt(SubExpr));
 })
-DEF_TRAVERSE_STMT(CXXExpansionSelectExpr, {
-  TRY_TO(TraverseStmt(S->getBase()));
+DEF_TRAVERSE_STMT(CXXExpansionInitListSelectExpr, {
+  TRY_TO(TraverseStmt(S->getRange()));
+  TRY_TO(TraverseStmt(S->getIdx()));
+})
+DEF_TRAVERSE_STMT(CXXDestructurableExpansionSelectExpr, {
+  TRY_TO(TraverseStmt(S->getRange()));
+  if (auto *DD = S->getDecompositionDecl())
+    TRY_TO(TraverseDecl(DD));
   TRY_TO(TraverseStmt(S->getIdx()));
 })
 DEF_TRAVERSE_STMT(StackLocationExpr, {})
@@ -3054,16 +3060,6 @@ DEF_TRAVERSE_STMT(CoyieldExpr, {
 })
 
 // C++ expansion statements (P1306).
-DEF_TRAVERSE_STMT(CXXIterableExpansionStmt, {
-  if (!getDerived().shouldVisitImplicitCode()) {
-    if (S->getInit())
-      TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getInit());
-    TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getExpansionVarStmt());
-    TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getRange());
-    TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(S->getBody());
-    ShouldVisitChildren = false;
-  }
-})
 DEF_TRAVERSE_STMT(CXXDestructurableExpansionStmt, {
   if (!getDerived().shouldVisitImplicitCode()) {
     if (S->getInit())

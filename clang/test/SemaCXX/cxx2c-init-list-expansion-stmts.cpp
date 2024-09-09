@@ -15,6 +15,9 @@
                           // basic_expansions
                           // ================
 
+struct empty_t {};
+struct struct_t { int i, j, k; };
+
 namespace basic_expansions {
 
 void runtime_fn(auto) {}
@@ -27,17 +30,34 @@ int run_tests() {
   template for (int init = 0; auto e : {}) static_assert(false);
   template for (constexpr auto init = 0; auto e : {}) static_assert(false);
 
+  template for (int arr[0]; auto e : arr) static_assert(false);
+  template for (constexpr int arr[0] {};
+                constexpr auto e : arr) static_assert(false);
+  template for (empty_t empty; auto e : empty) static_assert(false);
+  template for (constexpr empty_t empty;
+                constexpr auto e : empty) static_assert(false);
+
   // basic expansions with runtime expansion variables.
   template for (auto e : {1, 'a', false})
     runtime_fn(e);
   template for (int init = 0; int e : {1, 2, 3})
     runtime_fn((init++) + e);
+  template for (int arr[] = {1, 2, 3}; auto e : arr)
+    runtime_fn(e);
+  template for (struct_t s = {1, 2, 3}; auto e : s)
+    runtime_fn(e);
 
   // basic expansions with constexpr expansion variables.
   template for (constexpr auto e : {1, 'a', false})
     compiletime_fn(e);
   template for (int init = 0; constexpr int e : {1, 2, 3})
     runtime_fn(e + init);
+  template for (constexpr int arr[] = {1, 2, 3};
+                constexpr auto e : {1, 2, 3})
+    runtime_fn(e);
+  template for (constexpr struct_t s = {1, 2, 3};
+                constexpr auto e : s)
+    runtime_fn(e);
 
   return 0;
 }
@@ -51,12 +71,17 @@ namespace in_constant_evaluations {
 
 consteval int fn() {
   int result = 0;
+
   template for (result = 5; int e : {1, 3, 5, 7, 9})
+    result += e;
+  template for (int arr[] = {1, 3, 5}; int e : arr)
+    result += e;
+  template for (struct_t s = {1, 3, 5}; int e : s)
     result += e;
 
   return result;
 }
-static_assert(fn() == 30);
+static_assert(fn() == 48);
 }  // namespace in_constant_evaluations
 
                               // =================
@@ -80,11 +105,11 @@ static_assert(s.first == 3);
 static_assert(s.second == 5);
 }  // namespace initializer_lists
 
-                            // ====================
-                            // dependent_expansions
-                            // ====================
+                       // ==============================
+                       // dependent_expansion_init_lists
+                       // ==============================
 
-namespace dependent_expansions {
+namespace dependent_expansion_init_lists {
 
 template <typename T>
 struct S {
@@ -130,7 +155,51 @@ void run_tests() {
   (void) S<int>::dependent_pack_fn<1, 2.0f, 3l>();
   (void) S<int>::dependent_type_parm_var_fn(10);
 }
-}  // dependent_expansions
+}  // dependent_expansion_init_lists
+
+                     // ===================================
+                     // dependent_expansion_destructurables
+                     // ===================================
+
+namespace dependent_expansion_destructurables {
+
+template <typename T>
+struct S {
+  template <T V>
+  static constexpr int dependent_value_fn() {
+    int result = 0;
+    template for (auto e : V)
+      result += e;
+    return result;
+  }
+
+  template <T... Vs>
+  static constexpr int dependent_arr_fn() {
+    int result = 0;
+    template for (T arr[] = {Vs...}; auto e : arr)
+      result += e;
+    return result;
+  }
+
+  static constexpr int dependent_sum_from_param(T v) {
+    int result = 0;
+    template for (auto e : v)
+      result += e;
+    return result;
+  }
+};
+
+constexpr struct_t s {1, 2, 3};
+static_assert(S<struct_t>::template dependent_value_fn<s>() == 6);
+static_assert(S<int>::template dependent_arr_fn<1, 3, 5>() == 9);
+static_assert(S<struct_t>::dependent_sum_from_param(s) == 6);
+
+void run_tests() {
+  (void) S<struct_t>::template dependent_value_fn<s>();
+  (void) S<int>::template dependent_arr_fn<1, 3, 5>();
+  (void) S<struct_t>::dependent_sum_from_param(s);
+}
+}  // dependent_expansion_destructurables
 
                          // ===========================
                          // nested_expansion_statements
@@ -139,17 +208,29 @@ void run_tests() {
 namespace nested_expansion_statements {
 
 template <auto... Vs>
-constexpr int nested_expansion() {
+constexpr int nested_expansion_init_lists() {
   int result = 0;
   template for (auto r : {1, 2, 3, 4})
     template for (auto s : {Vs...})
       result += r * s;
   return result;
 }
-static_assert(nested_expansion<4, 3, 2, 1>() == 100);
+static_assert(nested_expansion_init_lists<4, 3, 2, 1>() == 100);
+
+template <struct_t s>
+consteval int nested_expansion_destructurables() {
+  int result = 0;
+  template for (auto e : s)
+    template for (int arr[] = {2, 4, 6}; auto f : arr)
+      result += e * f;
+  return result;
+}
+constexpr struct_t s {1, 3, 5};
+static_assert(nested_expansion_destructurables<s>() == 108);
 
 void run_tests() {
-  (void) nested_expansion<4, 3, 2, 1>();
+  (void) nested_expansion_init_lists<4, 3, 2, 1>();
+  (void) nested_expansion_destructurables<s>();
 }
 
 }  // nested_expansion_statements

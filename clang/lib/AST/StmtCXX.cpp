@@ -148,35 +148,12 @@ bool CXXExpansionStmt::hasDependentSize() const {
   if (!getRange())
     return true;
 
-  assert(getStmtClass() != CXXDestructurableExpansionStmtClass);
-  if (getStmtClass() == CXXIterableExpansionStmtClass)
-    return cast<CXXIterableExpansionStmt>(this)->hasDependentSize();
-  else if (getStmtClass() == CXXDestructurableExpansionStmtClass)
+  if (getStmtClass() == CXXDestructurableExpansionStmtClass)
     return cast<CXXDestructurableExpansionStmt>(this)->hasDependentSize();
   else if (getStmtClass() == CXXInitListExpansionStmtClass)
     return cast<CXXInitListExpansionStmt>(this)->hasDependentSize();
 
   llvm_unreachable("unknown expansion statement kind");
-}
-
-CXXIterableExpansionStmt *CXXIterableExpansionStmt::Create(
-    const ASTContext &C, Stmt *Init, DeclStmt *ExpansionVar, Expr *Range,
-    unsigned NumInstantiations, SourceLocation TemplateKWLoc,
-    SourceLocation ForLoc, SourceLocation LParenLoc, SourceLocation ColonLoc,
-    SourceLocation RParenLoc, unsigned Depth) {
-  return new (C) CXXIterableExpansionStmt(Init, ExpansionVar, Range,
-                                          NumInstantiations, TemplateKWLoc,
-                                          ForLoc, LParenLoc, ColonLoc,
-                                          RParenLoc, Depth);
-}
-
-CXXIterableExpansionStmt *CXXIterableExpansionStmt::Create(const ASTContext &C,
-                                                           EmptyShell Empty) {
-  return new (C) CXXIterableExpansionStmt(Empty);
-}
-
-bool CXXIterableExpansionStmt::hasDependentSize() const {
-  llvm_unreachable("unimplemented");
 }
 
 CXXDestructurableExpansionStmt *CXXDestructurableExpansionStmt::Create(
@@ -197,7 +174,7 @@ CXXDestructurableExpansionStmt *CXXDestructurableExpansionStmt::Create(
 }
 
 bool CXXDestructurableExpansionStmt::hasDependentSize() const {
-  llvm_unreachable("unimplemented");
+  return getRange()->isTypeDependent();
 }
 
 CXXInitListExpansionStmt *CXXInitListExpansionStmt::Create(

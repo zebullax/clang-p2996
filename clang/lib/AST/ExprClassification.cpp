@@ -224,7 +224,8 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::CXXSpliceSpecifierExprClass:
   case Expr::StackLocationExprClass:
   case Expr::CXXExpansionInitListExprClass:
-  case Expr::CXXExpansionSelectExprClass:
+  case Expr::CXXExpansionInitListSelectExprClass:
+  case Expr::CXXDestructurableExpansionSelectExprClass:
     return Cl::CL_PRValue;
 
   case Expr::CXXMetafunctionExprClass:

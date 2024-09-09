@@ -1591,6 +1591,57 @@ void Sema::CheckCompleteDecompositionDeclaration(DecompositionDecl *DD) {
     DD->setInvalidDecl();
 }
 
+bool Sema::ComputeDecompositionExpansionArity(Expr *Range, unsigned &Result) {
+  QualType DecompType = Range->getType();
+
+  // Array-like.
+  if (auto *CAT = Context.getAsConstantArrayType(DecompType)) {
+    Result = CAT->getZExtSize();
+    return true;
+  } else if (auto *VT = DecompType->getAs<VectorType>()) {
+    Result = VT->getNumElements();
+    return true;
+  } else if (auto *CT = DecompType->getAs<ComplexType>()) {
+    Result = 2;
+    return true;
+  }
+
+  // Tuple-like.
+  {
+    llvm::APSInt TupleSize(32);
+    switch (isTupleLike(*this, Range->getBeginLoc(), DecompType, TupleSize)) {
+      case IsTupleLike::Error:
+        return false;
+      case IsTupleLike::TupleLike:
+        Result = TupleSize.getZExtValue();
+        return true;
+      case IsTupleLike::NotTupleLike:
+        break;
+    }
+  }
+
+  // Struct.
+  {
+    CXXRecordDecl *OrigRD = DecompType->getAsCXXRecordDecl();
+    if (!OrigRD || OrigRD->isUnion()) {
+      Diag(Range->getBeginLoc(), diag::err_cannot_expand_over_type)
+          << DecompType << Range->getSourceRange();
+      return false;
+    }
+
+    CXXCastPath UnusedBasePath;
+    DeclAccessPair BasePair =
+        findDecomposableBaseClass(*this, Range->getBeginLoc(), OrigRD,
+                                  UnusedBasePath);
+    const CXXRecordDecl *RD = cast_or_null<CXXRecordDecl>(BasePair.getDecl());
+    assert(RD && "no CXXRecordDecl found");
+
+    Result = llvm::count_if(
+          RD->fields(), [](FieldDecl *FD) { return !FD->isUnnamedBitField(); });
+    return true;
+  }
+}
+
 void Sema::MergeVarDeclExceptionSpecs(VarDecl *New, VarDecl *Old) {
   // Shortcut if exceptions are disabled.
   if (!getLangOpts().CXXExceptions)
@@ -2224,7 +2275,6 @@ CheckConstexprFunctionStmt(Sema &SemaRef, const FunctionDecl *Dcl, Stmt *S,
       return false;
     return true;
 
-  case Stmt::CXXIterableExpansionStmtClass:
   case Stmt::CXXDestructurableExpansionStmtClass:
   case Stmt::CXXInitListExpansionStmtClass: {
     CXXExpansionStmt *CS = cast<CXXExpansionStmt>(S);

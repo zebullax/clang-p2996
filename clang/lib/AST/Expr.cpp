@@ -3649,7 +3649,8 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case StackLocationExprClass:
   case ExtractLValueExprClass:
   case CXXExpansionInitListExprClass:
-  case CXXExpansionSelectExprClass:
+  case CXXExpansionInitListSelectExprClass:
+  case CXXDestructurableExpansionSelectExprClass:
   case SYCLUniqueStableNameExprClass:
   case PackIndexingExprClass:
     // These never have a side-effect.

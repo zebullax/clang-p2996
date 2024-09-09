@@ -202,11 +202,8 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
   case Stmt::CXXForRangeStmtClass:
     EmitCXXForRangeStmt(cast<CXXForRangeStmt>(*S), Attrs);
     break;
-  case Stmt::CXXIterableExpansionStmtClass:
-    llvm_unreachable("not yet implemented for iterable ranges");
-  case Stmt::CXXDestructurableExpansionStmtClass:
-    llvm_unreachable("not yet implemented for destructurable ranges");
   case Stmt::CXXInitListExpansionStmtClass:
+  case Stmt::CXXDestructurableExpansionStmtClass:
     EmitCXXExpansionStmt(cast<CXXExpansionStmt>(*S), Attrs);
     break;
   case Stmt::SEHTryStmtClass:
@@ -1428,18 +1425,23 @@ CodeGenFunction::EmitCXXForRangeStmt(const CXXForRangeStmt &S,
 
 void CodeGenFunction::EmitCXXExpansionStmt(const CXXExpansionStmt &S,
                                            ArrayRef<const Attr *> Attrs) {
-  //EmitStmt(S.getCombinedStmt(), Attrs);
   JumpDest ExpandExit = getJumpDestInCurrentScope("expand.end");
 
   LexicalScope InitScope(*this, S.getSourceRange());
   if (auto *Init = S.getInit())
-    EmitStmt(S.getInit(), Attrs);
+    EmitStmt(Init, Attrs);
 
   SmallVector<JumpDest> Dests;
   for (size_t Idx = 0; Idx < S.getNumInstantiations(); ++Idx) {
     std::string LabelName = llvm::formatv("expand.nxt.{0}", Idx);
     Dests.emplace_back(getJumpDestInCurrentScope(LabelName));
   }
+
+  if (auto *DS = cast<DeclStmt>(S.getExpansionVarStmt()))
+    if (auto *VD = cast<VarDecl>(DS->getSingleDecl()))
+      if (auto *ESE = cast<CXXDestructurableExpansionSelectExpr>(VD->getInit()))
+        if (auto *DD = ESE->getDecompositionDecl())
+          EmitVarDecl(*DD);
 
   for (size_t Idx = 0; Idx < S.getNumInstantiations(); ++Idx) {
     const Stmt *Expansion = S.getInstantiation(Idx);

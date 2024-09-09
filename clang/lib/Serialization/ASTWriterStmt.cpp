@@ -539,12 +539,6 @@ void ASTStmtWriter::VisitExtractLValueExpr(ExtractLValueExpr *E) {
   Code = serialization::EXPR_EXTRACT_LVALUE;
 }
 
-void ASTStmtWriter::VisitCXXIterableExpansionStmt(CXXIterableExpansionStmt *S) {
-  VisitStmt(S);
-  // TODO(P2996): Implement this.
-  Code = serialization::STMT_ITERABLE_EXPANSION;
-}
-
 void ASTStmtWriter::VisitCXXDestructurableExpansionStmt(
                                             CXXDestructurableExpansionStmt *S) {
   VisitStmt(S);
@@ -564,7 +558,15 @@ void ASTStmtWriter::VisitCXXExpansionInitListExpr(CXXExpansionInitListExpr *E) {
   Code = serialization::EXPR_EXPANSION_INIT_LIST;
 }
 
-void ASTStmtWriter::VisitCXXExpansionSelectExpr(CXXExpansionSelectExpr *E) {
+void ASTStmtWriter::VisitCXXExpansionInitListSelectExpr(
+        CXXExpansionInitListSelectExpr *E) {
+  VisitExpr(E);
+  // TODO(P2996): Implement this.
+  Code = serialization::EXPR_EXPANSION_SELECT;
+}
+
+void ASTStmtWriter::VisitCXXDestructurableExpansionSelectExpr(
+        CXXDestructurableExpansionSelectExpr *E) {
   VisitExpr(E);
   // TODO(P2996): Implement this.
   Code = serialization::EXPR_EXPANSION_SELECT;

@@ -15,7 +15,8 @@
 #include "clang/AST/Decl.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Sema/Sema.h"
-#include "clang/Sema/Template.h"  // for expansion statements
+#include "clang/Sema/Template.h"
+
 
 using namespace clang;
 using namespace sema;
@@ -55,6 +56,9 @@ StmtResult Sema::ActOnCXXExpansionStmt(Scope *S, SourceLocation TemplateKWLoc,
                                        SourceLocation ColonLoc, Expr *Range,
                                        SourceLocation RParenLoc,
                                        BuildForRangeKind Kind) {
+  if (!Range)
+    return StmtError();
+
   // Compute how many layers of template parameters wrap this statement.
   unsigned TemplateDepth = ComputeTemplateEmbeddingDepth(S);
 
@@ -82,8 +86,11 @@ StmtResult Sema::ActOnCXXExpansionStmt(Scope *S, SourceLocation TemplateKWLoc,
     return ActOnCXXInitListExpansionStmt(TemplateKWLoc, ForLoc, LParenLoc, Init,
                                          ExpansionVarStmt, ColonLoc, EILE,
                                          RParenLoc, TParmRef, Kind);
-
-  llvm_unreachable("unknown expansion statement kind");
+  else
+    return ActOnCXXDestructurableExpansionStmt(TemplateKWLoc, ForLoc, LParenLoc,
+                                               Init, ExpansionVarStmt, ColonLoc,
+                                               Range, RParenLoc, TParmRef,
+                                               Kind);
 }
 
 StmtResult Sema::ActOnCXXInitListExpansionStmt(SourceLocation TemplateKWLoc,
@@ -102,7 +109,7 @@ StmtResult Sema::ActOnCXXInitListExpansionStmt(SourceLocation TemplateKWLoc,
     return StmtError();
 
   // Build accessor for getting the __N'th Expr from the expression-init-list.
-  ExprResult Accessor = ActOnCXXExpansionSelectExpr(Range, TParmRef);
+  ExprResult Accessor = ActOnCXXExpansionInitListSelectExpr(Range, TParmRef);
   if (Accessor.isInvalid())
     return StmtError();
 
@@ -117,17 +124,53 @@ StmtResult Sema::ActOnCXXInitListExpansionStmt(SourceLocation TemplateKWLoc,
                                        RParenLoc, TemplateDepth, Kind);
 }
 
+StmtResult Sema::ActOnCXXDestructurableExpansionStmt(
+    SourceLocation TemplateKWLoc, SourceLocation ForLoc,
+    SourceLocation LParenLoc, Stmt *Init, Stmt *ExpansionVarStmt,
+    SourceLocation ColonLoc, Expr *Range, SourceLocation RParenLoc,
+    Expr *TParmRef, BuildForRangeKind Kind) {
+  // Extract the declaration of the expansion variable.
+  VarDecl *ExpansionVar = ExtractVarDecl(ExpansionVarStmt);
+  if (!ExpansionVar || Kind == BFRK_Check)
+    return StmtError();
+
+  // Build accessor for getting the expression naming the __N'th subobject.
+  bool Constexpr = ExpansionVar->isConstexpr();
+  ExprResult Accessor = ActOnCXXDestructurableExpansionSelectExpr(Range,
+                                                                  TParmRef,
+                                                                  Constexpr);
+  if (Accessor.isInvalid())
+    return StmtError();
+
+  // Attach the accessor as the initializerfor the expansion variable.
+  AddInitializerToDecl(ExpansionVar, Accessor.get(), /*DirectInit=*/false);
+  if (ExpansionVar->isInvalidDecl())
+    return StmtError();
+
+  unsigned TemplateDepth = ExtractParmVarDeclDepth(TParmRef);
+  return BuildCXXDestructurableExpansionStmt(TemplateKWLoc, ForLoc, LParenLoc,
+                                             Init, ExpansionVarStmt, ColonLoc,
+                                             Range, RParenLoc, TemplateDepth,
+                                             Kind);
+}
+
 ExprResult Sema::ActOnCXXExpansionInitList(SourceLocation LBraceLoc,
                                            MultiExprArg SubExprs,
                                            SourceLocation RBraceLoc) {
   return BuildCXXExpansionInitList(LBraceLoc, SubExprs, RBraceLoc);
 }
 
-ExprResult Sema::ActOnCXXExpansionSelectExpr(Expr *Range, Expr *Idx) {
-  if (auto *EILE = dyn_cast<CXXExpansionInitListExpr>(Range))
-    return BuildCXXExpansionSelectExpr(EILE, Idx);
+ExprResult
+Sema::ActOnCXXExpansionInitListSelectExpr(CXXExpansionInitListExpr *Range,
+                                          Expr *Idx) {
+  return BuildCXXExpansionInitListSelectExpr(Range, Idx);
+}
 
-  llvm_unreachable("unknown expansion statement kind");
+ExprResult Sema::ActOnCXXDestructurableExpansionSelectExpr(Expr *Range,
+                                                           Expr *Idx,
+                                                           bool Constexpr) {
+  return BuildCXXDestructurableExpansionSelectExpr(Range, nullptr, Idx,
+                                                   Constexpr);
 }
 
 StmtResult Sema::BuildCXXInitListExpansionStmt(SourceLocation TemplateKWLoc,
@@ -147,6 +190,29 @@ StmtResult Sema::BuildCXXInitListExpansionStmt(SourceLocation TemplateKWLoc,
                                           ColonLoc, RParenLoc, TemplateDepth);
 }
 
+StmtResult
+Sema::BuildCXXDestructurableExpansionStmt(SourceLocation TemplateKWLoc,
+                                          SourceLocation ForLoc,
+                                          SourceLocation LParenLoc,
+                                          Stmt *Init, Stmt *ExpansionVarStmt,
+                                          SourceLocation ColonLoc, Expr *Range,
+                                          SourceLocation RParenLoc,
+                                          unsigned TemplateDepth,
+                                          BuildForRangeKind Kind) {
+  VarDecl *VD = ExtractVarDecl(ExpansionVarStmt);
+  if (!VD || Kind == BFRK_Check)
+    return StmtError();
+
+  unsigned NumExpansions = 0;
+  if (auto *SE = dyn_cast<CXXDestructurableExpansionSelectExpr>(VD->getInit());
+      SE && SE->getDecompositionDecl())
+    NumExpansions = SE->getDecompositionDecl()->bindings().size();
+
+  return CXXDestructurableExpansionStmt::Create(
+          Context, Init, cast<DeclStmt>(ExpansionVarStmt), Range, NumExpansions,
+          TemplateKWLoc, ForLoc, LParenLoc, ColonLoc, RParenLoc, TemplateDepth);
+}
+
 ExprResult Sema::BuildCXXExpansionInitList(SourceLocation LBraceLoc,
                                            MultiExprArg SubExprs,
                                            SourceLocation RBraceLoc) {
@@ -158,12 +224,12 @@ ExprResult Sema::BuildCXXExpansionInitList(SourceLocation LBraceLoc,
                                           RBraceLoc);
 }
 
-ExprResult Sema::BuildCXXExpansionSelectExpr(CXXExpansionInitListExpr *Range,
-                                             Expr *Idx) {
-  // Use 'CXXExpansionSelectExpr' as a placeholder before tree transform.
-  if (Range->containsPack() || Idx->isValueDependent()) {
-    return CXXExpansionSelectExpr::Create(Context, Range, Idx);
-  }
+ExprResult
+Sema::BuildCXXExpansionInitListSelectExpr(CXXExpansionInitListExpr *Range,
+                                          Expr *Idx) {
+  // Use 'CXXExpansionInitListSelectExpr' as a placeholder until tree transform.
+  if (Range->containsPack() || Idx->isValueDependent())
+    return CXXExpansionInitListSelectExpr::Create(Context, Range, Idx);
   ArrayRef<Expr *> SubExprs = Range->getSubExprs();
 
   // Evaluate the index.
@@ -174,6 +240,47 @@ ExprResult Sema::BuildCXXExpansionSelectExpr(CXXExpansionInitListExpr *Range,
   assert(I < SubExprs.size());
 
   return SubExprs[I];
+}
+
+ExprResult
+Sema::BuildCXXDestructurableExpansionSelectExpr(Expr *Range,
+                                                DecompositionDecl *DD,
+                                                Expr *Idx, bool Constexpr) {
+  assert (!isa<CXXExpansionInitListExpr>(Range) &&
+          "expansion-init-list should never have structured bindings");
+
+  if (!DD && !Range->isTypeDependent() && !Range->isValueDependent()) {
+    unsigned Arity;
+    if (!ComputeDecompositionExpansionArity(Range, Arity))
+      return ExprError();
+
+    SmallVector<BindingDecl *, 4> Bindings;
+    for (size_t k = 0; k < Arity; ++k)
+      Bindings.push_back(BindingDecl::Create(Context, CurContext,
+                                             Range->getBeginLoc(),
+                                             /*IdentifierInfo=*/nullptr));
+
+    TypeSourceInfo *TSI = Context.getTrivialTypeSourceInfo(Range->getType());
+    DD = DecompositionDecl::Create(Context, CurContext, Range->getBeginLoc(),
+                                   Range->getBeginLoc(), Range->getType(), TSI,
+                                   SC_Auto, Bindings);
+    if (Constexpr)
+      DD->setConstexpr(true);
+
+    AddInitializerToDecl(DD, Range, false);
+  }
+
+  if (!DD || Idx->isValueDependent())
+    return CXXDestructurableExpansionSelectExpr::Create(Context, Range, DD, Idx,
+                                                        Constexpr);
+
+  Expr::EvalResult ER;
+  if (!Idx->EvaluateAsInt(ER, Context))
+    return ExprError();  // TODO: Diagnostic.
+  size_t I = ER.Val.getInt().getZExtValue();
+  assert(I < DD->bindings().size());
+
+  return DD->bindings()[I]->getBinding();
 }
 
 StmtResult Sema::FinishCXXExpansionStmt(Stmt *Heading, Stmt *Body) {

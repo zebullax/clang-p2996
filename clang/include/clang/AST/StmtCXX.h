@@ -628,39 +628,6 @@ public:
   friend class ASTStmtReader;
 };
 
-/// CXXIterableExpansionStmt - Expansion over a iterable expression.
-///
-class CXXIterableExpansionStmt final : public CXXExpansionStmt {
-private:
-  CXXIterableExpansionStmt(Stmt *Init, DeclStmt *ExpansionVar, Expr *Range,
-                           unsigned NumInstantiations,
-                           SourceLocation TemplateKWLoc, SourceLocation ForLoc,
-                           SourceLocation LParenLoc, SourceLocation ColonLoc,
-                           SourceLocation RParenLoc, unsigned Depth)
-      : CXXExpansionStmt(CXXIterableExpansionStmtClass, Init, ExpansionVar,
-                         Range, NumInstantiations, TemplateKWLoc, ForLoc,
-                         LParenLoc, ColonLoc, RParenLoc, Depth) { }
-
-  CXXIterableExpansionStmt(EmptyShell Empty)
-      : CXXExpansionStmt(CXXIterableExpansionStmtClass, Empty) { }
-
-public:
-  static CXXIterableExpansionStmt *Create(const ASTContext &C, Stmt *Init,
-                                          DeclStmt *ExpansionVar, Expr *Range,
-                                          unsigned NumInstantiations,
-                                          SourceLocation TemplateKWLoc,
-                                          SourceLocation ForLoc,
-                                          SourceLocation LParenLoc,
-                                          SourceLocation ColonLoc,
-                                          SourceLocation RParenLoc,
-                                          unsigned Depth);
-
-  static CXXIterableExpansionStmt *Create(const ASTContext &C,
-                                          EmptyShell Empty);
-
-  bool hasDependentSize() const;
-};
-
 /// CXXDestructurableExpansionStmt - Expansion over a destructurable expression.
 ///
 class CXXDestructurableExpansionStmt final : public CXXExpansionStmt {

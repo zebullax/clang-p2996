@@ -66,7 +66,6 @@
 #include <cstring>
 #include <functional>
 #include <optional>
-#include <iostream>
 
 #define DEBUG_TYPE "exprconstant"
 
@@ -5700,7 +5699,6 @@ static EvalStmtResult EvaluateStmt(StmtResult &Result, EvalInfo &Info,
     // Evaluate try blocks by evaluating all sub statements.
     return EvaluateStmt(Result, Info, cast<CXXTryStmt>(S)->getTryBlock(), Case);
 
-  case Stmt::CXXIterableExpansionStmtClass:
   case Stmt::CXXDestructurableExpansionStmtClass:
   case Stmt::CXXInitListExpansionStmtClass: {
     const CXXExpansionStmt *ES = cast<CXXExpansionStmt>(S);
@@ -5715,6 +5713,13 @@ static EvalStmtResult EvaluateStmt(StmtResult &Result, EvalInfo &Info,
         return ESR;
       }
     }
+
+    if (auto *DS = cast<DeclStmt>(ES->getExpansionVarStmt()))
+      if (auto *VD = cast<VarDecl>(DS->getSingleDecl()))
+        if (auto *ESE = dyn_cast<CXXDestructurableExpansionSelectExpr>(
+                                                                 VD->getInit()))
+          if (auto *DD = ESE->getDecompositionDecl())
+            EvaluateVarDecl(Info, DD);
 
     bool Continue = true;
     for (size_t Idx = 0; Continue && Idx < ES->getNumInstantiations(); ++Idx) {
@@ -16936,7 +16941,8 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::StackLocationExprClass:
   case Expr::ExtractLValueExprClass:
   case Expr::CXXExpansionInitListExprClass:
-  case Expr::CXXExpansionSelectExprClass:
+  case Expr::CXXExpansionInitListSelectExprClass:
+  case Expr::CXXDestructurableExpansionSelectExprClass:
     return NoDiag();
   case Expr::CallExprClass:
   case Expr::CXXOperatorCallExprClass: {
