@@ -449,7 +449,21 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
     ConsumeToken();
 
     if (OpToken.is(tok::caretcaret)) {
-      return ExprError(Diag(Tok, diag::err_opencl_logical_exclusive_or));
+      if (getLangOpts().Blocks && getLangOpts().Reflection) {
+        OpToken.setKind(tok::caret);
+        Token T;
+        {
+          T.startToken();
+          T.setKind(tok::caret);
+          T.setLocation(Tok.getLocation());
+          T.setLength(1);
+        }
+        UnconsumeToken(OpToken);
+        PP.EnterToken(T, /*IsReinject=*/true);
+        return ParseRHSOfBinaryExpression(LHS, MinPrec);
+      } else {
+        return ExprError(Diag(Tok, diag::err_opencl_logical_exclusive_or));
+      }
     }
 
     // If we're potentially in a template-id, we may now be able to determine

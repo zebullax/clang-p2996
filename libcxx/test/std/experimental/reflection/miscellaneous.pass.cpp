@@ -233,8 +233,11 @@ constexpr auto block = std::meta::reflect_value(^int() { return 4; });
 static_assert(type_of(block) == ^^int(^)());
 
 void run_test() {
-  // RUN: grep "block result: 4" %t.stdout
-  std::println("block result: {}", [:block:]());
+  // RUN: grep "block result 1: 4" %t.stdout
+  std::println("block result 1: {}", [:block:]());
+
+  // RUN: grep "block result 2: 6" %t.stdout
+  std::println("block result 2: {}", 4 ^^(void){ return 2; }());
 }
 }  // namespace compatible_with_blocks
 
