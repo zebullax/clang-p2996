@@ -3488,7 +3488,11 @@ defm annotation_attributes : BoolFOption<"annotation-attributes",
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
           "Enable proposed annotation attributes">,
   NegFlag<SetFalse>>;
-
+defm reflection_latest : BoolFOption<"reflection-latest",
+  LangOpts<"ReflectionLatest">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option],
+          "Enable all reflection features supported by Clang/P2996">,
+  NegFlag<SetFalse>>;
 defm retain_subst_template_type_parm_type_ast_nodes : BoolFOption<"retain-subst-template-type-parm-type-ast-nodes",
   LangOpts<"RetainSubstTemplateTypeParmTypeAstNodes">, DefaultFalse,
   PosFlag<SetTrue, [], [CC1Option], "Enable">,

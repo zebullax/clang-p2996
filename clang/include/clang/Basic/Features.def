@@ -310,6 +310,7 @@ FEATURE(reflection_new_syntax, LangOpts.ReflectionNewSyntax)
 FEATURE(parameter_reflection, LangOpts.ParameterReflection)
 FEATURE(expansion_statements, LangOpts.ExpansionStatements)
 FEATURE(annotation_attributes, LangOpts.AnnotationAttributes)
+FEATURE(reflection_latest, LangOpts.ReflectionLatest)
 
 // CUDA/HIP Features
 FEATURE(cuda_noinline_keyword, LangOpts.CUDA)

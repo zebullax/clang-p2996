@@ -1439,7 +1439,8 @@ void CodeGenFunction::EmitCXXExpansionStmt(const CXXExpansionStmt &S,
 
   if (auto *DS = cast<DeclStmt>(S.getExpansionVarStmt()))
     if (auto *VD = cast<VarDecl>(DS->getSingleDecl()))
-      if (auto *ESE = cast<CXXDestructurableExpansionSelectExpr>(VD->getInit()))
+      if (auto *ESE = dyn_cast<CXXDestructurableExpansionSelectExpr>(
+                                                                 VD->getInit()))
         if (auto *DD = ESE->getDecompositionDecl())
           EmitVarDecl(*DD);
 

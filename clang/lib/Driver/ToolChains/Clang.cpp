@@ -7064,6 +7064,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fapinotes-modules");
   Args.AddLastArg(CmdArgs, options::OPT_fapinotes_swift_version);
 
+  if (Args.hasFlag(options::OPT_freflection_latest,
+                   options::OPT_fno_reflection_latest, false)) {
+    CmdArgs.push_back("-freflection");
+    CmdArgs.push_back("-freflection-new-syntax");
+    CmdArgs.push_back("-fparameter-reflection");
+    CmdArgs.push_back("-fannotation-attributes");
+    CmdArgs.push_back("-fexpansion-statements");
+  }
+
   // -fblocks=0 is default.
   //
   // Suppress default-enablement of '-fblocks' if reflection is enabled, as
@@ -7413,6 +7422,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // -fannotation-attributes is likewise off by default.
   Args.addOptInFlag(CmdArgs, options::OPT_fannotation_attributes,
                     options::OPT_fno_annotation_attributes);
+  Args.addOptInFlag(CmdArgs, options::OPT_freflection_latest,
+                    options::OPT_fno_reflection_latest);
 
   // -fsized-deallocation is on by default in C++14 onwards and otherwise off
   // by default.
