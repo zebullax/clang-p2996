@@ -5284,6 +5284,10 @@ bool size_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Type: {
     QualType QT = RV.getReflectedType();
+    if (QT->isIncompleteType())
+      return Diagnoser(Range.getBegin(), diag::metafn_cannot_introspect_type)
+          << 4 << 0 << Range;
+
     size_t Sz = S.Context.getTypeSizeInChars(QT).getQuantity();
     return SetAndSucceed(
             Result,
@@ -5371,6 +5375,10 @@ bool bit_size_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Type: {
     QualType QT = RV.getReflectedType();
+    if (QT->isIncompleteType())
+      return Diagnoser(Range.getBegin(), diag::metafn_cannot_introspect_type)
+          << 4 << 0 << Range;
+
     size_t Sz = S.Context.getTypeSize(QT);
     return SetAndSucceed(
             Result,
@@ -5428,6 +5436,10 @@ bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Type: {
     QualType QT = RV.getReflectedType();
+    if (QT->isIncompleteType())
+      return Diagnoser(Range.getBegin(), diag::metafn_cannot_introspect_type)
+          << 3 << 0 << Range;
+
     size_t Align = S.Context.getTypeAlignInChars(QT).getQuantity();
     return SetAndSucceed(
             Result,
@@ -5473,7 +5485,7 @@ bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::Annotation:
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
-        << 4 << DescriptionOf(RV);
+        << 4 << DescriptionOf(RV) << Range;
   }
   llvm_unreachable("unknown reflection kind");
 }
@@ -5649,7 +5661,7 @@ bool get_ith_parameter_of(APValue &Result, Sema &S, EvalFn Evaluator,
       return SetAndSucceed(Result, makeReflection(FT->getParamType(idx)));
     }
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_introspect_type)
-        << 2 << 2;
+        << 2 << 2 << Range;
   }
   case ReflectionKind::Declaration: {
     if (auto FD = dyn_cast<FunctionDecl>(RV.getReflectedDecl())) {
@@ -5833,7 +5845,7 @@ bool return_type_of(APValue &Result, Sema &S, EvalFn Evaluator,
       return SetAndSucceed(Result, makeReflection(FPT->getReturnType()));
 
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_introspect_type)
-        << 3 << 2;
+        << 3 << 2 << Range;
   case ReflectionKind::Declaration:
     if (auto *FD = dyn_cast<FunctionDecl>(RV.getReflectedDecl());
         FD && !isa<CXXConstructorDecl>(FD) && !isa<CXXDestructorDecl>(FD))
