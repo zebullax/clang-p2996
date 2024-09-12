@@ -5460,8 +5460,8 @@ bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     if (const FieldDecl *FD = dyn_cast<const FieldDecl>(VD)) {
       if (FD->isBitField())
         return true;
-      Align = S.Context.getDeclAlign(FD, true).getQuantity();
     }
+    Align = S.Context.getDeclAlign(VD, true).getQuantity();
 
     return SetAndSucceed(
             Result,

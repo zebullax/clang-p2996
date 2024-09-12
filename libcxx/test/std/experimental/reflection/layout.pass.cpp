@@ -67,18 +67,26 @@ static_assert(bit_size_of(^^BitField::bf4) == 3);
 static_assert(nonstatic_data_members_of(^^BitField).size() == 4);
 static_assert(size_of(^^BitField) == 4);
 
+alignas(64) int i1;
+alignas(128) int &r1 = i1;
+
+static_assert(alignment_of(^^i1) == 64);
+static_assert(alignment_of(^^r1) == 128);
 
 struct Align {
     alignas(1) char a1;
     alignas(2) char a2;
     alignas(4) char a4;
     alignas(8) char a8;
+
+    alignas(16) int &r1;
 };
 static_assert(alignment_of(^^Align::a1) == 1);
 static_assert(alignment_of(^^Align::a2) == 2);
 static_assert(alignment_of(^^Align::a4) == 4);
 static_assert(alignment_of(^^Align::a8) == 8);
-static_assert(alignment_of(^^Align) == 8);
+static_assert(alignment_of(^^Align::r1) == 16);
+static_assert(alignment_of(^^Align) == 16);
 static_assert(offset_of(^^Align::a1) == std::meta::member_offsets{0, 0});
 static_assert(offset_of(^^Align::a2) == std::meta::member_offsets{2, 0});
 static_assert(offset_of(^^Align::a4) == std::meta::member_offsets{4, 0});
@@ -87,7 +95,7 @@ static_assert(size_of(^^Align::a1) == sizeof(char));
 static_assert(size_of(^^Align::a2) == sizeof(char));
 static_assert(size_of(^^Align::a4) == sizeof(char));
 static_assert(size_of(^^Align::a8) == sizeof(char));
-static_assert(size_of(^^Align) == 16);
+static_assert(size_of(^^Align) == 32);
 
 struct alignas(64) AlignedTo64 { int mem; };
 static_assert(alignment_of(^^AlignedTo64) == 64);
