@@ -167,13 +167,15 @@ template <typename T> concept Concept = requires { true; };
 template <typename T2> class TCls<int, T2> {};
 template <typename T2> int TVar<int, T2> = 1;
 
+[[maybe_unused]] auto l = [] {};
+
 }  // namespace myns
 
-static_assert(members_of(^^myns).size() == 9);
+static_assert(members_of(^^myns).size() == 10);
 static_assert(members_of(^^myns) ==
               std::vector{^^myns::var, ^^myns::fn, ^^myns::Cls, ^^myns::Alias,
                           ^^myns::TCls, ^^myns::TFn, ^^myns::TVar,
-                          ^^myns::TAlias, ^^myns::Concept});
+                          ^^myns::TAlias, ^^myns::Concept, ^^myns::l});
 static_assert((members_of(^^myns) | std::views::filter(std::meta::is_template) |
                                    std::ranges::to<std::vector>()) ==
               std::vector{^^myns::TCls, ^^myns::TFn, ^^myns::TVar,

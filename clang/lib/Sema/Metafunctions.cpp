@@ -1142,7 +1142,7 @@ static bool isReflectableDecl(ASTContext &C, const Decl *D) {
     return false;
 
   if (auto *Class = dyn_cast<CXXRecordDecl>(D))
-    if (Class->isInjectedClassName())
+    if (Class->isInjectedClassName() || Class->isLambda())
       return false;
 
   if (isa<ClassTemplatePartialSpecializationDecl,
