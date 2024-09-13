@@ -1131,7 +1131,7 @@ static bool ensureDeclared(Sema &S, QualType QT, SourceLocation SpecLoc) {
   return true;
 }
 
-static bool isReflectableDecl(ASTContext &C, const Decl *D) {
+static bool isReflectableDecl(Sema &S, const Decl *D) {
   assert(D && "null declaration");
 
   if (isa<NamespaceAliasDecl>(D))
@@ -1145,6 +1145,14 @@ static bool isReflectableDecl(ASTContext &C, const Decl *D) {
     if (Class->isInjectedClassName() || Class->isLambda())
       return false;
 
+  if (auto *FD = dyn_cast<FunctionDecl>(D))
+    if (FD->getTrailingRequiresClause()) {
+      ConstraintSatisfaction Sat;
+      if (S.CheckFunctionConstraints(FD, Sat, SourceLocation(), false) ||
+          !Sat.IsSatisfied)
+        return false;
+    }
+
   if (isa<ClassTemplatePartialSpecializationDecl,
           VarTemplatePartialSpecializationDecl>(D))
     return false;
@@ -1153,17 +1161,17 @@ static bool isReflectableDecl(ASTContext &C, const Decl *D) {
 }
 
 /// Filter non-reflectable members.
-static Decl *findIterableMember(ASTContext &C, Decl *D, bool Inclusive) {
+static Decl *findIterableMember(Sema &S, Decl *D, bool Inclusive) {
   if (!D)
     return D;
 
   if (Inclusive) {
-    if (isReflectableDecl(C, D))
+    if (isReflectableDecl(S, D))
       return D;
 
     // Handle the case where the first Decl is a LinkageSpecDecl.
     if (auto *LSDecl = dyn_cast_or_null<LinkageSpecDecl>(D)) {
-      Decl *RecD = findIterableMember(C, *LSDecl->decls_begin(), true);
+      Decl *RecD = findIterableMember(S, *LSDecl->decls_begin(), true);
       if (RecD) return RecD;
     }
   }
@@ -1194,14 +1202,14 @@ static Decl *findIterableMember(ASTContext &C, Decl *D, bool Inclusive) {
     // We need to recursively descend into LinkageSpecDecls to iterate over the
     // members declared therein (e.g., `extern "C"` blocks).
     if (auto *LSDecl = dyn_cast_or_null<LinkageSpecDecl>(D)) {
-      Decl *RecD = findIterableMember(C, *LSDecl->decls_begin(), true);
+      Decl *RecD = findIterableMember(S, *LSDecl->decls_begin(), true);
       if (RecD) return RecD;
     }
 
     // Pop back out of a recursively entered LinkageSpecDecl.
     if (!D && isa<LinkageSpecDecl>(DC))
-      return findIterableMember(C, cast<Decl>(DC), false);
-  } while (D && !isReflectableDecl(C, D));
+      return findIterableMember(S, cast<Decl>(DC), false);
+  } while (D && !isReflectableDecl(S, D));
 
   return D;
 }
@@ -1685,8 +1693,8 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
     DeclContext *declContext = dyn_cast<DeclContext>(typeDecl);
     assert(declContext && "no DeclContext?");
 
-    Decl* beginMember = findIterableMember(S.Context,
-                                           *declContext->decls_begin(), true);
+    Decl* beginMember = findIterableMember(S, *declContext->decls_begin(),
+                                           true);
     if (!beginMember)
       return SetAndSucceed(Result, Sentinel);
     return SetAndSucceed(Result,
@@ -1699,7 +1707,7 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
 
     DeclContext *DC = cast<DeclContext>(NS->getMostRecentDecl());
 
-    Decl *beginMember = findIterableMember(S.Context, *DC->decls_begin(), true);
+    Decl *beginMember = findIterableMember(S, *DC->decls_begin(), true);
     if (!beginMember)
       return SetAndSucceed(Result, Sentinel);
     return SetAndSucceed(Result,
@@ -1734,7 +1742,7 @@ bool get_next_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
   assert(Sentinel.isReflectedType());
 
-  if (Decl *Next = findIterableMember(S.Context, RV.getReflectedDecl(), false))
+  if (Decl *Next = findIterableMember(S, RV.getReflectedDecl(), false))
     return SetAndSucceed(Result, APValue(ReflectionKind::Declaration, Next));
   return SetAndSucceed(Result, Sentinel);
 }

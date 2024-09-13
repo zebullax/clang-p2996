@@ -252,6 +252,42 @@ constexpr Cls obj;
 static_assert(obj.[:members_of(^^Cls)[1]:]() == 5);
 }  // namespace inaccessible_class_members
 
+                           // =======================
+                           // unsatisfied_constraints
+                           // =======================
+
+namespace unsatisfied_constraints {
+template <typename T>
+struct Cls {
+    ~Cls() requires (false) {}
+    ~Cls() {}
+
+    void fn() requires (^^T == ^^int) {}
+    void fn() requires (^^T != ^^bool) {}
+};
+
+static_assert(
+    (members_of(^^Cls<int>) |
+     std::views::filter(std::meta::is_destructor) |
+     std::ranges::to<std::vector>()).size() == 1);
+static_assert(
+    (members_of(^^Cls<int>) |
+     std::views::filter([](auto R) { return !is_destructor(R); }) |
+     std::views::filter(std::meta::is_user_provided) |
+     std::ranges::to<std::vector>()).size() == 2);
+static_assert(
+    (members_of(^^Cls<short>) |
+     std::views::filter([](auto R) { return !is_destructor(R); }) |
+     std::views::filter(std::meta::is_user_provided) |
+     std::ranges::to<std::vector>()).size() == 1);
+static_assert(
+    (members_of(^^Cls<bool>) |
+     std::views::filter([](auto R) { return !is_destructor(R); }) |
+     std::views::filter(std::meta::is_user_provided) |
+     std::ranges::to<std::vector>()).size() == 0);
+
+}  // namespace unsatisfied_constraints
+
                                     // =====
                                     // bases
                                     // =====
