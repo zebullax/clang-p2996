@@ -31,6 +31,7 @@ template <typename> void TFn();
 template <typename> struct TCls {};
 namespace NS {};
 
+static_assert(annotations_of(^^int).size() == 0);
 static_assert(annotations_of(^^fn).size() == 0);
 static_assert(annotations_of(^^S).size() == 0);
 static_assert(annotations_of(^^TFn<int>).size() == 0);

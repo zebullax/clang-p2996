@@ -5880,7 +5880,7 @@ bool get_ith_annotation_of(APValue &Result, Sema &S, EvalFn Evaluator,
   assert(ResultTy == S.Context.MetaInfoTy);
 
   auto findAnnotation = [&](Decl *D, size_t idx, APValue Sentinel) {
-    D = D->getMostRecentDecl();
+    D = D ? D->getMostRecentDecl() : D;
 
     while (D) {
       auto Annots = D->attrs();
@@ -5910,7 +5910,8 @@ bool get_ith_annotation_of(APValue &Result, Sema &S, EvalFn Evaluator,
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Type: {
     NamedDecl *typeDecl = findTypeDecl(RV.getReflectedType());
-    ensureInstantiated(S, typeDecl, Range);
+    if (typeDecl)
+      ensureInstantiated(S, typeDecl, Range);
 
     return SetAndSucceed(Result, findAnnotation(typeDecl, idx, Sentinel));
   }
