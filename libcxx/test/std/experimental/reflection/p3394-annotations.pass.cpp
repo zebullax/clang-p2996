@@ -101,6 +101,12 @@ static_assert(annotation_of_type<char *>(^^fn) == std::nullopt);
 
 static_assert(source_location_of(annotations_of(^^S)[0]).line() ==
               source_location_of(^^S).line());
+
+constexpr struct S {} s;
+
+[[=s]] void fnWithS();
+static_assert(type_of(annotations_of(^^fnWithS)[0]) == ^^S);
+static_assert(type_of(value_of(annotations_of(^^fnWithS)[0])) == ^^S);
 }  // namespace non_dependent
 
                                   // =========

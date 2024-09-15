@@ -2140,7 +2140,7 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   }
   case ReflectionKind::Annotation: {
     QualType QT = RV.getReflectedAnnotation()->getArg()->getType();
-    QT = desugarType(QT, /*UnwrapAliases=*/false, /*DropCV=*/false,
+    QT = desugarType(QT, /*UnwrapAliases=*/true, /*DropCV=*/true,
                      /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
   }
@@ -2370,7 +2370,10 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Annotation: {
     CXX26AnnotationAttr *A = RV.getReflectedAnnotation();
     APValue Value = RV.getReflectedAnnotation()->getValue();
-    return SetAndSucceed(Result, A->getValue().Lift(A->getArg()->getType()));
+
+    QualType Ty = desugarType(A->getArg()->getType(), /*UnwrapAliases=*/true,
+                              /*DropCV=*/true, /*DropRefs=*/false);
+    return SetAndSucceed(Result, A->getValue().Lift(Ty));
   }
   case ReflectionKind::Null:
   case ReflectionKind::Type:
