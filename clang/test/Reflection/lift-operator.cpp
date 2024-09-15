@@ -139,6 +139,16 @@ constexpr WithDefaultInitializer with_default_init;
 namespace A { namespace B { using C = int; } }
 constexpr auto complicated_type = ^^A::B::C &;
 
+                                // ============
+                                // east_west_cv
+                                // ============
+
+namespace east_west_cv {
+struct S {};
+static_assert(^^S const == ^^const S);
+static_assert(^^S volatile == ^^volatile S);
+}  // namespace east_west_cv
+
                    // =======================================
                    // bb_clang_p2996_issue_35_regression_test
                    // =======================================

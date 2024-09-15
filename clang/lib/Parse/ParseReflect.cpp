@@ -59,7 +59,8 @@ ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
           UnqualName.TemplateId->Kind == TNK_Type_template)
         AssumeType = true;
       else if (Tok.isOneOf(tok::l_square, tok::l_paren, tok::star, tok::amp,
-                           tok::ampamp))
+                           tok::ampamp, tok::kw_const, tok::kw_volatile,
+                           tok::kw_restrict))
         AssumeType = true;
 
       if (!AssumeType) {
