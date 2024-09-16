@@ -24,7 +24,6 @@
 #include "clang/AST/Type.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include <iostream>
 using namespace clang;
 
 /// The identity of a type_info object depends on the canonical unqualified
@@ -1031,7 +1030,7 @@ void APValue::printPretty(raw_ostream &Out, const PrintingPolicy &Policy,
   if (const auto *AT = Ty->getAs<AtomicType>())
     Ty = AT->getValueType();
 
-  switch (Kind) {
+  switch (getKind()) {
   case APValue::None:
     Out << "<out of lifetime>";
     return;
