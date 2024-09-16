@@ -48,4 +48,15 @@ static_assert(infos.size() == 1);
 static_assert(infos[0] == ^^Cls::k);
 }  // namespace static_arrays
 
+                               // ==============
+                               // static_strings
+                               // ==============
+
+namespace static_strings {
+// Ensure 'define_static_string("literal")' can be used as a template argument.
+template <auto S> consteval auto fn() { return S[0]; }
+static_assert(fn<std::meta::define_static_string("literal")>() == 'l');
+
+}  // namespace static_strings
+
 int main() { }

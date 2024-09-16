@@ -4644,9 +4644,12 @@ bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
   Expr *CE = ConstantExpr::Create(S.Context, OVE, Arg);
   {
     Expr::EvalResult Discarded;
-    if (IsLValue && !CE->EvaluateAsLValue(Discarded, S.Context, true))
-      return Diagnoser(Range.getBegin(),
-                       diag::metafn_object_not_permitted_result);
+    ConstantExprKind CEKind = CE->getType()->isClassType() ?
+                              ConstantExprKind::ClassTemplateArgument :
+                              ConstantExprKind::NonClassTemplateArgument;
+    if (!CE->EvaluateAsConstantExpr(Discarded, S.Context, CEKind))
+      return Diagnoser(Range.getBegin(), diag::metafn_result_not_representable)
+          << (IsLValue ? 1 : 0) << Range;
   }
 
   // If this is an lvalue to a function, promote the result to reflect

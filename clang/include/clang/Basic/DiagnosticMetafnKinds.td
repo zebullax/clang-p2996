@@ -77,9 +77,8 @@ def metafn_extract_structured_binding : Note<
 // Reflection of expression results.
 def metafn_value_not_structural_type : Note<
   "values of non-structural type %0 cannot be represented as reflections">;
-def metafn_object_not_permitted_result : Note<
-  "objects not permitted as results of constant expressions cannot be "
-  "represented as reflections">;
+def metafn_result_not_representable : Note<
+  "provided %select{value|object}0 cannot be represented by a reflection">;
 
 // Class definition.
 def metafn_name_invalid_identifier : Note<
