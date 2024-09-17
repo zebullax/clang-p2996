@@ -64,9 +64,9 @@ static_assert([:reflect_invoke(^^Cls::fn,
 
 // With reflection of constexpr variable as an argument.
 static constexpr int five = 5;
+
 static_assert([:reflect_invoke(^^fn1, {^^five}):] == 47);
 
-// TODO(P2996): Support nonstatic member functions.
 }  // namespace basic_functions
 
                               // =================
@@ -243,5 +243,144 @@ static_assert(
                          }) |
                          std::views::transform(std::meta::reflect_value<int>)));
 }  // namespace with_non_contiguous_ranges
+
+namespace non_static_member_functions {
+
+struct Number {
+public:
+  consteval Number(int v) : value(v) {}
+
+  consteval int plus(int a) const { return plus_impl(a); }
+
+  constexpr int get_value() const { return value; }
+
+  consteval Number operator+(int num) const { return Number(plus_impl(num)); }
+
+  template <typename T>
+  consteval T multiply(T x) const {
+    return value * x;
+  }
+
+  const int value;
+
+private:
+  consteval int plus_impl(int a) const { return value + a; }
+};
+
+constexpr Number num{42};
+
+// member function with input arguments
+static_assert(std::meta::reflect_value(84) ==
+              reflect_invoke(^^Number::plus,
+                             {^^num, std::meta::reflect_value(42)}));
+
+// operator overload
+static_assert(std::meta::reflect_value(84) ==
+              reflect_invoke(^^Number::get_value,
+                             {reflect_invoke(^^Number::operator+,
+                                                {^^num, std::meta::reflect_value(42)})}));
+
+// member function without input arguments
+static_assert(std::meta::reflect_value(42) ==
+              reflect_invoke(^^Number::get_value,
+                             {^^num}));
+
+// member function called with object reference
+constexpr auto num_ref = &num;
+static_assert(std::meta::reflect_value(42) ==
+              reflect_invoke(^^Number::get_value,
+                             {^^num_ref}));
+
+// template member function
+static_assert(std::meta::reflect_value(84) ==
+              reflect_invoke(^^Number::multiply,
+                             {^^int},
+                             {^^num, std::meta::reflect_value(2)}));
+
+// template member function + template argument deduction
+static_assert(std::meta::reflect_value(84) ==
+              reflect_invoke(^^Number::multiply,
+                             {^^num, std::meta::reflect_value(2)}));
+
+// Invoking Base::fn() with an object of type Child
+struct IsReal {
+  consteval IsReal(bool v): value(v){}
+
+  consteval bool is_real() const {
+    return value;
+  }
+
+  const bool value;
+};
+
+struct FloatNumber : public Number, IsReal{
+  consteval FloatNumber(int v) : Number(v), IsReal(true) {}
+};
+
+constexpr FloatNumber childNumber{42};
+static_assert(std::meta::reflect_value(42) ==
+              reflect_invoke(^^Number::get_value,
+                             {^^childNumber}));
+static_assert(std::meta::reflect_value(true) ==
+              reflect_invoke(^^IsReal::is_real,
+                             {^^childNumber}));
+
+} // namespace non_static_member_functions
+
+namespace function_pointer {
+// pointer to simple function
+constexpr int foo(int a) {
+  return a + 42;
+}
+
+constexpr int (*foo_pointer)(int) = &foo;
+static_assert(reflect_invoke(^^foo_pointer, {std::meta::reflect_value(0)})
+              == std::meta::reflect_value(42));
+
+constexpr static int (*foo_static_pointer)(int) = &foo;
+static_assert(reflect_invoke(^^foo_static_pointer, {std::meta::reflect_value(2)})
+              == std::meta::reflect_value(44));
+
+// pointer to template function
+template <typename T>
+constexpr T bar(T a) {
+  return a + 42;
+}
+
+constexpr int (*bar_pointer)(int) = &bar<int>;
+static_assert(reflect_invoke(^^bar_pointer, {std::meta::reflect_value(1)})
+              == std::meta::reflect_value(43));
+static_assert(reflect_invoke(std::meta::reflect_value(bar_pointer), {std::meta::reflect_value(1)}) ==
+              std::meta::reflect_value(43));
+static_assert(reflect_invoke(std::meta::reflect_object(bar_pointer), {std::meta::reflect_value(1)}) ==
+              std::meta::reflect_value(43));
+
+// pointer to method
+struct Cls {
+public:
+  constexpr Cls(int data) : data(data) {}
+
+  static constexpr int fn(int p) { return p * p; }
+
+  constexpr int get() const { return data; }
+
+  const int data;
+};
+
+// pointer to static method
+constexpr int (*fn_pointer)(int) = &Cls::fn;
+static_assert(reflect_invoke(^^fn_pointer, {std::meta::reflect_value(2)})
+              == std::meta::reflect_value(4));
+
+// pointer to non-static method
+constexpr Cls data(42);
+constexpr int (Cls::*get_pointer)() const = &Cls::get;
+static_assert(reflect_invoke(^^get_pointer, {^^data}) == std::meta::reflect_value(42));
+
+// object with static storage duration holding a pointer to a constexpr function
+constexpr static int (Cls::*get_static_pointer)() const = &Cls::get;
+static_assert(reflect_invoke(^^get_static_pointer, {^^data}) == std::meta::reflect_value(42));
+
+} // namespace function_pointer
 
 int main() { }

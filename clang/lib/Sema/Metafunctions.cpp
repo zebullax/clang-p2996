@@ -4667,6 +4667,63 @@ bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
   return SetAndSucceed(Result, Arg.Lift(Args[1]->getType()));
 }
 
+bool is_nonstatic_member_function(ValueDecl *FD) {
+  if (!FD) {
+    return false;
+  }
+
+  if (dyn_cast<CXXConstructorDecl>(FD)) {
+    return false;
+  }
+
+  auto *MD = dyn_cast<CXXMethodDecl>(FD);
+  if (!MD) {
+    // might be a pointer to member function
+    QualType QT = FD->getType();
+    // check if the type is a pointer to a member
+    if (const MemberPointerType *MPT = QT->getAs<MemberPointerType>()) {
+      QualType PT = MPT->getPointeeType();
+      // check if the pointee type is a function type
+      if (const FunctionProtoType *FPT = PT->getAs<FunctionProtoType>()) {
+        return true;
+      }
+    }
+  } else {
+    return !MD->isStatic();
+  }
+
+  return false;
+}
+
+CXXMethodDecl *getCXXMethodDeclFromDeclRefExpr(DeclRefExpr *DRE, Sema &S) {
+  ValueDecl *VD = DRE->getDecl();
+
+  if (auto *MD = dyn_cast<CXXMethodDecl>(VD)) {
+    // method declaration
+    return MD;
+  } else {
+    // pointer to non-static method
+    // validation was done in is_nonstatic_member_function
+    Expr::EvalResult ER;
+    if (!DRE->EvaluateAsRValue(ER, S.Context)) {
+      return nullptr;
+    }
+
+    APValue Result = ER.Val;
+    if (!Result.isMemberPointer()) {
+      return nullptr;
+    }
+
+    const ValueDecl *MemberDecl = Result.getMemberPointerDecl();
+    if (const CXXMethodDecl *MethodDecl = dyn_cast<CXXMethodDecl>(MemberDecl)) {
+      // get non-const version
+      return const_cast<CXXMethodDecl *>(MethodDecl);
+    }
+  }
+
+  return nullptr;
+}
+
 bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
                     DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
                     ArrayRef<Expr *> Args) {
@@ -4821,10 +4878,17 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
     {
       sema::TemplateDeductionInfo Info(Args[0]->getExprLoc(),
                                        FTD->getTemplateDepth());
+
+      bool exclude_first_arg =
+          is_nonstatic_member_function(FTD->getTemplatedDecl()) &&
+          ArgExprs.size() > 0;
+
       TemplateDeductionResult Result = S.DeduceTemplateArguments(
-            FTD, &ExplicitTAListInfo, ArgExprs, Specialization, Info, false,
-            true, QualType(), Expr::Classification(),
-            [](ArrayRef<QualType>) { return false; });
+          FTD, &ExplicitTAListInfo,
+          ArrayRef(ArgExprs.begin() + (exclude_first_arg ? 1 : 0),
+                   ArgExprs.end()),
+          Specialization, Info, false, true, QualType(), Expr::Classification(),
+          [](ArrayRef<QualType>) { return false; });
       if (Result != TemplateDeductionResult::Success)
         return Diagnoser(Range.getBegin(), diag::metafn_no_specialization_found)
             << FTD << Range;
@@ -4844,20 +4908,106 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
   ExprResult ER;
   {
     EnterExpressionEvaluationContext Context(
-            S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-    if (auto *DRE = dyn_cast<DeclRefExpr>(FnRefExpr);
-        DRE && dyn_cast<CXXConstructorDecl>(DRE->getDecl())) {
-      auto *CtorD = cast<CXXConstructorDecl>(DRE->getDecl());
+        S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
 
+    auto *DRE = dyn_cast<DeclRefExpr>(FnRefExpr);
+    if (DRE && dyn_cast<CXXConstructorDecl>(DRE->getDecl())) {
+      auto *CtorD = cast<CXXConstructorDecl>(DRE->getDecl());
       ER = S.BuildCXXConstructExpr(
-            Range.getBegin(), QualType(CtorD->getParent()->getTypeForDecl(), 0),
-            CtorD, false, ArgExprs, false, false, false, false,
-            CXXConstructionKind::Complete, Range);
+          Range.getBegin(), QualType(CtorD->getParent()->getTypeForDecl(), 0),
+          CtorD, false, ArgExprs, false, false, false, false,
+          CXXConstructionKind::Complete, Range);
     } else {
-      ER = S.ActOnCallExpr(S.getCurScope(), FnRefExpr, Range.getBegin(),
-                           ArgExprs, Range.getEnd(), /*ExecConfig=*/nullptr);
+      Expr *FnExpr = FnRefExpr;
+      bool handle_member_func =
+          DRE && is_nonstatic_member_function(DRE->getDecl());
+
+      if (handle_member_func) {
+
+        if (ArgExprs.size() < 1) {
+          // need to have object as a first argument
+          return Diagnoser(Range.getBegin(),
+                           diag::metafn_first_argument_is_not_object)
+                 << Range;
+        }
+
+        Expr *ObjExpr = ArgExprs[0];
+        QualType ObjType = ObjExpr->getType();
+
+        if (ObjType->isPointerType()) {
+          ObjType = ObjType->getPointeeType();
+          // convert lvalue to rvalue if needed
+          // since Sema::BuildMemberExpr inside Sema::ActOnMemberAccessExpr
+          // expects prvalue
+          ObjExpr = S.DefaultFunctionArrayLvalueConversion(ObjExpr).get();
+        }
+
+        if (!ObjType->getAsCXXRecordDecl()) {
+          // first argument is not an object
+          return Diagnoser(Range.getBegin(),
+                           diag::metafn_first_argument_is_not_object)
+                 << Range;
+        }
+
+        CXXMethodDecl *MD = getCXXMethodDeclFromDeclRefExpr(DRE, S);
+        if (!MD) {
+          // most likely, non-constexpr pointer to method was passed
+          return true;
+        }
+
+        // this call is needed to make
+        // CXXSpliceExpr work with pointers to non-static methods
+        // (we unwrap pointer in getCXXMethodDeclFromDeclRefExpr(DRE) function)
+        // for non-pointer setDecl(MD) call is no-op
+        DRE->setDecl(MD);
+
+        auto ObjClass = ObjType->getAsCXXRecordDecl();
+        // check that method belongs to class
+        bool IsMethodFromClassOrParent = (MD->getParent() == ObjClass) ||
+                                       ObjClass->isDerivedFrom(MD->getParent());
+        if (!IsMethodFromClassOrParent) {
+          return Diagnoser(Range.getBegin(),
+                           diag::metafn_function_is_not_member_of_object)
+                 << Range;
+        }
+
+        if (MD->getReturnType()->isVoidType()) {
+          // void return type is not supported
+          return Diagnoser(Range.getBegin(), diag::metafn_function_returns_void)
+                 << Range;
+        }
+
+        SourceLocation PlaceholderLoc;
+        // Hack below is needed to prevent lookup or overload resolution of
+        // given method reflection. Because this problem has been solved before
+        // for splice expressions, wrap our decl ref into splice expr and reuse
+        // specific overload of Sema::ActOnMemberAccessExpr
+        auto MethodAsSpliceExpr = CXXSpliceExpr::Create(
+            S.Context, DRE->getValueKind(), PlaceholderLoc, PlaceholderLoc, DRE,
+            PlaceholderLoc, &ExplicitTAListInfo,
+            /* this arg is not used */ false);
+
+        SourceLocation ObjLoc = ObjExpr->getExprLoc();
+        ExprResult MemberAccessResult = S.ActOnMemberAccessExpr(
+            S.getCurScope(), ObjExpr, ObjLoc,
+            ObjExpr->getType()->isPointerType() ? tok::arrow : tok::period,
+            MethodAsSpliceExpr, PlaceholderLoc);
+
+        if (MemberAccessResult.isInvalid()) {
+          return true;
+        }
+
+        FnExpr = MemberAccessResult.get();
+      }
+
+      ER = S.ActOnCallExpr(
+          S.getCurScope(), FnExpr, Range.getBegin(),
+          MutableArrayRef(ArgExprs.begin() + (handle_member_func ? 1 : 0),
+                          ArgExprs.end()),
+          Range.getEnd(), /*ExecConfig=*/nullptr);
     }
   }
+
   if (ER.isInvalid())
     return Diagnoser(Range.getBegin(), diag::metafn_invalid_call_expr) << Range;
   Expr *ResultExpr = ER.get();
