@@ -2567,8 +2567,9 @@ bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
 
   {
     Sema::SuppressDiagnosticsRAII NoDiagnostics(S);
+    DefaultArguments DefaultArgs;
     bool CanSub = !S.CheckTemplateArgumentList(TDecl, Args[0]->getExprLoc(),
-                                               TAListInfo, false,
+                                               TAListInfo, DefaultArgs, false,
                                                IgnoredSugared, IgnoredCanonical,
                                                true);
     return SetAndSucceed(Result, makeBool(S.Context, CanSub));
@@ -2638,8 +2639,10 @@ bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
 
     SmallVector<TemplateArgument, 4> CanonicalTArgs;
     SmallVector<TemplateArgument, 4> IgnoredSugared;
-    if (S.CheckTemplateArgumentList(TDecl, Range.getBegin(), TAListInfo, false,
-                                    IgnoredSugared, CanonicalTArgs, true))
+    DefaultArguments DefaultArgs;
+    if (S.CheckTemplateArgumentList(TDecl, Range.getBegin(), TAListInfo,
+                                    DefaultArgs, false, IgnoredSugared,
+                                    CanonicalTArgs, true))
       return true;
     TArgs = CanonicalTArgs;
   }

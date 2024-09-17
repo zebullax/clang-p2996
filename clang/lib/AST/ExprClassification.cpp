@@ -145,6 +145,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::ArraySectionExprClass:
   case Expr::OMPArrayShapingExprClass:
   case Expr::OMPIteratorExprClass:
+  case Expr::HLSLOutArgExprClass:
   case Expr::ExtractLValueExprClass:
     return Cl::CL_LValue;
 

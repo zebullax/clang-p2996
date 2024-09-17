@@ -692,7 +692,7 @@ ExprResult Sema::BuildCXXSpliceSpecifierExpr(SourceLocation TemplateKWLoc,
   if (!Operand->isValueDependent() && !Operand->isTypeDependent() &&
       Operand->getType() != Context.MetaInfoTy) {
     Result = PerformImplicitConversion(Operand, Context.MetaInfoTy,
-                                       AA_Converting, false);
+                                       AssignmentAction::Converting, false);
     if (Result.isInvalid())
       return ExprError();
     Operand = Result.get();
@@ -899,12 +899,13 @@ ExprResult Sema::BuildReflectionSpliceExpr(
 
       if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TDecl); FTD && TArgs) {
         SmallVector<TemplateArgument> Ignored;
+        DefaultArguments DefaultArgs;
 
         bool ConstraintFailure = false;
         if (CheckTemplateArgumentList(
                 FTD, TemplateKWLoc,
-                *const_cast<TemplateArgumentListInfo *>(TArgs), true, Ignored,
-                Ignored, false, &ConstraintFailure) ||
+                *const_cast<TemplateArgumentListInfo *>(TArgs), DefaultArgs,
+                true, Ignored, Ignored, false, &ConstraintFailure) ||
             ConstraintFailure)
           return ExprError();
       } else if (auto *VTD = dyn_cast<VarTemplateDecl>(TDecl)) {

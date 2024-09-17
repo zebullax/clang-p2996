@@ -35,6 +35,7 @@ class NestedNameSpecifier;
 enum OverloadedOperatorKind : int;
 class OverloadedTemplateStorage;
 class AssumedTemplateStorage;
+class DeducedTemplateStorage;
 struct PrintingPolicy;
 class QualifiedTemplateName;
 class SubstTemplateTemplateParmPackStorage;
@@ -51,16 +52,17 @@ protected:
   enum Kind {
     Overloaded,
     Assumed, // defined in DeclarationName.h
+    Deduced,
     SubstTemplateTemplateParm,
     SubstTemplateTemplateParmPack
   };
 
   struct BitsTag {
     LLVM_PREFERRED_TYPE(Kind)
-    unsigned Kind : 2;
+    unsigned Kind : 3;
 
     // The template parameter index.
-    unsigned Index : 15;
+    unsigned Index : 14;
 
     /// The pack index, or the number of stored templates
     /// or template arguments, depending on which subclass we have.
@@ -89,6 +91,12 @@ public:
     return Bits.Kind == Assumed
              ? reinterpret_cast<AssumedTemplateStorage *>(this)
              : nullptr;
+  }
+
+  DeducedTemplateStorage *getAsDeducedTemplateName() {
+    return Bits.Kind == Deduced
+               ? reinterpret_cast<DeducedTemplateStorage *>(this)
+               : nullptr;
   }
 
   SubstTemplateTemplateParmStorage *getAsSubstTemplateTemplateParm() {
@@ -173,6 +181,15 @@ public:
                       unsigned Index, bool Final);
 };
 
+struct DefaultArguments {
+  // The position in the template parameter list
+  // the first argument corresponds to.
+  unsigned StartPos;
+  ArrayRef<TemplateArgument> Args;
+
+  operator bool() const { return !Args.empty(); }
+};
+
 /// Represents a C++ template name within the type system.
 ///
 /// A C++ template name refers to a template within the C++ type
@@ -247,6 +264,10 @@ public:
     /// A template name that refers to a template declaration found through a
     /// specific using shadow declaration.
     UsingTemplate,
+
+    /// A template name that refers to another TemplateName with deduced default
+    /// arguments.
+    DeducedTemplate,
   };
 
   TemplateName() = default;
@@ -258,6 +279,7 @@ public:
   explicit TemplateName(QualifiedTemplateName *Qual);
   explicit TemplateName(DependentTemplateName *Dep);
   explicit TemplateName(UsingShadowDecl *Using);
+  explicit TemplateName(DeducedTemplateStorage *Deduced);
 
   /// Determine whether this template name is NULL.
   bool isNull() const;
@@ -272,7 +294,13 @@ public:
   /// to, if any. If the template name does not refer to a specific
   /// declaration because it is a dependent name, or if it refers to a
   /// set of function templates, returns NULL.
-  TemplateDecl *getAsTemplateDecl() const;
+  TemplateDecl *getAsTemplateDecl(bool IgnoreDeduced = false) const;
+
+  /// Retrieves the underlying template declaration that
+  /// this template name refers to, along with the
+  /// deduced default arguments, if any.
+  std::pair<TemplateDecl *, DefaultArguments>
+  getTemplateDeclAndDefaultArgs() const;
 
   /// Retrieve the underlying, overloaded function template
   /// declarations that this template name refers to, if known.
@@ -313,6 +341,11 @@ public:
   /// Retrieve the using shadow declaration through which the underlying
   /// template declaration is introduced, if any.
   UsingShadowDecl *getAsUsingShadowDecl() const;
+
+  /// Retrieve the deduced template info, if any.
+  DeducedTemplateStorage *getAsDeducedTemplateName() const;
+
+  std::optional<TemplateName> desugar(bool IgnoreDeduced) const;
 
   TemplateName getUnderlying() const;
 
@@ -411,6 +444,30 @@ public:
   static void Profile(llvm::FoldingSetNodeID &ID, TemplateName Replacement,
                       Decl *AssociatedDecl, unsigned Index,
                       std::optional<unsigned> PackIndex);
+};
+
+class DeducedTemplateStorage : public UncommonTemplateNameStorage,
+                               public llvm::FoldingSetNode {
+  friend class ASTContext;
+
+  TemplateName Underlying;
+
+  DeducedTemplateStorage(TemplateName Underlying,
+                         const DefaultArguments &DefArgs);
+
+public:
+  TemplateName getUnderlying() const { return Underlying; }
+
+  DefaultArguments getDefaultArguments() const {
+    return {/*StartPos=*/Bits.Index,
+            /*Args=*/{reinterpret_cast<const TemplateArgument *>(this + 1),
+                      Bits.Data}};
+  }
+
+  void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context) const;
+
+  static void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
+                      TemplateName Underlying, const DefaultArguments &DefArgs);
 };
 
 inline TemplateName TemplateName::getUnderlying() const {

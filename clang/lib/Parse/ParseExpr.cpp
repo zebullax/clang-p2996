@@ -449,7 +449,9 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
     ConsumeToken();
 
     if (OpToken.is(tok::caretcaret)) {
-      if (getLangOpts().Blocks && getLangOpts().Reflection) {
+      assert(getLangOpts().Reflection &&
+             "should not have '^^'-token without reflection");
+      if (getLangOpts().Blocks) {
         OpToken.setKind(tok::caret);
         Token T;
         {
@@ -461,8 +463,6 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
         UnconsumeToken(OpToken);
         PP.EnterToken(T, /*IsReinject=*/true);
         return ParseRHSOfBinaryExpression(LHS, MinPrec);
-      } else {
-        return ExprError(Diag(Tok, diag::err_opencl_logical_exclusive_or));
       }
     }
 
@@ -623,7 +623,7 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
         RHS = ExprError();
       }
       // If this is left-associative, only parse things on the RHS that bind
-      // more tightly than the current operator.  If it is left-associative, it
+      // more tightly than the current operator.  If it is right-associative, it
       // is okay, to bind exactly as tightly.  For example, compile A=B=C=D as
       // A=(B=(C=D)), where each paren is a level of recursion here.
       // The function takes ownership of the RHS.

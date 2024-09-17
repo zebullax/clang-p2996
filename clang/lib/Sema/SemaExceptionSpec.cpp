@@ -1402,6 +1402,7 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Expr::EmbedExprClass:
   case Expr::ConceptSpecializationExprClass:
   case Expr::RequiresExprClass:
+  case Expr::HLSLOutArgExprClass:
     // These expressions can never throw.
     return CT_Cannot;
 
