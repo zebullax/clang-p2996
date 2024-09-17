@@ -2013,6 +2013,7 @@ void Parser::stripTypeAttributesOffDeclSpec(ParsedAttributes &Attrs,
 /// [C++]   using-directive
 /// [C++]   using-declaration
 /// [C++11/C11] static_assert-declaration
+/// [C++2C] consteval-block-declaration
 ///         others... [FIXME]
 ///
 Parser::DeclGroupPtrTy Parser::ParseDeclaration(DeclaratorContext Context,
@@ -2063,6 +2064,14 @@ Parser::DeclGroupPtrTy Parser::ParseDeclaration(DeclaratorContext Context,
     ProhibitAttributes(DeclSpecAttrs);
     SingleDecl = ParseStaticAssertDeclaration(DeclEnd);
     break;
+  case tok::kw_consteval:
+    if (getLangOpts().ConstevalBlocks && NextToken().is(tok::l_brace)) {
+      ProhibitAttributes(DeclAttrs);
+      ProhibitAttributes(DeclSpecAttrs);
+      SingleDecl = ParseConstevalBlockDeclaration(DeclEnd);
+      break;
+    }
+    [[fallthrough]];
   default:
     return ParseSimpleDeclaration(Context, DeclEnd, DeclAttrs, DeclSpecAttrs,
                                   true, nullptr, DeclSpecStart);

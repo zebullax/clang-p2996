@@ -3486,7 +3486,12 @@ defm expansion_statements : BoolFOption<"expansion-statements",
 defm annotation_attributes : BoolFOption<"annotation-attributes",
   LangOpts<"AnnotationAttributes">, DefaultFalse,
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
-          "Enable proposed annotation attributes">,
+          "Enable proposed annotation attributes as described by P3394">,
+  NegFlag<SetFalse>>;
+defm consteval_blocks : BoolFOption<"consteval-blocks",
+  LangOpts<"ConstevalBlocks">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option],
+          "Enable proposed consteval blocks as described by P3289">,
   NegFlag<SetFalse>>;
 defm reflection_latest : BoolFOption<"reflection-latest",
   LangOpts<"ReflectionLatest">, DefaultFalse,

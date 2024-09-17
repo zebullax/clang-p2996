@@ -32,6 +32,7 @@
 #include "clang/Sema/SemaCodeCompletion.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/TimeProfiler.h"
+#include <iostream>
 #include <optional>
 
 using namespace clang;
@@ -1216,6 +1217,53 @@ Decl *Parser::ParseStaticAssertDeclaration(SourceLocation &DeclEnd) {
   return Actions.ActOnStaticAssertDeclaration(StaticAssertLoc, AssertExpr.get(),
                                               AssertMessage.get(),
                                               T.getCloseLocation());
+}
+
+/// ParseConstevalBlockDeclaration - Parse C++2C consteval-block-declaration.
+///
+/// [C++2C] consteval-block-declaration:
+///           consteval  compound-statement
+///
+Decl *Parser::ParseConstevalBlockDeclaration(SourceLocation &DeclEnd) {
+  assert(Tok.is(tok::kw_consteval) && NextToken().is(tok::l_brace) &&
+         "Not a consteval block declaration");
+  SourceLocation ConstevalLoc = ConsumeToken();
+
+  EnterExpressionEvaluationContext ConstantEvaluated(
+      Actions, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+  LambdaIntroducer FakeIntroducer;
+  FakeIntroducer.Range.setBegin(ConstevalLoc);
+  FakeIntroducer.Range.setEnd(ConstevalLoc);
+
+  ExprResult Lambda = ParseLambdaExpressionAfterIntroducer(FakeIntroducer,
+                                                           ConstevalLoc);
+  if (Lambda.isInvalid())
+    return nullptr;
+
+  SmallVector<Expr *, 0> EmptyArgs;
+  ExprResult Invocation = Actions.ActOnCallExpr(getCurScope(), Lambda.get(),
+                                                Lambda.get()->getBeginLoc(),
+                                                EmptyArgs,
+                                                Lambda.get()->getEndLoc());
+  if (Invocation.isInvalid())
+    return nullptr;
+
+  ExprResult TrueLiteral = Actions.ActOnCXXBoolLiteral(ConstevalLoc,
+                                                       tok::kw_true);
+  assert(!TrueLiteral.isInvalid());
+
+  ExprResult AssertClause = Actions.ActOnBinOp(getCurScope(), ConstevalLoc,
+                                               tok::comma, Invocation.get(),
+                                               TrueLiteral.get());
+  assert(!AssertClause.isInvalid());
+
+  if (AssertClause.get()->containsErrors())
+    return nullptr;
+
+  return Actions.ActOnStaticAssertDeclaration(ConstevalLoc, AssertClause.get(),
+                                              nullptr,
+                                              AssertClause.get()->getEndLoc());
 }
 
 /// ParseDecltypeSpecifier - Parse a C++11 decltype specifier.
@@ -3079,6 +3127,14 @@ Parser::DeclGroupPtrTy Parser::ParseCXXClassMemberDeclaration(
     SourceLocation DeclEnd;
     return DeclGroupPtrTy::make(
         DeclGroupRef(ParseStaticAssertDeclaration(DeclEnd)));
+  }
+
+  if (!TemplateInfo.Kind &&
+      getLangOpts().ConstevalBlocks && Tok.is(tok::kw_consteval) &&
+      NextToken().is(tok::l_brace)) {
+    SourceLocation DeclEnd;
+    return DeclGroupPtrTy::make(
+        DeclGroupRef(ParseConstevalBlockDeclaration(DeclEnd)));
   }
 
   if (Tok.is(tok::kw_template)) {

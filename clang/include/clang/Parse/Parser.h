@@ -2039,7 +2039,14 @@ private:
   bool
   ParseLambdaIntroducer(LambdaIntroducer &Intro,
                         LambdaIntroducerTentativeParse *Tentative = nullptr);
-  ExprResult ParseLambdaExpressionAfterIntroducer(LambdaIntroducer &Intro);
+
+  // Explicit 'ConstevalLoc' is allowed to facilitate C++2C consteval-blocks.
+  ExprResult ParseLambdaExpressionAfterIntroducer(LambdaIntroducer &Intro,
+                                                  SourceLocation ConstevalLoc);
+  ExprResult ParseLambdaExpressionAfterIntroducer(LambdaIntroducer &Intro) {
+    SourceLocation ConstevalLoc;
+    return ParseLambdaExpressionAfterIntroducer(Intro, ConstevalLoc);
+  }
 
   //===--------------------------------------------------------------------===//
   // C++ 5.2p1: C++ Casts
@@ -3365,6 +3372,7 @@ private:
       ParsedAttributes &Attrs, Decl **OwnedType = nullptr);
 
   Decl *ParseStaticAssertDeclaration(SourceLocation &DeclEnd);
+  Decl *ParseConstevalBlockDeclaration(SourceLocation &DeclEnd);
   Decl *ParseNamespaceAlias(SourceLocation NamespaceLoc,
                             SourceLocation AliasLoc, IdentifierInfo *Alias,
                             SourceLocation &DeclEnd);

@@ -7070,6 +7070,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-freflection-new-syntax");
     CmdArgs.push_back("-fparameter-reflection");
     CmdArgs.push_back("-fannotation-attributes");
+    CmdArgs.push_back("-fconsteval-blocks");
     CmdArgs.push_back("-fexpansion-statements");
   }
 
@@ -7422,6 +7423,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // -fannotation-attributes is likewise off by default.
   Args.addOptInFlag(CmdArgs, options::OPT_fannotation_attributes,
                     options::OPT_fno_annotation_attributes);
+  // -fconsteval-blocks is likewise off by default.
+  Args.addOptInFlag(CmdArgs, options::OPT_fconsteval_blocks,
+                    options::OPT_fno_consteval_blocks);
+  // -freflection-latest is likewise off by default.
   Args.addOptInFlag(CmdArgs, options::OPT_freflection_latest,
                     options::OPT_fno_reflection_latest);
 

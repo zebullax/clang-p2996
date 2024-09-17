@@ -32,6 +32,7 @@ using namespace clang;
 ///           using-declaration
 ///           using-directive
 /// [C++0x]   static_assert-declaration
+/// [C++2C]   consteval-block-declaration
 ///
 ///         asm-definition:
 ///           'asm' '(' string-literal ')' ';'
@@ -64,6 +65,11 @@ bool Parser::isCXXDeclarationStatement(
   case tok::kw_static_assert:
   case tok::kw__Static_assert:
     return true;
+  case tok::kw_consteval:
+    // consteval-block-declaration
+    if (getLangOpts().ConstevalBlocks)
+      return NextToken().is(tok::l_brace);
+    return isCXXSimpleDeclaration(/*AllowForRangeDecl=*/false);
   case tok::coloncolon:
   case tok::identifier: {
     if (DisambiguatingWithExpression) {

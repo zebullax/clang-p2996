@@ -1001,6 +1001,14 @@ Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
                               DeclSpecAttrs);
     }
 
+  case tok::kw_consteval:
+    if (getLangOpts().ConstevalBlocks && NextToken().is(tok::l_brace)) {
+      SourceLocation DeclEnd;
+      return ParseDeclaration(DeclaratorContext::File, DeclEnd, Attrs,
+                              DeclSpecAttrs);
+    }
+    goto dont_know;
+
   case tok::kw_cbuffer:
   case tok::kw_tbuffer:
     if (getLangOpts().HLSL) {
