@@ -21,13 +21,6 @@
 // RUN: %{build}
 // RUN: %{exec} %t.exe > %t.stdout
 
-// The 'alisdair_universal_swap' test-case was broken by a change to libcxx's
-//   include/__memory/compressed_pair.h
-// which gives 'vector<int>' a member having type 'char[0]'. Alisdair's
-// existing cases are not sufficient to handle this, since 'char[0]' is "not
-// an array" (in the strict sense implemented by 'std::is_array').
-#define _LIBCPP_ABI_NO_COMPRESSED_PAIR_PADDING
-
 #include <experimental/meta>
 
 #include <algorithm>
@@ -182,7 +175,7 @@ void do_swap_representations(T& lhs, T& rhs) {
     rhs = intrm;
   } else if constexpr (std::is_reference_v<T>) {
     static_assert(false, "Does not yet rebind references");
-  } else {
+  } else if constexpr (sizeof(T) > 0) {
     static_assert(false, "Unexpected type category");
   }
 }
