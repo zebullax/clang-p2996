@@ -1,5 +1,6 @@
 // FILE_DEPENDENCIES: example-module.cppm
 //
+// RUN: mkdir %t
 // RUN: %{cxx} %{compile_flags} -std=c++26 \
 // RUN:     -freflection -freflection-new-syntax -fparameter-reflection \
 // RUN:     --precompile example-module.cppm -o %t/example-module.pcm

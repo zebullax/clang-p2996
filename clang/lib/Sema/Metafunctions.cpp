@@ -870,7 +870,7 @@ static bool findBaseSpecLoc(APValue &Result, ASTContext &C, EvalFn Evaluator,
   SourceLocExpr *SLE =
           new (C) SourceLocExpr(C, SourceLocIdentKind::SourceLocStruct,
                                 ResultTy, B->getBeginLoc(), SourceLocation(),
-                                nullptr);
+                                B->getDerived());
   return !Evaluator(Result, SLE, true);
 }
 

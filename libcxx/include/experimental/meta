@@ -408,7 +408,7 @@ consteval auto annotate(info) -> info;
   #define LIFT(x) ^x
 #endif
 
-_LIBCPP_BEGIN_NAMESPACE_META_V2
+_LIBCPP_BEGIN_NAMESPACE_REFLECTION_V2
 
 // An opaque handle to a reflected entity.
 using info = decltype(LIFT(int));
@@ -2858,7 +2858,7 @@ consteval auto u8display_string_of(info R) -> u8string_view {
   return detail::pretty_printer<char8_t>::print(R);
 }
 
-_LIBCPP_END_NAMESPACE_META_V2
+_LIBCPP_END_NAMESPACE_REFLECTION_V2
 
 #endif  // __has_feature(reflection)
 

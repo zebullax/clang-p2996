@@ -2295,7 +2295,7 @@ APValue SourceLocExpr::EvaluateInContext(const ASTContext &Ctx,
   // for it. Because we do not have access to Sema/function scopes here, we
   // detect this case by relying on the fact such method doesn't yet have a
   // type.
-  if (const auto *D = dyn_cast<CXXMethodDecl>(Context);
+  if (const auto *D = dyn_cast_if_present<CXXMethodDecl>(Context);
       D && D->getFunctionTypeLoc().isNull() && isLambdaCallOperator(D))
     Context = D->getParent()->getParent();
 
