@@ -5102,8 +5102,8 @@ bool data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
 
   // Validate the name as an identifier.
   if (Name) {
-    Lexer Lex(Range.getBegin(), S.getLangOpts(), Name->data(), Name->data(),
-              Name->data() + Name->size(), false);
+    Lexer Lex(Range.getBegin(), S.Context.getLangOpts(), Name->data(),
+              Name->data(), Name->data() + Name->size(), false);
     if (!Lex.validateIdentifier(*Name))
       return Diagnoser(Range.getBegin(), diag::metafn_name_invalid_identifier)
           << *Name << Range;
