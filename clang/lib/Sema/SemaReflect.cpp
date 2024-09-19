@@ -13,13 +13,18 @@
 //===----------------------------------------------------------------------===//
 
 #include "TypeLocBuilder.h"
+#include "clang/AST/ASTConsumer.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/DeclBase.h"
+#include "clang/AST/MetaActions.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Metafunction.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Sema.h"
+#include "clang/Sema/Template.h"
+#include "clang/Sema/TemplateDeduction.h"
 
 using namespace clang;
 using namespace sema;
@@ -86,6 +91,518 @@ Expr *CreateRefToDecl(Sema &S, ValueDecl *D,
         SourceLocation(), D, false, ExprLoc, QT, ValueKind, D, nullptr);
   }
 }
+
+class MetaActionsImpl : public MetaActions {
+  Sema &S;
+
+  void populateTemplateArgumentListInfo(TemplateArgumentListInfo &TAListInfo,
+                                        ArrayRef<TemplateArgument> TArgs,
+                                        SourceLocation InstantiateLoc) {
+    for (const TemplateArgument &Arg : TArgs)
+      TAListInfo.addArgument(
+           S.getTrivialTemplateArgumentLoc(Arg,
+                                           Arg.getNonTypeTemplateArgumentType(),
+                                           InstantiateLoc));
+  }
+
+public:
+  MetaActionsImpl(Sema &S) : MetaActions(), S(S) { }
+
+  Decl *CurrentCtx() const override {
+    return cast<Decl>(S.CurContext);
+  }
+
+  bool IsAccessible(NamedDecl *Target, DeclContext *Ctx) override {
+    bool Result = false;
+    if (auto *Cls = dyn_cast_or_null<CXXRecordDecl>(Target->getDeclContext())) {
+      CXXRecordDecl *NamingCls = Cls;
+      for (DeclContext *DC = Ctx; DC; DC = DC->getParent())
+        if (auto *CXXRD = dyn_cast<CXXRecordDecl>(DC))
+          if (CXXRD->isDerivedFrom(Cls)) {
+            NamingCls = CXXRD;
+            break;
+          }
+
+      DeclContext *PreviousDC = S.CurContext;
+      {
+        S.CurContext = Ctx;
+        Result = S.IsSimplyAccessible(Target, NamingCls, QualType{});
+        S.CurContext = PreviousDC;
+      }
+    }
+    return Result;
+  }
+
+  bool IsAccessibleBase(QualType BaseTy, QualType DerivedTy,
+                        const CXXBasePath &Path,
+                        DeclContext *Ctx, SourceLocation AccessLoc) override {
+    Sema::AccessResult Result;
+
+    DeclContext *PreviousDC = S.CurContext;
+    {
+      S.CurContext = Ctx;
+      Result = S.CheckBaseClassAccess(AccessLoc, BaseTy, DerivedTy, Path, 0,
+                                      /*ForceCheck=*/true,
+                                      /*ForceUnprivileged=*/false);
+      S.CurContext = PreviousDC;
+    }
+    return (Result == Sema::AR_accessible);
+  }
+
+  bool EnsureInstantiated(Decl *D, SourceRange Range) override {
+    auto validateConstraints = [&](TemplateDecl *TDecl,
+                                 ArrayRef<TemplateArgument> TArgs) {
+      MultiLevelTemplateArgumentList MLTAL(TDecl, TArgs, false);
+      if (S.EnsureTemplateArgumentListConstraints(TDecl, MLTAL, Range))
+        return false;
+
+      return true;
+    };
+
+    // Cover case of static variables in a specialization not yet referenced.
+    if (auto *VD = dyn_cast<VarDecl>(D); VD && VD->hasGlobalStorage())
+      S.MarkVariableReferenced(Range.getBegin(), VD);
+
+    if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(D);
+        CTSD && !CTSD->isCompleteDefinition()) {
+      if (!validateConstraints(CTSD->getSpecializedTemplate(),
+                               CTSD->getTemplateArgs().asArray()))
+        return true;
+
+      if (S.InstantiateClassTemplateSpecialization(
+              Range.getBegin(), CTSD, TSK_ExplicitInstantiationDefinition, false))
+        return false;
+
+      S.InstantiateClassTemplateSpecializationMembers(
+              Range.getBegin(), CTSD, TSK_ExplicitInstantiationDefinition);
+    } else if (auto *VTSD = dyn_cast<VarTemplateSpecializationDecl>(D);
+        VTSD && !VTSD->isCompleteDefinition()) {
+      if (!validateConstraints(VTSD->getSpecializedTemplate(),
+                               VTSD->getTemplateArgs().asArray()))
+        return true;
+
+      S.InstantiateVariableDefinition(Range.getBegin(), VTSD, true, true);
+    } else if (auto *FD = dyn_cast<FunctionDecl>(D);
+               FD && FD->isTemplateInstantiation()) {
+      if (FD->getTemplateSpecializationArgs())
+        if (!validateConstraints(FD->getPrimaryTemplate(),
+                                 FD->getTemplateSpecializationArgs()->asArray()))
+        return true;
+
+      S.InstantiateFunctionDefinition(Range.getBegin(), FD, true, true);
+    }
+    return true;
+  }
+
+  void BroadcastInjectedDecl(Decl *D) override {
+    DeclGroupRef DG(D);
+    S.Consumer.HandleTopLevelDecl(DG);
+  }
+
+  void AttachInitializer(VarDecl *VD, Expr *Init) override {
+    S.AddInitializerToDecl(VD, Init, true);
+  }
+
+  bool HasSatisfiedConstraints(FunctionDecl *FD) override {
+    bool Result = true;
+    if (FD->getTrailingRequiresClause()) {
+      ConstraintSatisfaction Sat;
+      Result = !S.CheckFunctionConstraints(FD, Sat, SourceLocation{}, false) &&
+               Sat.IsSatisfied;
+    }
+    return Result;
+  }
+
+  bool CheckTemplateArgumentList(TemplateDecl *TD,
+                                 SmallVectorImpl<TemplateArgument> &TArgs,
+                                 bool SuppressDiagnostics,
+                                 SourceLocation InstantiateLoc) override {
+    TemplateArgumentListInfo TAListInfo;
+    populateTemplateArgumentListInfo(TAListInfo, TArgs, InstantiateLoc);
+
+    DefaultArguments DefaultArgs;
+    SmallVector<TemplateArgument, 4> CanonicalTArgs;
+    SmallVector<TemplateArgument, 4> IgnoredSugared;
+
+    auto check = [&]() {
+      return !S.CheckTemplateArgumentList(TD, InstantiateLoc, TAListInfo,
+                                          DefaultArgs, false, IgnoredSugared,
+                                          CanonicalTArgs, true);
+    };
+    bool Result;
+    if (SuppressDiagnostics) {
+      Sema::SuppressDiagnosticsRAII NoDiagnostics(S);
+      Result = check();
+    } else {
+      Result = check();
+    }
+    TArgs = CanonicalTArgs;
+    return Result;
+  }
+
+  Expr *CreateInitList(MutableArrayRef<Expr *> Inits,
+                       SourceRange Range) override {
+    return S.ActOnInitList(Range.getBegin(), Inits, Range.getEnd()).get();
+  }
+
+  void EnsureDeclarationOfImplicitMembers(CXXRecordDecl *RD) override {
+    S.ForceDeclarationOfImplicitMembers(RD);
+  }
+
+  QualType Substitute(TypeAliasTemplateDecl *TD,
+                      ArrayRef<TemplateArgument> TArgs,
+                      SourceLocation InstantiateLoc) override {
+    TemplateArgumentListInfo TAListInfo;
+    populateTemplateArgumentListInfo(TAListInfo, TArgs, InstantiateLoc);
+
+    // TODO(P2996): Calling 'substitute' should substitute without
+    // instantiation. Should a lighter weight call be used?
+    TemplateName TName(TD);
+    return S.CheckTemplateIdType(TName, InstantiateLoc, TAListInfo);
+  }
+
+  FunctionDecl *Substitute(FunctionTemplateDecl *TD,
+                           ArrayRef<TemplateArgument> TArgs,
+                           SourceLocation InstantiateLoc) override {
+    void *InsertPos;
+    FunctionDecl *Spec = TD->findSpecialization(TArgs, InsertPos);
+    if (!Spec) {
+      auto *TArgsCopy = TemplateArgumentList::CreateCopy(S.Context, TArgs);
+
+      // TODO(P2996): Calling 'substitute' should substitute without
+      // instantiation. Should a lighter weight call be used?
+      Spec = S.InstantiateFunctionDeclaration(TD, TArgsCopy, InstantiateLoc);
+    }
+    return Spec;
+  }
+
+  VarDecl *Substitute(VarTemplateDecl *TD, ArrayRef<TemplateArgument> TArgs,
+                      SourceLocation InstantiateLoc) override {
+    void *InsertPos;
+    VarDecl *Spec = TD->findSpecialization(TArgs, InsertPos);
+    if (!Spec) {
+      TemplateArgumentListInfo TAListInfo;
+      populateTemplateArgumentListInfo(TAListInfo, TArgs, InstantiateLoc);
+
+      DeclResult Result = S.CheckVarTemplateId(TD, InstantiateLoc,
+                                               InstantiateLoc, TAListInfo);
+      if (Result.isInvalid())
+        return nullptr;
+      Spec = cast<VarTemplateSpecializationDecl>(Result.get());
+
+      if (!Spec->getTemplateSpecializationKind())
+        Spec->setTemplateSpecializationKind(TSK_ImplicitInstantiation);
+    }
+    return Spec;
+  }
+
+  Expr *Substitute(ConceptDecl *TD, ArrayRef<TemplateArgument> TArgs,
+                   SourceLocation InstantiateLoc) override {
+    TemplateArgumentListInfo TAListInfo;
+    populateTemplateArgumentListInfo(TAListInfo, TArgs, InstantiateLoc);
+
+    CXXScopeSpec SS;
+    DeclarationNameInfo DNI(TD->getDeclName(), InstantiateLoc);
+
+    ExprResult Result = S.CheckConceptTemplateId(SS, InstantiateLoc, DNI, TD,
+                                                 TD, &TAListInfo);
+    return Result.get();
+  }
+
+  Expr *
+  SynthesizeDirectMemberAccess(Expr *Obj, DeclRefExpr *Mem,
+                               ArrayRef<TemplateArgument> TArgs,
+                               SourceLocation PlaceholderLoc) override {
+    TemplateArgumentListInfo TAListInfo;
+    populateTemplateArgumentListInfo(TAListInfo, TArgs, PlaceholderLoc);
+
+    auto *Splice = CXXSpliceExpr::Create(S.Context, Mem->getValueKind(),
+                                         PlaceholderLoc, PlaceholderLoc, Mem,
+                                         PlaceholderLoc, &TAListInfo, false);
+
+    tok::TokenKind TK = Obj->getType()->isPointerType() ? tok::arrow :
+                                                          tok::period;
+    ExprResult Result = S.ActOnMemberAccessExpr(S.getCurScope(), Obj,
+                                                Obj->getExprLoc(), TK, Splice,
+                                                Splice->getExprLoc());
+    return Result.get();
+  }
+
+  FunctionDecl *DeduceSpecialization(FunctionTemplateDecl *TD,
+                                     ArrayRef<TemplateArgument> TArgs,
+                                     ArrayRef<Expr *> Args,
+                                     SourceLocation InstantiateLoc) override {
+    TemplateArgumentListInfo TAListInfo;
+    populateTemplateArgumentListInfo(TAListInfo, TArgs, InstantiateLoc);
+
+    sema::TemplateDeductionInfo DeductionInfo(InstantiateLoc,
+                                              TD->getTemplateDepth());
+
+    FunctionDecl *Spec;
+    TemplateDeductionResult Result = S.DeduceTemplateArguments(
+          TD, &TAListInfo, Args, Spec, DeductionInfo, false, true, QualType{},
+          Expr::Classification(), [](ArrayRef<QualType>) { return false; });
+    if (Result != TemplateDeductionResult::Success)
+      return nullptr;
+
+    return Spec;
+  }
+
+  Expr *SynthesizeCallExpr(Expr *Fn, MutableArrayRef<Expr *> Args) override {
+    EnterExpressionEvaluationContext Ctx(
+        S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+    SourceRange Range(Fn->getExprLoc(),
+                      Args.size() > 0 ? Args.back()->getEndLoc() :
+                                        Fn->getEndLoc());
+    if (auto *DRE = dyn_cast<DeclRefExpr>(Fn))
+      if (auto *Ctor = dyn_cast<CXXConstructorDecl>(DRE->getDecl())) {
+        QualType ClsTy(Ctor->getParent()->getTypeForDecl(), 0);
+        ExprResult Result = S.BuildCXXConstructExpr(
+              Fn->getExprLoc(), ClsTy, Ctor, false, Args, false, false, false,
+              false, CXXConstructionKind::Complete, Range);
+
+        return Result.get();
+      }
+
+    ExprResult Result = S.ActOnCallExpr(S.getCurScope(), Fn, Fn->getExprLoc(),
+                                        Args, Range.getEnd(), nullptr);
+    return Result.get();
+  }
+
+  CXXRecordDecl *DefineClass(CXXRecordDecl *IncompleteDecl,
+                             ArrayRef<TagDataMemberSpec *> MemberSpecs,
+                             SourceLocation DefinitionLoc) override {
+    class RestoreDeclContextTy {
+      Sema &S;
+      DeclContext *DC;
+    public:
+      RestoreDeclContextTy(Sema &S) : S(S), DC(S.CurContext) {}
+      ~RestoreDeclContextTy() { S.CurContext = DC; }
+    } RestoreDC(S);
+    S.CurContext = IncompleteDecl->getDeclContext();
+
+    Scope ClsScope(S.getCurScope(), Scope::ClassScope | Scope::DeclScope,
+                   S.Diags);
+    ClsScope.setEntity(IncompleteDecl->getDeclContext());
+
+    DeclResult NewDeclResult;
+    SmallVector<TemplateParameterList *, 1> MTP;
+    {
+      unsigned TypeSpec = TST_struct;
+      if (IncompleteDecl->getTagKind() == TagTypeKind::Class)
+        TypeSpec = TST_class;
+      else if (IncompleteDecl->getTagKind() == TagTypeKind::Union)
+        TypeSpec = TST_union;
+
+      if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(
+                                                              IncompleteDecl)) {
+        TemplateName TName(CTSD->getSpecializedTemplate());
+        ParsedTemplateTy ParsedTemplate = ParsedTemplateTy::make(TName);
+
+        SmallVector<TemplateArgument, 4> TArgs;
+        {
+          for (const TemplateArgument &Arg : CTSD->getTemplateArgs().asArray())
+            if (Arg.getKind() == TemplateArgument::Pack)
+              for (const TemplateArgument &TA : Arg.getPackAsArray())
+                TArgs.push_back(TA);
+            else
+              TArgs.push_back(Arg);
+        }
+
+        CXXScopeSpec SS;
+        SmallVector<ParsedTemplateArgument, 4> ParsedTArgs;
+        for (const TemplateArgument &TArg : TArgs) {
+          switch (TArg.getKind()) {
+          case TemplateArgument::Type:
+            ParsedTArgs.emplace_back(ParsedTemplateArgument::Type,
+                                    TArg.getAsType().getAsOpaquePtr(),
+                                    SourceLocation());
+            break;
+          case TemplateArgument::Integral: {
+            IntegerLiteral *IL = IntegerLiteral::Create(S.Context,
+                                                        TArg.getAsIntegral(),
+                                                        TArg.getIntegralType(),
+                                                        DefinitionLoc);
+            ParsedTArgs.emplace_back(ParsedTemplateArgument::NonType, IL,
+                                    SourceLocation());
+            break;
+          }
+          case TemplateArgument::Template: {
+            ParsedTemplateTy P = ParsedTemplateTy::make(TArg.getAsTemplate());
+            ParsedTArgs.emplace_back(SS, P, SourceLocation());
+            break;
+          }
+          // TODO(P2996): Handle other kinds of TemplateArgument
+          // (e.g., structural).
+          default:
+            llvm_unreachable("unimplemented");
+          }
+        }
+
+        SmallVector<TemplateIdAnnotation *, 1> CleanupList;
+        TemplateIdAnnotation *TAnnot = TemplateIdAnnotation::Create(
+              SourceLocation{}, SourceLocation{},
+              IncompleteDecl->getIdentifier(), OO_None, ParsedTemplate,
+              TNK_Type_template, SourceLocation{}, SourceLocation{},
+              ParsedTArgs, false, CleanupList);
+
+        MTP.push_back(
+                S.ActOnTemplateParameterList(0, SourceLocation{},
+                                             SourceLocation{}, SourceLocation{},
+                                             std::nullopt, SourceLocation{},
+                                             nullptr));
+
+        NewDeclResult = S.ActOnClassTemplateSpecialization(
+                &ClsScope, TypeSpec, TagUseKind::Definition, DefinitionLoc,
+                SourceLocation{}, SS, *TAnnot, ParsedAttributesView::none(),
+                MTP, nullptr);
+
+        MTP.clear();
+        for (auto *TAnnot : CleanupList)
+          TAnnot->Destroy();
+      } else {
+        // If necessary, inject the tag declaration that is to be completed into
+        // the current scope. This is needed to ensure that the created Decl is
+        // constructed as a redeclaration of the provided incomplete Decl.
+        //
+        // A more robust design might allow 'ActOnTag' to take a 'PrevDecl' as
+        // an input, rather than require that it be found by name lookup.
+        bool InjectDecl = true;
+        for (Scope *Sc = S.getCurScope(); Sc; Sc = Sc->getParent())
+          if (Sc->isDeclScope(IncompleteDecl)) {
+            InjectDecl = false;
+            break;
+          }
+        if (InjectDecl) {
+          S.getCurScope()->AddDecl(IncompleteDecl);
+          S.IdResolver.AddDecl(IncompleteDecl);
+        }
+
+        // Create the new tag in the current scope.
+        CXXScopeSpec SS;
+        TypeResult TR;
+        bool OwnedDecl = true, IsDependent = false;
+
+        NewDeclResult = S.ActOnTag(
+                S.getCurScope(), TypeSpec, TagUseKind::Definition,
+                DefinitionLoc, SS, IncompleteDecl->getIdentifier(),
+                IncompleteDecl->getBeginLoc(), ParsedAttributesView::none(),
+                AS_none, SourceLocation{}, MTP, OwnedDecl, IsDependent,
+                SourceLocation{}, false, TR, false, false, Sema::OOK_Outside,
+                nullptr);
+
+        // The new tag -should- declare the same entity as the original tag.
+        assert((NewDeclResult.isInvalid() ||
+                declaresSameEntity(IncompleteDecl, NewDeclResult.get())) &&
+               "New tag should declare same entity as original tag "
+               "(scope problem?)");
+      }
+    }
+    if (NewDeclResult.isInvalid())
+      return nullptr;
+    CXXRecordDecl *NewDecl = cast<CXXRecordDecl>(NewDeclResult.get());
+    
+    // Start the new definition.
+    S.ActOnTagStartDefinition(&ClsScope, NewDecl);
+    S.ActOnStartCXXMemberDeclarations(&ClsScope, NewDecl, SourceLocation{},
+                                      false, false, SourceLocation{});
+
+    // Derive member visibility.
+    AccessSpecifier MemberAS = (IncompleteDecl->isClass() ? AS_private :
+                                                            AS_public);
+    
+    AttributeFactory AttrFactory;
+    AttributePool AttrPool(AttrFactory);
+
+    // Iterate over member specs.
+    unsigned AnonMemCtr = 0;
+    for (TagDataMemberSpec *MemberSpec : MemberSpecs) {
+      // Build the member declaration.
+      unsigned DiagID;
+      const char *PrevSpec;
+      
+      DeclSpec DS(AttrFactory);
+      DS.SetStorageClassSpec(S, DeclSpec::SCS_unspecified, DefinitionLoc,
+                             PrevSpec, DiagID, S.Context.getPrintingPolicy());
+
+      ParsedType MemberTy = ParsedType::make(MemberSpec->Ty);
+      DS.SetTypeSpecType(TST_typename, DefinitionLoc, PrevSpec, DiagID,
+                         MemberTy, S.Context.getPrintingPolicy());
+
+      // Create any attributes specified (i.e., alignas, no_unique_address).
+      ParsedAttributesView MemberAttrs;
+      if (MemberSpec->Alignment) {
+        IdentifierInfo &II = S.Context.Idents.get("alignas");
+        IntegerLiteral *IL = IntegerLiteral::Create(
+                S.Context,
+                llvm::APSInt::getUnsigned(MemberSpec->Alignment.value()),
+                S.Context.getSizeType(), DefinitionLoc);
+
+        ArgsUnion Args(IL);
+        ParsedAttr::Form Form(tok::kw_alignas);
+
+        SourceRange Range(DefinitionLoc, DefinitionLoc);
+        MemberAttrs.addAtEnd(AttrPool.create(&II, Range, nullptr,
+                                             SourceLocation{}, nullptr, 0,
+                                             Form));
+      }
+      if (MemberSpec->NoUniqueAddress) {
+        IdentifierInfo &II = S.Context.Idents.get("no_unique_address");
+
+        SourceRange Range(DefinitionLoc, DefinitionLoc);
+        MemberAttrs.addAtEnd(AttrPool.create(&II, Range, nullptr,
+                                             SourceLocation{}, nullptr, 0,
+                                             ParsedAttr::Form::CXX11()));
+      }
+
+      // Create declarator for the member.
+      Declarator MemberDeclarator(DS, MemberAttrs, DeclaratorContext::Member);
+      
+      // Set the identifier, unless this is a zero-width bit-field.
+      if (!MemberSpec->BitWidth || *MemberSpec->BitWidth > 0) {
+        std::string MemberName = MemberSpec->Name.value_or(
+              "__" + llvm::toString(llvm::APSInt::get(AnonMemCtr++), 10));
+        IdentifierInfo &II = S.Context.Idents.get(MemberName);
+
+        MemberDeclarator.SetIdentifier(&II, DefinitionLoc);
+      }
+
+      // Create an expression for bit-field width, if any.
+      Expr *BitWidthCE = nullptr;
+      if (MemberSpec->BitWidth) {
+        BitWidthCE = IntegerLiteral::Create(
+              S.Context, llvm::APSInt::getUnsigned(*MemberSpec->BitWidth),
+              S.Context.getSizeType(), DefinitionLoc);
+      }
+
+      VirtSpecifiers VS;
+      S.ActOnCXXMemberDeclarator(&ClsScope, MemberAS, MemberDeclarator, MTP,
+                                 BitWidthCE, VS, ICIS_NoInit);
+    }
+
+    // Finish the member-specification and the class definition.
+    S.ActOnFinishCXXMemberSpecification(&ClsScope, NewDecl->getBeginLoc(),
+                                        NewDecl, SourceLocation{},
+                                        SourceLocation{},
+                                        ParsedAttributesView::none());
+    S.ActOnTagFinishDefinition(&ClsScope, NewDecl, DefinitionLoc);
+    S.ActOnPopScope(DefinitionLoc, &ClsScope);
+
+    return NewDecl;
+  }
+
+  AttributeCommonInfo *SynthesizeAnnotation(Expr *CE,
+                                            SourceLocation Loc) override {
+    AttributeFactory AttrFactory;
+    ParsedAttributes ParsedAttrs(AttrFactory);
+
+    SourceRange Range(Loc, Loc);
+    IdentifierInfo &II = S.Context.Idents.get("__annotation_placeholder");
+    return ParsedAttrs.addNew(&II, Range, nullptr, Loc, nullptr, 0,
+                              ParsedAttr::Form::Annotation());
+  }
+};
 }  // anonymous namespace
 
 ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OpLoc,
@@ -308,8 +825,9 @@ const CXXMetafunctionExpr::ImplFn &Sema::getMetafunctionCb(unsigned FnID) {
                            CXXMetafunctionExpr::DiagnoseFn DiagFn,
                            QualType ResultTy, SourceRange Range,
                            ArrayRef<Expr *> Args) -> bool {
-              return Metafn->evaluate(Result, *this, EvalFn, DiagFn, ResultTy,
-                                      Range, Args);
+              MetaActionsImpl Actions(*this);
+              return Metafn->evaluate(Result, Context, Actions, EvalFn, DiagFn,
+                                      ResultTy, Range, Args);
             }));
     ImplIt = MetafunctionImplCbs.try_emplace(FnID, std::move(MetafnImpl)).first;
   }
@@ -962,6 +1480,7 @@ ExprResult Sema::BuildReflectionSpliceExpr(
     case ReflectionKind::Namespace:
     case ReflectionKind::BaseSpecifier:
     case ReflectionKind::DataMemberSpec:
+    case ReflectionKind::Annotation:
       Diag(SpliceOp->getOperand()->getExprLoc(),
            diag::err_unexpected_reflection_kind_in_splice)
           << 1 << SpliceOp->getOperand()->getSourceRange();
@@ -1089,6 +1608,7 @@ DeclContext *Sema::TryFindDeclContextOf(const Expr *E) {
   case ReflectionKind::Template:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     Diag(E->getExprLoc(), diag::err_expected_class_or_namespace)
         << "spliced entity" << getLangOpts().CPlusPlus;
     return nullptr;

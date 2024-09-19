@@ -15274,8 +15274,6 @@ public:
 
   DeclContext *TryFindDeclContextOf(const Expr *E);
 
-  QualType ComputeResultType(QualType ExprTy, const APValue &V);
-
   const CXXMetafunctionExpr::ImplFn &getMetafunctionCb(unsigned FnID);
 
 private:

@@ -16,7 +16,9 @@
 #ifndef LLVM_CLANG_SEMA_METAFUNCTION_H
 #define LLVM_CLANG_SEMA_METAFUNCTION_H
 
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/MetaActions.h"
 #include "clang/AST/Type.h"
 #include <functional>
 
@@ -24,7 +26,6 @@
 namespace clang {
 
 class APValue;
-class Sema;
 
 class Metafunction {
 public:
@@ -42,7 +43,8 @@ public:
 
 private:
   using impl_fn_t = bool (*)(APValue &Result,
-                             Sema &SemaRef,
+                             ASTContext &C,
+                             MetaActions &Meta,
                              EvaluateFn Evaluator,
                              DiagnoseFn Diagnoser,
                              QualType ResultType,
@@ -74,9 +76,9 @@ public:
     return MaxArgs;
   }
 
-  bool evaluate(APValue &Result, Sema &S, EvaluateFn Evaluator,
-                DiagnoseFn Diagnoser, QualType ResultType, SourceRange Range,
-                ArrayRef<Expr *> Args) const;
+  bool evaluate(APValue &Result, ASTContext &C, MetaActions &Meta,
+                EvaluateFn Evaluator, DiagnoseFn Diagnoser, QualType ResultType,
+                SourceRange Range, ArrayRef<Expr *> Args) const;
 
   // Get a pointer to the metafunction with the given ID.
   // Returns true in the case of error (i.e., no such metafunction exists).

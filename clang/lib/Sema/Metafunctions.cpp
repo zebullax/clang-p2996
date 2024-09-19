@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/APValue.h"
-#include "clang/AST/ASTConsumer.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/CXXInheritance.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclGroup.h"
@@ -25,13 +25,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/Preprocessor.h"
-#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Metafunction.h"
-#include "clang/Sema/ParsedAttr.h"
-#include "clang/Sema/ParsedTemplate.h"
-#include "clang/Sema/Sema.h"
-#include "clang/Sema/Template.h"
-#include "clang/Sema/TemplateDeduction.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
@@ -46,416 +40,468 @@ using DiagFn = Metafunction::DiagnoseFn;
 // P2996 Metafunction declarations
 // -----------------------------------------------------------------------------
 
-static bool get_begin_enumerator_decl_of(APValue &Result, Sema &S,
-                                         EvalFn Evaluator, DiagFn Diagnoser,
-                                         QualType ResultTy, SourceRange Range,
+static bool get_begin_enumerator_decl_of(APValue &Result, ASTContext &C,
+                                         MetaActions &Meta, EvalFn Evaluator,
+                                         DiagFn Diagnoser, QualType ResultTy,
+                                         SourceRange Range,
                                          ArrayRef<Expr *> Args);
 
-static bool get_next_enumerator_decl_of(APValue &Result, Sema &S,
-                                        EvalFn Evaluator, DiagFn Diagnoser,
-                                        QualType ResultTy,
+static bool get_next_enumerator_decl_of(APValue &Result, ASTContext &C,
+                                        MetaActions &Meta, EvalFn Evaluator,
+                                        DiagFn Diagnoser, QualType ResultTy,
                                         SourceRange Range,
                                         ArrayRef<Expr *> Args);
 
-static bool get_ith_base_of(APValue &Result, Sema &S,
+static bool get_ith_base_of(APValue &Result, ASTContext &C, MetaActions &Meta,
                             EvalFn Evaluator, DiagFn Diagnoser,
                             QualType ResultTy, SourceRange Range,
                             ArrayRef<Expr *> Args);
 
-static bool get_ith_template_argument_of(APValue &Result, Sema &S,
-                                         EvalFn Evaluator, DiagFn Diagnoser,
-                                         QualType ResultTy, SourceRange Range,
+static bool get_ith_template_argument_of(APValue &Result, ASTContext &C,
+                                         MetaActions &Meta, EvalFn Evaluator,
+                                         DiagFn Diagnoser, QualType ResultTy,
+                                         SourceRange Range,
                                          ArrayRef<Expr *> Args);
 
-static bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool get_begin_member_decl_of(APValue &Result, ASTContext &C,
+                                     MetaActions &Meta, EvalFn Evaluator,
                                      DiagFn Diagnoser, QualType ResultTy,
                                      SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool get_next_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool get_next_member_decl_of(APValue &Result, ASTContext &C,
+                                    MetaActions &Meta, EvalFn Evaluator,
                                     DiagFn Diagnoser, QualType ResultTy,
                                     SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_structural_type(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_structural_type(APValue &Result, ASTContext &C,
+                               MetaActions &Meta, EvalFn Evaluator,
                                DiagFn Diagnoser, QualType ResultTy,
                                SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool map_decl_to_entity(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool map_decl_to_entity(APValue &Result, ASTContext &C,
+                               MetaActions &Meta, EvalFn Evaluator,
                                DiagFn Diagnoser, QualType ResultTy,
                                SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool identifier_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+static bool identifier_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool has_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
-                           DiagFn Diagnoser, QualType ResultTy,
-                           SourceRange Range, ArrayRef<Expr *> Args);
+static bool has_identifier(APValue &Result, ASTContext &C, MetaActions &Meta,
+                           EvalFn Evaluator, DiagFn Diagnoser,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args);
 
-static bool operator_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args);
+static bool operator_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool source_location_of(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool source_location_of(APValue &Result, ASTContext &C,
+                               MetaActions &Meta, EvalFn Evaluator,
                                DiagFn Diagnoser, QualType ResultTy,
                                SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool type_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                    DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args);
+static bool type_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                    EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                    SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool parent_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                      DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                      ArrayRef<Expr *> Args);
+static bool parent_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                      EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                      SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool dealias(APValue &Result, Sema &S, EvalFn Evaluator,
-                    DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args);
+static bool dealias(APValue &Result, ASTContext &C, MetaActions &Meta,
+                    EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                    SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool value_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                     DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                     ArrayRef<Expr *> Args);
+static bool value_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                     EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                     SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool object_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                      DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                      ArrayRef<Expr *> Args);
+static bool object_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                      EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                      SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool template_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args);
+static bool template_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
-                           DiagFn Diagnoser, QualType ResultTy,
-                           SourceRange Range, ArrayRef<Expr *> Args);
+static bool can_substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
+                           EvalFn Evaluator, DiagFn Diagnoser,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args);
 
-static bool substitute(APValue &Result, Sema &S, EvalFn Evaluator,
-                       DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                       ArrayRef<Expr *> Args);
+static bool substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
+                       EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                       SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool extract(APValue &Result, Sema &S, EvalFn Evaluator,
-                    DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args);
+static bool extract(APValue &Result, ASTContext &C, MetaActions &Meta,
+                    EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                    SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_public(APValue &Result, Sema &S, EvalFn Evaluator,
-                      DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                      ArrayRef<Expr *> Args);
+static bool is_public(APValue &Result, ASTContext &C, MetaActions &Meta,
+                      EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                      SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_protected(APValue &Result, Sema &S, EvalFn Evaluator,
-                         DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                         ArrayRef<Expr *> Args);
+static bool is_protected(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_private(APValue &Result, Sema &S, EvalFn Evaluator,
-                       DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                       ArrayRef<Expr *> Args);
+static bool is_private(APValue &Result, ASTContext &C, MetaActions &Meta,
+                       EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                       SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_access_specified(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_access_specified(APValue &Result, ASTContext &C,
+                                MetaActions &Meta, EvalFn Evaluator,
                                 DiagFn Diagnoser, QualType ResultTy,
                                 SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool access_context(APValue &Result, Sema &S, EvalFn Evaluator,
-                           DiagFn Diagnoser, QualType ResultTy,
-                           SourceRange Range, ArrayRef<Expr *> Args);
+static bool access_context(APValue &Result, ASTContext &C, MetaActions &Meta,
+                           EvalFn Evaluator, DiagFn Diagnoser,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args);
 
-static bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+static bool is_accessible(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_virtual(APValue &Result, Sema &S, EvalFn Evaluator,
-                       DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                       ArrayRef<Expr *> Args);
+static bool is_virtual(APValue &Result, ASTContext &C, MetaActions &Meta,
+                       EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                       SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_pure_virtual(APValue &Result, Sema &S, EvalFn Evaluator,
-                            DiagFn Diagnoser, QualType ResultTy,
-                            SourceRange Range, ArrayRef<Expr *> Args);
+static bool is_pure_virtual(APValue &Result, ASTContext &C, MetaActions &Meta,
+                            EvalFn Evaluator, DiagFn Diagnoser,
+                            QualType ResultTy, SourceRange Range,
+                            ArrayRef<Expr *> Args);
 
-static bool is_override(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args);
+static bool is_override(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_deleted(APValue &Result, Sema &S, EvalFn Evaluator,
-                       DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                       ArrayRef<Expr *> Args);
+static bool is_deleted(APValue &Result, ASTContext &C, MetaActions &Meta,
+                       EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                       SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_defaulted(APValue &Result, Sema &S, EvalFn Evaluator,
-                         DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                         ArrayRef<Expr *> Args);
+static bool is_defaulted(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_explicit(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args);
+static bool is_explicit(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_noexcept(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args);
+static bool is_noexcept(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_bit_field(APValue &Result, Sema &S, EvalFn Evaluator,
-                         DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                         ArrayRef<Expr *> Args);
+static bool is_bit_field(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_enumerator(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+static bool is_enumerator(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_const(APValue &Result, Sema &S, EvalFn Evaluator,
-                     DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                     ArrayRef<Expr *> Args);
+static bool is_const(APValue &Result, ASTContext &C, MetaActions &Meta,
+                     EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                     SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_volatile(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args);
+static bool is_volatile(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_lvalue_reference_qualified(APValue &Result, Sema &S,
-                                          EvalFn Evaluator, DiagFn Diagnoser,
-                                          QualType ResultTy, SourceRange Range,
+static bool is_lvalue_reference_qualified(APValue &Result, ASTContext &C,
+                                          MetaActions &Meta, EvalFn Evaluator,
+                                          DiagFn Diagnoser, QualType ResultTy,
+                                          SourceRange Range,
                                           ArrayRef<Expr *> Args);
 
-static bool is_rvalue_reference_qualified(APValue &Result, Sema &S,
-                                          EvalFn Evaluator, DiagFn Diagnoser,
-                                          QualType ResultTy, SourceRange Range,
+static bool is_rvalue_reference_qualified(APValue &Result, ASTContext &C,
+                                          MetaActions &Meta, EvalFn Evaluator,
+                                          DiagFn Diagnoser, QualType ResultTy,
+                                          SourceRange Range,
                                           ArrayRef<Expr *> Args);
 
-static bool has_static_storage_duration(APValue &Result, Sema &S,
-                                        EvalFn Evaluator, DiagFn Diagnoser,
-                                        QualType ResultTy, SourceRange Range,
+static bool has_static_storage_duration(APValue &Result, ASTContext &C,
+                                        MetaActions &Meta, EvalFn Evaluator,
+                                        DiagFn Diagnoser, QualType ResultTy,
+                                        SourceRange Range,
                                         ArrayRef<Expr *> Args);
 
-static bool has_thread_storage_duration(APValue &Result, Sema &S,
-                                        EvalFn Evaluator, DiagFn Diagnoser,
-                                        QualType ResultTy, SourceRange Range,
+static bool has_thread_storage_duration(APValue &Result, ASTContext &C,
+                                        MetaActions &Meta, EvalFn Evaluator,
+                                        DiagFn Diagnoser, QualType ResultTy,
+                                        SourceRange Range,
                                         ArrayRef<Expr *> Args);
 
-static bool has_automatic_storage_duration(APValue &Result, Sema &S,
-                                           EvalFn Evaluator, DiagFn Diagnoser,
-                                           QualType ResultTy, SourceRange Range,
+static bool has_automatic_storage_duration(APValue &Result, ASTContext &C,
+                                           MetaActions &Meta, EvalFn Evaluator,
+                                           DiagFn Diagnoser, QualType ResultTy,
+                                           SourceRange Range,
                                            ArrayRef<Expr *> Args);
 
-static bool has_internal_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool has_internal_linkage(APValue &Result, ASTContext &C,
+                                 MetaActions &Meta, EvalFn Evaluator,
                                  DiagFn Diagnoser, QualType ResultTy,
                                  SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool has_module_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool has_module_linkage(APValue &Result, ASTContext &C,
+                               MetaActions &Meta, EvalFn Evaluator,
                                DiagFn Diagnoser, QualType ResultTy,
                                SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool has_external_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool has_external_linkage(APValue &Result, ASTContext &C,
+                                 MetaActions &Meta, EvalFn Evaluator,
                                  DiagFn Diagnoser, QualType ResultTy,
                                  SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool has_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args);
+static bool has_linkage(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_class_member(APValue &Result, Sema &S, EvalFn Evaluator,
-                            DiagFn Diagnoser, QualType ResultTy,
-                            SourceRange Range, ArrayRef<Expr *> Args);
+static bool is_class_member(APValue &Result, ASTContext &C, MetaActions &Meta,
+                            EvalFn Evaluator, DiagFn Diagnoser,
+                            QualType ResultTy, SourceRange Range,
+                            ArrayRef<Expr *> Args);
 
-static bool is_namespace_member(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_namespace_member(APValue &Result, ASTContext &C,
+                                MetaActions &Meta, EvalFn Evaluator,
                                 DiagFn Diagnoser, QualType ResultTy,
                                 SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_nonstatic_data_member(APValue &Result, Sema &S,
-                                     EvalFn Evaluator, DiagFn Diagnoser,
-                                     QualType ResultTy, SourceRange Range,
-                                     ArrayRef<Expr *> Args);
+static bool is_nonstatic_data_member(APValue &Result, ASTContext &C,
+                                     MetaActions &Meta, EvalFn Evaluator,
+                                     DiagFn Diagnoser, QualType ResultTy,
+                                     SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_static_member(APValue &Result, Sema &S, EvalFn Evaluator,
-                             DiagFn Diagnoser, QualType ResultTy,
-                             SourceRange Range, ArrayRef<Expr *> Args);
+static bool is_static_member(APValue &Result, ASTContext &C, MetaActions &Meta,
+                             EvalFn Evaluator, DiagFn Diagnoser,
+                             QualType ResultTy, SourceRange Range,
+                             ArrayRef<Expr *> Args);
 
-static bool is_base(APValue &Result, Sema &S, EvalFn Evaluator,
-                    DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args);
+static bool is_base(APValue &Result, ASTContext &C, MetaActions &Meta,
+                    EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                    SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_data_member_spec(APValue &Result, ASTContext &C,
+                                MetaActions &Meta, EvalFn Evaluator,
                                 DiagFn Diagnoser, QualType ResultTy,
                                 SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_namespace(APValue &Result, Sema &S, EvalFn Evaluator,
-                         DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                         ArrayRef<Expr *> Args);
+static bool is_namespace(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_function(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args);
+static bool is_function(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_variable(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args);
+static bool is_variable(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_type(APValue &Result, Sema &S, EvalFn Evaluator,
-                    DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args);
+static bool is_type(APValue &Result, ASTContext &C, MetaActions &Meta,
+                    EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                    SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_alias(APValue &Result, Sema &S, EvalFn Evaluator,
-                     DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                     ArrayRef<Expr *> Args);
+static bool is_alias(APValue &Result, ASTContext &C, MetaActions &Meta,
+                     EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                     SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_complete_type(APValue &Result, Sema &S, EvalFn Evaluator,
-                             DiagFn Diagnoser, QualType ResultTy,
-                             SourceRange Range, ArrayRef<Expr *> Args);
+static bool is_complete_type(APValue &Result, ASTContext &C, MetaActions &Meta,
+                             EvalFn Evaluator, DiagFn Diagnoser,
+                             QualType ResultTy, SourceRange Range,
+                             ArrayRef<Expr *> Args);
 
-static bool has_complete_definition(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool has_complete_definition(APValue &Result, ASTContext &C,
+                                    MetaActions &Meta, EvalFn Evaluator,
                                     DiagFn Diagnoser, QualType ResultTy,
                                     SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_template(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args);
+static bool is_template(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_function_template(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_function_template(APValue &Result, ASTContext &C,
+                                 MetaActions &Meta, EvalFn Evaluator,
                                  DiagFn Diagnoser, QualType ResultTy,
                                  SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_variable_template(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_variable_template(APValue &Result, ASTContext &C,
+                                 MetaActions &Meta, EvalFn Evaluator,
                                  DiagFn Diagnoser, QualType ResultTy,
                                  SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_class_template(APValue &Result, Sema &S, EvalFn Evaluator,
-                              DiagFn Diagnoser, QualType ResultTy,
-                              SourceRange Range, ArrayRef<Expr *> Args);
+static bool is_class_template(APValue &Result, ASTContext &C, MetaActions &Meta,
+                              EvalFn Evaluator, DiagFn Diagnoser,
+                              QualType ResultTy, SourceRange Range,
+                              ArrayRef<Expr *> Args);
 
-static bool is_alias_template(APValue &Result, Sema &S, EvalFn Evaluator,
-                              DiagFn Diagnoser, QualType ResultTy,
-                              SourceRange Range, ArrayRef<Expr *> Args);
+static bool is_alias_template(APValue &Result, ASTContext &C, MetaActions &Meta,
+                              EvalFn Evaluator, DiagFn Diagnoser,
+                              QualType ResultTy, SourceRange Range,
+                              ArrayRef<Expr *> Args);
 
-static bool is_conversion_function_template(APValue &Result, Sema &S,
-                                            EvalFn Evaluator, DiagFn Diagnoser,
-                                            QualType ResultTy,
+static bool is_conversion_function_template(APValue &Result, ASTContext &C,
+                                            MetaActions &Meta, EvalFn Evaluator,
+                                            DiagFn Diagnoser, QualType ResultTy,
                                             SourceRange Range,
                                             ArrayRef<Expr *> Args);
 
-static bool is_operator_function_template(APValue &Result, Sema &S,
-                                          EvalFn Evaluator, DiagFn Diagnoser,
-                                          QualType ResultTy, SourceRange Range,
+static bool is_operator_function_template(APValue &Result, ASTContext &C,
+                                          MetaActions &Meta, EvalFn Evaluator,
+                                          DiagFn Diagnoser, QualType ResultTy,
+                                          SourceRange Range,
                                           ArrayRef<Expr *> Args);
 
-static bool is_literal_operator_template(APValue &Result, Sema &S,
-                                         EvalFn Evaluator, DiagFn Diagnoser,
-                                         QualType ResultTy, SourceRange Range,
+static bool is_literal_operator_template(APValue &Result, ASTContext &C,
+                                         MetaActions &Meta, EvalFn Evaluator,
+                                         DiagFn Diagnoser, QualType ResultTy,
+                                         SourceRange Range,
                                          ArrayRef<Expr *> Args);
 
-static bool is_constructor_template(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_constructor_template(APValue &Result, ASTContext &C,
+                                    MetaActions &Meta, EvalFn Evaluator,
                                     DiagFn Diagnoser, QualType ResultTy,
                                     SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_concept(APValue &Result, Sema &S, EvalFn Evaluator,
-                       DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                       ArrayRef<Expr *> Args);
+static bool is_concept(APValue &Result, ASTContext &C, MetaActions &Meta,
+                       EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                       SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_structured_binding(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_structured_binding(APValue &Result, ASTContext &C,
+                                  MetaActions &Meta, EvalFn Evaluator,
                                   DiagFn Diagnoser, QualType ResultTy,
                                   SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_value(APValue &Result, Sema &S, EvalFn Evaluator,
-                     DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                     ArrayRef<Expr *> Args);
+static bool is_value(APValue &Result, ASTContext &C, MetaActions &Meta,
+                     EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                     SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_object(APValue &Result, Sema &S, EvalFn Evaluator,
-                      DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                      ArrayRef<Expr *> Args);
+static bool is_object(APValue &Result, ASTContext &C, MetaActions &Meta,
+                      EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                      SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool has_template_arguments(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool has_template_arguments(APValue &Result, ASTContext &C,
+                                   MetaActions &Meta, EvalFn Evaluator,
                                    DiagFn Diagnoser, QualType ResultTy,
                                    SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool has_default_member_initializer(APValue &Result, Sema &S,
-                                           EvalFn Evaluator, DiagFn Diagnoser,
-                                           QualType ResultTy, SourceRange Range,
+static bool has_default_member_initializer(APValue &Result, ASTContext &C,
+                                           MetaActions &Meta, EvalFn Evaluator,
+                                           DiagFn Diagnoser, QualType ResultTy,
+                                           SourceRange Range,
                                            ArrayRef<Expr *> Args);
 
-static bool is_conversion_function(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_conversion_function(APValue &Result, ASTContext &C,
+                                   MetaActions &Meta, EvalFn Evaluator,
                                    DiagFn Diagnoser, QualType ResultTy,
                                    SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_operator_function(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_operator_function(APValue &Result, ASTContext &C,
+                                 MetaActions &Meta, EvalFn Evaluator,
                                  DiagFn Diagnoser, QualType ResultTy,
                                  SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_literal_operator(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_literal_operator(APValue &Result, ASTContext &C,
+                                MetaActions &Meta, EvalFn Evaluator,
                                 DiagFn Diagnoser, QualType ResultTy,
                                 SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
-                           DiagFn Diagnoser, QualType ResultTy,
-                           SourceRange Range, ArrayRef<Expr *> Args);
+static bool is_constructor(APValue &Result, ASTContext &C, MetaActions &Meta,
+                           EvalFn Evaluator, DiagFn Diagnoser,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args);
 
-static bool is_default_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_default_constructor(APValue &Result, ASTContext &C,
+                                   MetaActions &Meta, EvalFn Evaluator,
                                    DiagFn Diagnoser, QualType ResultTy,
                                    SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_copy_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_copy_constructor(APValue &Result, ASTContext &C,
+                                MetaActions &Meta, EvalFn Evaluator,
                                 DiagFn Diagnoser, QualType ResultTy,
                                 SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_move_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_move_constructor(APValue &Result, ASTContext &C,
+                                MetaActions &Meta, EvalFn Evaluator,
                                 DiagFn Diagnoser, QualType ResultTy,
                                 SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_assignment(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+static bool is_assignment(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_copy_assignment(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_copy_assignment(APValue &Result, ASTContext &C,
+                               MetaActions &Meta, EvalFn Evaluator,
                                DiagFn Diagnoser, QualType ResultTy,
                                SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_move_assignment(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_move_assignment(APValue &Result, ASTContext &C,
+                               MetaActions &Meta, EvalFn Evaluator,
                                DiagFn Diagnoser, QualType ResultTy,
                                SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_destructor(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+static bool is_destructor(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_special_member_function(APValue &Result, Sema &S,
-                                       EvalFn Evaluator, DiagFn Diagnoser,
-                                       QualType ResultTy, SourceRange Range,
+static bool is_special_member_function(APValue &Result, ASTContext &C,
+                                       MetaActions &Meta, EvalFn Evaluator,
+                                       DiagFn Diagnoser, QualType ResultTy,
+                                       SourceRange Range,
                                        ArrayRef<Expr *> Args);
 
-static bool is_user_provided(APValue &Result, Sema &S, EvalFn Evaluator,
-                             DiagFn Diagnoser, QualType ResultTy,
-                             SourceRange Range, ArrayRef<Expr *> Args);
+static bool is_user_provided(APValue &Result, ASTContext &C, MetaActions &Meta,
+                             EvalFn Evaluator, DiagFn Diagnoser,
+                             QualType ResultTy, SourceRange Range,
+                             ArrayRef<Expr *> Args);
 
-static bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
-                           DiagFn Diagnoser, QualType ResultTy,
-                           SourceRange Range, ArrayRef<Expr *> Args);
+static bool reflect_result(APValue &Result, ASTContext &C, MetaActions &Meta,
+                           EvalFn Evaluator, DiagFn Diagnoser,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args);
 
-static bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
-                           DiagFn Diagnoser, QualType ResultTy,
-                           SourceRange Range, ArrayRef<Expr *> Args);
+static bool reflect_invoke(APValue &Result, ASTContext &C, MetaActions &Meta,
+                           EvalFn Evaluator, DiagFn Diagnoser,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args);
 
-static bool data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
-                             DiagFn Diagnoser, QualType ResultTy,
-                             SourceRange Range, ArrayRef<Expr *> Args);
+static bool data_member_spec(APValue &Result, ASTContext &C, MetaActions &Meta,
+                             EvalFn Evaluator, DiagFn Diagnoser,
+                             QualType ResultTy, SourceRange Range,
+                             ArrayRef<Expr *> Args);
 
-static bool define_class(APValue &Result, Sema &S, EvalFn Evaluator,
-                         DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                         ArrayRef<Expr *> Args);
+static bool define_class(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool offset_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                      DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                      ArrayRef<Expr *> Args);
+static bool offset_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                      EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                      SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool size_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                    DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args);
+static bool size_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                    EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                    SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool bit_offset_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+static bool bit_offset_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool bit_size_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args);
+static bool bit_size_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                         DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                         ArrayRef<Expr *> Args);
+static bool alignment_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool define_static_string(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool define_static_string(APValue &Result, ASTContext &C,
+                                 MetaActions &Meta, EvalFn Evaluator,
                                  DiagFn Diagnoser, QualType ResultTy,
                                  SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool define_static_array(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool define_static_array(APValue &Result, ASTContext &C,
+                                MetaActions &Meta, EvalFn Evaluator,
                                 DiagFn Diagnoser, QualType ResultTy,
                                 SourceRange Range, ArrayRef<Expr *> Args);
 
@@ -463,46 +509,53 @@ static bool define_static_array(APValue &Result, Sema &S, EvalFn Evaluator,
 // P3096 Metafunction declarations
 // -----------------------------------------------------------------------------
 
-static bool get_ith_parameter_of(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool get_ith_parameter_of(APValue &Result, ASTContext &C,
+                                 MetaActions &Meta, EvalFn Evaluator,
                                  DiagFn Diagnoser, QualType ResultTy,
                                  SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool has_consistent_identifier(APValue &Result, Sema &S,
-                                      EvalFn Evaluator, DiagFn Diagnoser,
-                                      QualType ResultTy, SourceRange Range,
-                                      ArrayRef<Expr *> Args);
+static bool has_consistent_identifier(APValue &Result, ASTContext &C,
+                                      MetaActions &Meta, EvalFn Evaluator,
+                                      DiagFn Diagnoser, QualType ResultTy,
+                                      SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool has_ellipsis_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool has_ellipsis_parameter(APValue &Result, ASTContext &C,
+                                   MetaActions &Meta, EvalFn Evaluator,
                                    DiagFn Diagnoser, QualType ResultTy,
                                    SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool has_default_argument(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool has_default_argument(APValue &Result, ASTContext &C,
+                                 MetaActions &Meta, EvalFn Evaluator,
                                  DiagFn Diagnoser, QualType ResultTy,
                                  SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_explicit_object_parameter(APValue &Result, Sema &S,
-                                         EvalFn Evaluator, DiagFn Diagnoser,
-                                         QualType ResultTy, SourceRange Range,
+static bool is_explicit_object_parameter(APValue &Result, ASTContext &C,
+                                         MetaActions &Meta, EvalFn Evaluator,
+                                         DiagFn Diagnoser, QualType ResultTy,
+                                         SourceRange Range,
                                          ArrayRef<Expr *> Args);
 
-static bool is_function_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool is_function_parameter(APValue &Result, ASTContext &C,
+                                  MetaActions &Meta, EvalFn Evaluator,
                                   DiagFn Diagnoser, QualType ResultTy,
                                   SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool return_type_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                           DiagFn Diagnoser, QualType ResultTy,
-                           SourceRange Range, ArrayRef<Expr *> Args);
+static bool return_type_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                           EvalFn Evaluator, DiagFn Diagnoser,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args);
 
-static bool get_ith_annotation_of(APValue &Result, Sema &S, EvalFn Evaluator,
+static bool get_ith_annotation_of(APValue &Result, ASTContext &C,
+                                  MetaActions &Meta, EvalFn Evaluator,
                                   DiagFn Diagnoser, QualType ResultTy,
                                   SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_annotation(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+static bool is_annotation(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool annotate(APValue &Result, Sema &S, EvalFn Evaluator,
-                     DiagFn Diagnoser, QualType ResultTy,
+static bool annotate(APValue &Result, ASTContext &C, MetaActions &Meta,
+                     EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                      SourceRange Range, ArrayRef<Expr *> Args);
 
 
@@ -642,10 +695,12 @@ constexpr const unsigned NumMetafunctions = sizeof(Metafunctions) /
 // class Metafunction implementation
 // -----------------------------------------------------------------------------
 
-bool Metafunction::evaluate(APValue &Result, Sema &S, EvalFn Evaluator,
+bool Metafunction::evaluate(APValue &Result, ASTContext &C,
+                            MetaActions &Meta, EvalFn Evaluator,
                             DiagFn Diagnoser, QualType ResultTy,
                             SourceRange Range, ArrayRef<Expr *> Args) const {
-  return ImplFn(Result, S, Evaluator, Diagnoser, ResultTy, Range, Args);
+  return ImplFn(Result, C, Meta, Evaluator, Diagnoser, ResultTy, Range,
+                Args);
 }
 
 bool Metafunction::Lookup(unsigned ID, const Metafunction *&result) {
@@ -855,7 +910,7 @@ static bool findTypeDeclLoc(APValue &Result, ASTContext &C, EvalFn Evaluator,
 }
 
 static bool findDeclLoc(APValue &Result, ASTContext &C, EvalFn Evaluator,
-                         QualType ResultTy, Decl *D) {
+                        QualType ResultTy, Decl *D) {
   SourceLocExpr *SLE =
           new (C) SourceLocExpr(C, SourceLocIdentKind::SourceLocStruct,
                                 ResultTy,
@@ -969,7 +1024,7 @@ bool getTemplateArgumentsFromDecl(Decl* D,
   return true;
 }
 
-static APValue getNthTemplateArgument(Sema &S,
+static APValue getNthTemplateArgument(ASTContext &C,
                                       ArrayRef<TemplateArgument> templateArgs,
                                       EvalFn Evaluator, APValue Sentinel,
                                       size_t Idx) {
@@ -998,8 +1053,7 @@ static APValue getNthTemplateArgument(Sema &S,
       return makeReflection(templArgument.getAsDecl());
     case TemplateArgument::NullPtr: {
       APValue NullPtrValue((ValueDecl *)nullptr,
-                           CharUnits::fromQuantity(
-                               S.Context.getTargetNullPointerValue(
+                           CharUnits::fromQuantity(C.getTargetNullPointerValue(
                                    templArgument.getNullPtrType())),
                            APValue::NoLValuePath(),
                            /*IsNullPtr=*/true);
@@ -1046,66 +1100,7 @@ static size_t getBitOffsetOfField(ASTContext &C, const FieldDecl *FD) {
   return Layout.getFieldOffset(FD->getFieldIndex());
 }
 
-static TemplateArgumentListInfo addLocToTemplateArgs(
-        Sema &S, ArrayRef<TemplateArgument> Args, Expr *InstExpr) {
-  SmallVector<TemplateArgument, 4> Expanded;
-  expandTemplateArgPacks(Args, Expanded);
-
-  TemplateArgumentListInfo Result;
-  for (const TemplateArgument &Arg : Expanded)
-    Result.addArgument(
-          S.getTrivialTemplateArgumentLoc(Arg,
-                                          Arg.getNonTypeTemplateArgumentType(),
-                                          InstExpr->getExprLoc()));
-  return Result;
-}
-
-static bool ensureInstantiated(Sema &S, Decl *D, SourceRange Range) {
-  auto validateConstraints = [&](TemplateDecl *TDecl,
-                                 ArrayRef<TemplateArgument> TArgs) {
-    MultiLevelTemplateArgumentList MLTAL(TDecl, TArgs, false);
-    if (S.EnsureTemplateArgumentListConstraints(TDecl, MLTAL, Range))
-      return false;
-
-    return true;
-  };
-
-  // Cover case of static variables in a specialization not yet referenced.
-  if (auto *VD = dyn_cast<VarDecl>(D); VD && VD->hasGlobalStorage())
-    S.MarkVariableReferenced(Range.getBegin(), VD);
-
-  if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(D);
-      CTSD && !CTSD->isCompleteDefinition()) {
-    if (!validateConstraints(CTSD->getSpecializedTemplate(),
-                             CTSD->getTemplateArgs().asArray()))
-      return true;
-
-    if (S.InstantiateClassTemplateSpecialization(
-            Range.getBegin(), CTSD, TSK_ExplicitInstantiationDefinition, false))
-      return false;
-
-    S.InstantiateClassTemplateSpecializationMembers(
-            Range.getBegin(), CTSD, TSK_ExplicitInstantiationDefinition);
-  } else if (auto *VTSD = dyn_cast<VarTemplateSpecializationDecl>(D);
-      VTSD && !VTSD->isCompleteDefinition()) {
-    if (!validateConstraints(VTSD->getSpecializedTemplate(),
-                             VTSD->getTemplateArgs().asArray()))
-      return true;
-
-    S.InstantiateVariableDefinition(Range.getBegin(), VTSD, true, true);
-  } else if (auto *FD = dyn_cast<FunctionDecl>(D);
-             FD && FD->isTemplateInstantiation()) {
-    if (FD->getTemplateSpecializationArgs())
-      if (!validateConstraints(FD->getPrimaryTemplate(),
-                               FD->getTemplateSpecializationArgs()->asArray()))
-      return true;
-
-    S.InstantiateFunctionDefinition(Range.getBegin(), FD, true, true);
-  }
-  return true;
-}
-
-static bool ensureDeclared(Sema &S, QualType QT, SourceLocation SpecLoc) {
+static bool ensureDeclared(ASTContext &C, QualType QT, SourceLocation SpecLoc) {
   // If it's an ElaboratedType, get the underlying NamedType.
   if (const ElaboratedType *ET = dyn_cast<ElaboratedType>(QT))
     QT = ET->getNamedType();
@@ -1118,7 +1113,7 @@ static bool ensureDeclared(Sema &S, QualType QT, SourceLocation SpecLoc) {
       if (!CTD->findSpecialization(TS->template_arguments(), InsertPos)) {
         ClassTemplateSpecializationDecl *D =
             ClassTemplateSpecializationDecl::Create(
-                S.Context, CTD->getTemplatedDecl()->getTagKind(),
+                C, CTD->getTemplatedDecl()->getTagKind(),
                 CTD->getDeclContext(), SpecLoc, SpecLoc,  CTD,
                 TS->template_arguments(), nullptr);
         if (!D)
@@ -1131,7 +1126,7 @@ static bool ensureDeclared(Sema &S, QualType QT, SourceLocation SpecLoc) {
   return true;
 }
 
-static bool isReflectableDecl(Sema &S, const Decl *D) {
+static bool isReflectableDecl(MetaActions &Meta, Decl *D) {
   assert(D && "null declaration");
 
   if (isa<NamespaceAliasDecl>(D))
@@ -1145,13 +1140,9 @@ static bool isReflectableDecl(Sema &S, const Decl *D) {
     if (Class->isInjectedClassName() || Class->isLambda())
       return false;
 
-  if (auto *FD = dyn_cast<FunctionDecl>(D))
-    if (FD->getTrailingRequiresClause()) {
-      ConstraintSatisfaction Sat;
-      if (S.CheckFunctionConstraints(FD, Sat, SourceLocation(), false) ||
-          !Sat.IsSatisfied)
-        return false;
-    }
+  if (auto *FD = dyn_cast<FunctionDecl>(D);
+      FD && !Meta.HasSatisfiedConstraints(FD))
+    return false;
 
   if (isa<ClassTemplatePartialSpecializationDecl,
           VarTemplatePartialSpecializationDecl>(D))
@@ -1161,17 +1152,17 @@ static bool isReflectableDecl(Sema &S, const Decl *D) {
 }
 
 /// Filter non-reflectable members.
-static Decl *findIterableMember(Sema &S, Decl *D, bool Inclusive) {
+static Decl *findIterableMember(MetaActions &Meta, Decl *D, bool Inclusive) {
   if (!D)
     return D;
 
   if (Inclusive) {
-    if (isReflectableDecl(S, D))
+    if (isReflectableDecl(Meta, D))
       return D;
 
     // Handle the case where the first Decl is a LinkageSpecDecl.
     if (auto *LSDecl = dyn_cast_or_null<LinkageSpecDecl>(D)) {
-      Decl *RecD = findIterableMember(S, *LSDecl->decls_begin(), true);
+      Decl *RecD = findIterableMember(Meta, *LSDecl->decls_begin(), true);
       if (RecD) return RecD;
     }
   }
@@ -1202,14 +1193,14 @@ static Decl *findIterableMember(Sema &S, Decl *D, bool Inclusive) {
     // We need to recursively descend into LinkageSpecDecls to iterate over the
     // members declared therein (e.g., `extern "C"` blocks).
     if (auto *LSDecl = dyn_cast_or_null<LinkageSpecDecl>(D)) {
-      Decl *RecD = findIterableMember(S, *LSDecl->decls_begin(), true);
+      Decl *RecD = findIterableMember(Meta, *LSDecl->decls_begin(), true);
       if (RecD) return RecD;
     }
 
     // Pop back out of a recursively entered LinkageSpecDecl.
     if (!D && isa<LinkageSpecDecl>(DC))
-      return findIterableMember(S, cast<Decl>(DC), false);
-  } while (D && !isReflectableDecl(S, D));
+      return findIterableMember(Meta, cast<Decl>(DC), false);
+  } while (D && !isReflectableDecl(Meta, D));
 
   return D;
 }
@@ -1244,29 +1235,6 @@ bool isSpecialMember(FunctionDecl *FD) {
                                 CtorD->isMoveConstructor());
   }
   return IsSpecial;
-}
-
-bool isAccessible(Sema &S, DeclContext *AccessDC, NamedDecl *D) {
-  bool Result = false;
-
-  if (auto *ClsDecl = dyn_cast_or_null<CXXRecordDecl>(D->getDeclContext())) {
-    CXXRecordDecl *NamingCls = ClsDecl;
-    for (DeclContext *DC = AccessDC; DC; DC = DC->getParent())
-      if (auto *CXXRD = dyn_cast<CXXRecordDecl>(DC)) {
-        if (CXXRD->isDerivedFrom(ClsDecl)) {
-          NamingCls = CXXRD;
-          break;
-        }
-      }
-
-    DeclContext *PreviousDC = S.CurContext;
-    {
-      S.CurContext = AccessDC;
-      Result = S.IsSimplyAccessible(D, NamingCls, QualType());
-      S.CurContext = PreviousDC;
-    }
-  }
-  return Result;
 }
 
 static bool isFunctionOrMethodNoexcept(const QualType QT) {
@@ -1304,7 +1272,7 @@ static bool isVolatileQualifiedType(QualType QT) {
   return result;
 }
 
-QualType Sema::ComputeResultType(QualType ExprTy, const APValue &V) {
+QualType ComputeResultType(QualType ExprTy, const APValue &V) {
   SplitQualType SQT;
 
   if (V.isLValue() && !ExprTy->isPointerType() &&
@@ -1448,11 +1416,12 @@ bool DiagnoseReflectionKind(DiagFn Diagnoser, SourceRange Range,
 // Metafunction implementations
 // -----------------------------------------------------------------------------
 
-bool get_begin_enumerator_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
+bool get_begin_enumerator_decl_of(APValue &Result, ASTContext &C,
+                                  MetaActions &Meta, EvalFn Evaluator,
                                   DiagFn Diagnoser, QualType ResultTy,
                                   SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.MetaInfoTy);
+  assert(ResultTy == C.MetaInfoTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -1492,11 +1461,12 @@ bool get_begin_enumerator_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool get_next_enumerator_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
+bool get_next_enumerator_decl_of(APValue &Result, ASTContext &C,
+                                 MetaActions &Meta, EvalFn Evaluator,
                                  DiagFn Diagnoser, QualType ResultTy,
                                  SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.MetaInfoTy);
+  assert(ResultTy == C.MetaInfoTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -1530,11 +1500,11 @@ bool get_next_enumerator_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool get_ith_base_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                     DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                     ArrayRef<Expr *> Args) {
+bool get_ith_base_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                     EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                     SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.MetaInfoTy);
+  assert(ResultTy == C.MetaInfoTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -1555,7 +1525,7 @@ bool get_ith_base_of(APValue &Result, Sema &S, EvalFn Evaluator,
     Decl *typeDecl = findTypeDecl(RV.getReflectedType());
 
     if (auto cxxRecordDecl = dyn_cast_or_null<CXXRecordDecl>(typeDecl)) {
-      ensureInstantiated(S, typeDecl, Range);
+      Meta.EnsureInstantiated(typeDecl, Range);
       if (RV.getReflectedType()->isIncompleteType())
         return Diagnoser(Range.getBegin(), diag::metafn_cannot_introspect_type)
             << 0 << 0 << Range;
@@ -1586,11 +1556,12 @@ bool get_ith_base_of(APValue &Result, Sema &S, EvalFn Evaluator,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool get_ith_template_argument_of(APValue &Result, Sema &S, EvalFn Evaluator,
+bool get_ith_template_argument_of(APValue &Result, ASTContext &C,
+                                  MetaActions &Meta, EvalFn Evaluator,
                                   DiagFn Diagnoser, QualType ResultTy,
                                   SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.MetaInfoTy);
+  assert(ResultTy == C.MetaInfoTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -1614,7 +1585,7 @@ bool get_ith_template_argument_of(APValue &Result, Sema &S, EvalFn Evaluator,
       return DiagnoseReflectionKind(Diagnoser, Range,
                                     "a template specialization");
 
-    APValue R = getNthTemplateArgument(S, TArgs, Evaluator, Sentinel, idx);
+    APValue R = getNthTemplateArgument(C, TArgs, Evaluator, Sentinel, idx);
     return SetAndSucceed(Result, R);
   }
   case ReflectionKind::Declaration: {
@@ -1622,7 +1593,7 @@ bool get_ith_template_argument_of(APValue &Result, Sema &S, EvalFn Evaluator,
     if (getTemplateArgumentsFromDecl(RV.getReflectedDecl(), TArgs))
       return DiagnoseReflectionKind(Diagnoser, Range,
                                     "a template specialization");
-    return SetAndSucceed(Result, getNthTemplateArgument(S, TArgs, Evaluator,
+    return SetAndSucceed(Result, getNthTemplateArgument(C, TArgs, Evaluator,
                                                         Sentinel, idx));
   }
   case ReflectionKind::Null:
@@ -1639,10 +1610,11 @@ bool get_ith_template_argument_of(APValue &Result, Sema &S, EvalFn Evaluator,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                              DiagFn Diagnoser, QualType ResultTy,
-                              SourceRange Range, ArrayRef<Expr *> Args) {
-  assert(ResultTy == S.Context.MetaInfoTy);
+bool get_begin_member_decl_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                              EvalFn Evaluator, DiagFn Diagnoser,
+                              QualType ResultTy, SourceRange Range,
+                              ArrayRef<Expr *> Args) {
+  assert(ResultTy == C.MetaInfoTy);
 
   assert(Args[0]->getType()->isReflectionType());
   APValue RV;
@@ -1670,12 +1642,12 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
       return Diagnoser(Range.getBegin(), diag::metafn_members_of_enum) << Range;
     }
 
-    ensureDeclared(S, QT, Range.getBegin());
+    ensureDeclared(C, QT, Range.getBegin());
     Decl *typeDecl = findTypeDecl(QT);
     if (!typeDecl)
       return true;
 
-    if (!ensureInstantiated(S, typeDecl, Range))
+    if (!Meta.EnsureInstantiated(typeDecl, Range))
       return true;
 
     if (QT->isIncompleteType())
@@ -1688,12 +1660,12 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
       */
 
     if (auto *CXXRD = dyn_cast<CXXRecordDecl>(typeDecl))
-      S.ForceDeclarationOfImplicitMembers(CXXRD);
+      Meta.EnsureDeclarationOfImplicitMembers(CXXRD);
 
     DeclContext *declContext = dyn_cast<DeclContext>(typeDecl);
     assert(declContext && "no DeclContext?");
 
-    Decl* beginMember = findIterableMember(S, *declContext->decls_begin(),
+    Decl* beginMember = findIterableMember(Meta, *declContext->decls_begin(),
                                            true);
     if (!beginMember)
       return SetAndSucceed(Result, Sentinel);
@@ -1707,7 +1679,7 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
 
     DeclContext *DC = cast<DeclContext>(NS->getMostRecentDecl());
 
-    Decl *beginMember = findIterableMember(S, *DC->decls_begin(), true);
+    Decl *beginMember = findIterableMember(Meta, *DC->decls_begin(), true);
     if (!beginMember)
       return SetAndSucceed(Result, Sentinel);
     return SetAndSucceed(Result,
@@ -1726,10 +1698,11 @@ bool get_begin_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool get_next_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                             DiagFn Diagnoser, QualType ResultTy,
-                             SourceRange Range, ArrayRef<Expr *> Args) {
-  assert(ResultTy == S.Context.MetaInfoTy);
+bool get_next_member_decl_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                             EvalFn Evaluator, DiagFn Diagnoser,
+                             QualType ResultTy, SourceRange Range,
+                             ArrayRef<Expr *> Args) {
+  assert(ResultTy == C.MetaInfoTy);
 
   assert(Args[0]->getType()->isReflectionType());
   APValue RV;
@@ -1742,21 +1715,21 @@ bool get_next_member_decl_of(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
   assert(Sentinel.isReflectedType());
 
-  if (Decl *Next = findIterableMember(S, RV.getReflectedDecl(), false))
+  if (Decl *Next = findIterableMember(Meta, RV.getReflectedDecl(), false))
     return SetAndSucceed(Result, APValue(ReflectionKind::Declaration, Next));
   return SetAndSucceed(Result, Sentinel);
 }
 
-static bool is_structural_type(APValue &Result, Sema &S, EvalFn Evaluator,
-                               DiagFn Diagnoser, QualType ResultTy,
-                               SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_structural_type(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
-  
+  assert(ResultTy == C.BoolTy);
+
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
     return true;
-  
+
   auto result = false;
   if (RV.isReflectedType()) {
     const QualType QT = RV.getReflectedType();
@@ -1765,13 +1738,13 @@ static bool is_structural_type(APValue &Result, Sema &S, EvalFn Evaluator,
     result = T->isStructuralType();
   }
 
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool map_decl_to_entity(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args) {
-  assert(ResultTy == S.Context.MetaInfoTy);
+bool map_decl_to_entity(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(ResultTy == C.MetaInfoTy);
   assert(Args[0]->getType()->isReflectionType());
 
   APValue RV;
@@ -1780,7 +1753,7 @@ bool map_decl_to_entity(APValue &Result, Sema &S, EvalFn Evaluator,
   Decl *D = RV.getReflectedDecl();
 
   if (auto *TyDecl = dyn_cast<TypeDecl>(D)) {
-    QualType QT = S.Context.getTypeDeclType(TyDecl);
+    QualType QT = C.getTypeDeclType(TyDecl);
     return SetAndSucceed(Result, makeReflection(QT));
   } else if (auto *TDecl = dyn_cast<TemplateDecl>(D)) {
     TemplateName TName(TDecl);
@@ -1791,9 +1764,9 @@ bool map_decl_to_entity(APValue &Result, Sema &S, EvalFn Evaluator,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool identifier_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                   QualType ResultTy, SourceRange Range,
-                   ArrayRef<Expr *> Args) {
+bool identifier_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                   EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                   SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
 
   APValue RV;
@@ -1895,7 +1868,7 @@ bool identifier_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     if (isa<TranslationUnitDecl>(RV.getReflectedNamespace()))
       return Diagnoser(Range.getBegin(),
                        diag::metafn_name_of_unnamed_singleton) << 1 << Range;
-    getDeclName(Name, S.Context, RV.getReflectedNamespace());
+    getDeclName(Name, C, RV.getReflectedNamespace());
     break;
   }
   case ReflectionKind::DataMemberSpec: {
@@ -1918,16 +1891,16 @@ bool identifier_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     return Diagnoser(Range.getBegin(), diag::metafn_anonymous_entity)
         << DescriptionOf(RV) << Range;
 
-  Expr *StrLit = makeStrLiteral(Name, S.Context, IsUtf8);
+  Expr *StrLit = makeStrLiteral(Name, C, IsUtf8);
 
   APValue::LValuePathEntry Path[1] = {APValue::LValuePathEntry::ArrayIndex(0)};
   return SetAndSucceed(Result,
                        APValue(StrLit, CharUnits::Zero(), Path, false));
 }
 
-bool has_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
-                    DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args) {
+bool has_identifier(APValue &Result, ASTContext &C, MetaActions &Meta,
+                    EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                    SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
 
   APValue RV;
@@ -1992,13 +1965,14 @@ bool has_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
     break;
   }
 
-  return SetAndSucceed(Result, makeBool(S.Context, HasIdentifier));
+  return SetAndSucceed(Result, makeBool(C, HasIdentifier));
 }
 
-bool operator_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                 QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool operator_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                 EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                 SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.getSizeType());
+  assert(ResultTy == C.getSizeType());
 
   static constexpr OverloadedOperatorKind OperatorIndices[] = {
     OO_None, OO_New, OO_Delete, OO_Array_New, OO_Array_Delete, OO_Coawait,
@@ -2042,14 +2016,13 @@ bool operator_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     return Diagnoser(Range.getBegin(), diag::metafn_not_an_operator)
         << DescriptionOf(RV) << Range;
 
-  return SetAndSucceed(
-          Result,
-          APValue(S.Context.MakeIntValue(OperatorId, S.Context.getSizeType())));
+  return SetAndSucceed(Result,
+                       APValue(C.MakeIntValue(OperatorId, C.getSizeType())));
 }
 
-bool source_location_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args) {
+bool source_location_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
 
   APValue RV;
@@ -2058,36 +2031,36 @@ bool source_location_of(APValue &Result, Sema &S, EvalFn Evaluator,
 
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Type:
-    return findTypeDeclLoc(Result, S.Context, Evaluator, ResultTy,
+    return findTypeDeclLoc(Result, C, Evaluator, ResultTy,
                            RV.getReflectedType());
   case ReflectionKind::Declaration:
-    return findDeclLoc(Result, S.Context, Evaluator, ResultTy,
-                       RV.getReflectedDecl());
+    return findDeclLoc(Result, C, Evaluator, ResultTy, RV.getReflectedDecl());
   case ReflectionKind::Template: {
     TemplateName TName = RV.getReflectedTemplate();
-    return findDeclLoc(Result, S.Context, Evaluator, ResultTy,
+    return findDeclLoc(Result, C, Evaluator, ResultTy,
                        TName.getAsTemplateDecl());
   }
   case ReflectionKind::Namespace:
-    return findDeclLoc(Result, S.Context, Evaluator, ResultTy,
+    return findDeclLoc(Result, C, Evaluator, ResultTy,
                        RV.getReflectedNamespace());
   case ReflectionKind::BaseSpecifier:
-    return findBaseSpecLoc(Result, S.Context, Evaluator, ResultTy,
+    return findBaseSpecLoc(Result, C, Evaluator, ResultTy,
                            RV.getReflectedBaseSpecifier());
   case ReflectionKind::Annotation:
-    return findAnnotLoc(Result, S.Context, Evaluator, ResultTy,
+    return findAnnotLoc(Result, C, Evaluator, ResultTy,
                         RV.getReflectedAnnotation());
   case ReflectionKind::Object:
   case ReflectionKind::Value:
   case ReflectionKind::Null:
   case ReflectionKind::DataMemberSpec:
-    return findDeclLoc(Result, S.Context, Evaluator, ResultTy, nullptr);
+    return findDeclLoc(Result, C, Evaluator, ResultTy, nullptr);
   }
   llvm_unreachable("unknown reflection kind");
 }
 
-bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-             QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool type_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+             EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+             SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
 
   APValue RV;
@@ -2102,13 +2075,13 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     return Diagnoser(Range.getBegin(), diag::metafn_no_associated_property)
         << DescriptionOf(RV) << 0 << Range;
   case ReflectionKind::Object: {
-    QualType QT = desugarType(RV.getTypeOfReflectedResult(S.Context),
+    QualType QT = desugarType(RV.getTypeOfReflectedResult(C),
                               /*UnwrapAliases=*/false, /*DropCV=*/false,
                               /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
   }
   case ReflectionKind::Value: {
-    QualType QT = desugarType(RV.getTypeOfReflectedResult(S.Context),
+    QualType QT = desugarType(RV.getTypeOfReflectedResult(C),
                               /*UnwrapAliases=*/true, /*DropCV=*/false,
                               /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
@@ -2148,8 +2121,9 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool parent_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-               QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool parent_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+               EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+               SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
 
   APValue RV;
@@ -2205,10 +2179,11 @@ bool parent_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool dealias(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-             QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool dealias(APValue &Result, ASTContext &C, MetaActions &Meta,
+             EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+             SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.MetaInfoTy);
+  assert(ResultTy == C.MetaInfoTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -2240,10 +2215,11 @@ bool dealias(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool object_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-               QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool object_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+               EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+               SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.MetaInfoTy);
+  assert(ResultTy == C.MetaInfoTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -2263,7 +2239,7 @@ bool object_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
       QT = LVRT->getPointeeType();
     }
 
-    Expr *Synthesized = DeclRefExpr::Create(S.Context,
+    Expr *Synthesized = DeclRefExpr::Create(C,
                                             NestedNameSpecifierLoc(),
                                             SourceLocation(), VD, false,
                                             Range.getBegin(), QT,
@@ -2290,10 +2266,11 @@ bool object_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
 }
 
 
-bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-              QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool value_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+              EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+              SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.MetaInfoTy);
+  assert(ResultTy == C.MetaInfoTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -2303,23 +2280,21 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Value:
     return SetAndSucceed(Result, RV);
   case ReflectionKind::Object: {
-    if (!RV.getTypeOfReflectedResult(S.Context)->isStructuralType())
+    if (!RV.getTypeOfReflectedResult(C)->isStructuralType())
       return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
           << 2 << "an object of non-structural type" << Range;
 
-    QualType ObjectTy = RV.getTypeOfReflectedResult(S.Context);
-    Expr *OVE = new (S.Context) OpaqueValueExpr(Range.getBegin(),
-                                                ObjectTy,
-                                                VK_LValue);
-    Expr *CE = ConstantExpr::Create(S.Context, OVE, RV.getReflectedObject());
+    QualType ObjectTy = RV.getTypeOfReflectedResult(C);
+    Expr *OVE = new (C) OpaqueValueExpr(Range.getBegin(), ObjectTy, VK_LValue);
+    Expr *CE = ConstantExpr::Create(C, OVE, RV.getReflectedObject());
 
     Expr::EvalResult ER;
-    if (!CE->EvaluateAsRValue(ER, S.Context, true))
+    if (!CE->EvaluateAsRValue(ER, C, true))
       return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
           << 2 << "an object not usable in constant expressions" << Range;
 
-    QualType ValueTy =
-          S.ComputeResultType(RV.getTypeOfReflectedResult(S.Context), ER.Val);
+    QualType ValueTy = ComputeResultType(RV.getTypeOfReflectedResult(C),
+                                         ER.Val);
     return SetAndSucceed(Result, ER.Val.Lift(ValueTy));
   }
   case ReflectionKind::Declaration: {
@@ -2328,7 +2303,7 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     APValue Value;
     QualType QT;
     if (auto *VD = dyn_cast<VarDecl>(Decl)) {
-      if (!VD->isUsableInConstantExpressions(S.Context))
+      if (!VD->isUsableInConstantExpressions(C))
       return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
           << 2 << "a variable not usable in constant expressions" << Range;
 
@@ -2336,8 +2311,7 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
       if (auto *LVRT = dyn_cast<LValueReferenceType>(QT))
         QT = LVRT->getPointeeType();
 
-      Expr *Synthesized = DeclRefExpr::Create(S.Context,
-                                              NestedNameSpecifierLoc(),
+      Expr *Synthesized = DeclRefExpr::Create(C, NestedNameSpecifierLoc(),
                                               SourceLocation(), VD, false,
                                               Range.getBegin(), QT,
                                               VK_LValue, Decl, nullptr);
@@ -2345,15 +2319,14 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
         llvm_unreachable("failed to evaluate variable usable in constant "
                          "expressions");
     } else if (isa<EnumConstantDecl>(Decl)) {
-      Expr *Synthesized = DeclRefExpr::Create(S.Context,
-                                              NestedNameSpecifierLoc(),
+      Expr *Synthesized = DeclRefExpr::Create(C, NestedNameSpecifierLoc(),
                                               SourceLocation(), Decl, false,
                                               Range.getBegin(), Decl->getType(),
                                               VK_PRValue, Decl, nullptr);
       QT = Synthesized->getType();
 
       Expr::EvalResult ER;
-      if (!Synthesized->EvaluateAsConstantExpr(ER, S.Context))
+      if (!Synthesized->EvaluateAsConstantExpr(ER, C))
         llvm_unreachable("failed to evaluate enumerator constant");
       Value = ER.Val;
     } else if (auto *TPOD = dyn_cast<TemplateParamObjectDecl>(Decl)) {
@@ -2364,7 +2337,7 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
           << 2 << DescriptionOf(RV) << Range;
     }
 
-    QualType ValueTy = S.ComputeResultType(QT, Value);
+    QualType ValueTy = ComputeResultType(QT, Value);
     return SetAndSucceed(Result, Value.Lift(ValueTy));
   }
   case ReflectionKind::Annotation: {
@@ -2387,10 +2360,11 @@ bool value_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   llvm_unreachable("unimplemented");
 }
 
-bool template_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                 QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool template_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                 EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                 SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.MetaInfoTy);
+  assert(ResultTy == C.MetaInfoTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -2449,25 +2423,23 @@ static bool CanActAsTemplateArg(const APValue &RV) {
   llvm_unreachable("unknown reflection kind");
 }
 
-static TemplateArgument TArgFromReflection(Sema &S, EvalFn Evaluator,
+static TemplateArgument TArgFromReflection(ASTContext &C, EvalFn Evaluator,
                                            const APValue &RV,
                                            SourceLocation Loc) {
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Type:
     return RV.getReflectedType().getCanonicalType();
   case ReflectionKind::Object: {
-    QualType RefTy = S.Context.getLValueReferenceType(
-            RV.getTypeOfReflectedResult(S.Context));
-    return TemplateArgument(S.Context, RefTy, RV.getReflectedObject(), false);
+    QualType RefTy = C.getLValueReferenceType(RV.getTypeOfReflectedResult(C));
+    return TemplateArgument(C, RefTy, RV.getReflectedObject(), false);
   }
   case ReflectionKind::Value: {
     APValue Lowered = RV.getReflectedValue();
-    QualType ResultTy = RV.getTypeOfReflectedResult(S.Context);
+    QualType ResultTy = RV.getTypeOfReflectedResult(C);
     if (Lowered.isInt()) {
-      return TemplateArgument(S.Context, Lowered.getInt(),
-                              ResultTy.getCanonicalType());
+      return TemplateArgument(C, Lowered.getInt(), ResultTy.getCanonicalType());
     }
-    TemplateArgument TArg(S.Context, ResultTy, Lowered, false);
+    TemplateArgument TArg(C, ResultTy, Lowered, false);
     return TArg;
   }
   case ReflectionKind::Declaration: {
@@ -2477,16 +2449,16 @@ static TemplateArgument TArgFromReflection(Sema &S, EvalFn Evaluator,
     // substitution machinery will otherwise create one from the argument
     // anyway, so we aren't really losing any efficiency here.
     Expr *Synthesized =
-        DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
-                            SourceLocation(), Decl, false, Loc,
-                            Decl->getType(), VK_LValue, Decl, nullptr);
+        DeclRefExpr::Create(C, NestedNameSpecifierLoc(), SourceLocation(), Decl,
+                            false, Loc, Decl->getType(), VK_LValue, Decl,
+                            nullptr);
 
     if (Decl->getType()->isIntegralOrEnumerationType()) {
       APValue R;
       if (!Evaluator(R, Synthesized, true))
         break;
 
-      return TemplateArgument(S.Context, R.getInt(),
+      return TemplateArgument(C, R.getInt(),
                               Synthesized->getType().getCanonicalType());
     }
 
@@ -2503,9 +2475,9 @@ static TemplateArgument TArgFromReflection(Sema &S, EvalFn Evaluator,
 
 // TODO(P2996): Abstract this out, and use as an implementation detail of
 // 'substitute'.
-bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
-                    DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args) {
+bool can_substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
+                    EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                    SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
   assert(
       Args[1]->getType()->getPointeeOrArrayElementType()->isReflectionType());
@@ -2532,15 +2504,13 @@ bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
     TArgs.reserve(nArgs);
 
     for (uint64_t k = 0; k < nArgs; ++k) {
-      llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
-      Expr *Synthesized = IntegerLiteral::Create(S.Context, Idx,
-                                                 S.Context.getSizeType(),
+      llvm::APInt Idx(C.getTypeSize(C.getSizeType()), k, false);
+      Expr *Synthesized = IntegerLiteral::Create(C, Idx, C.getSizeType(),
                                                  Args[1]->getExprLoc());
 
-      Synthesized = new (S.Context) ArraySubscriptExpr(Args[1], Synthesized,
-                                                       S.Context.MetaInfoTy,
-                                                       VK_LValue, OK_Ordinary,
-                                                       Range.getBegin());
+      Synthesized = new (C) ArraySubscriptExpr(Args[1], Synthesized,
+                                               C.MetaInfoTy, VK_LValue,
+                                               OK_Ordinary, Range.getBegin());
       if (Synthesized->isValueDependent() || Synthesized->isTypeDependent())
         return true;
 
@@ -2549,35 +2519,26 @@ bool can_substitute(APValue &Result, Sema &S, EvalFn Evaluator,
           !Unwrapped.isReflection())
         return true;
       if (!CanActAsTemplateArg(Unwrapped))
-        return SetAndSucceed(Result, makeBool(S.Context, false));
+        return SetAndSucceed(Result, makeBool(C, false));
 
-      TemplateArgument TArg = TArgFromReflection(S, Evaluator,
-                                                 Unwrapped, Range.getBegin());
+      TemplateArgument TArg = TArgFromReflection(C, Evaluator, Unwrapped,
+                                                 Range.getBegin());
       if (TArg.isNull())
         llvm_unreachable("could not form template argument?");
       TArgs.push_back(TArg);
     }
   }
+  SmallVector<TemplateArgument, 4> ExpandedTArgs;
+  expandTemplateArgPacks(TArgs, ExpandedTArgs);
 
-  TemplateArgumentListInfo TAListInfo =
-        addLocToTemplateArgs(S, TArgs, Args[1]);
-
-  SmallVector<TemplateArgument, 4> IgnoredCanonical;
-  SmallVector<TemplateArgument, 4> IgnoredSugared;
-
-  {
-    Sema::SuppressDiagnosticsRAII NoDiagnostics(S);
-    DefaultArguments DefaultArgs;
-    bool CanSub = !S.CheckTemplateArgumentList(TDecl, Args[0]->getExprLoc(),
-                                               TAListInfo, DefaultArgs, false,
-                                               IgnoredSugared, IgnoredCanonical,
-                                               true);
-    return SetAndSucceed(Result, makeBool(S.Context, CanSub));
-  }
+  bool CanSub = Meta.CheckTemplateArgumentList(TDecl, ExpandedTArgs, true,
+                                               Args[0]->getExprLoc());
+  return SetAndSucceed(Result, makeBool(C, CanSub));
 }
 
-bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
+                EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
   assert(
       Args[1]->getType()->getPointeeOrArrayElementType()->isReflectionType());
@@ -2605,15 +2566,13 @@ bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     TArgs.reserve(nArgs);
 
     for (uint64_t k = 0; k < nArgs; ++k) {
-      llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
-      Expr *Synthesized = IntegerLiteral::Create(S.Context, Idx,
-                                                 S.Context.getSizeType(),
+      llvm::APInt Idx(C.getTypeSize(C.getSizeType()), k, false);
+      Expr *Synthesized = IntegerLiteral::Create(C, Idx, C.getSizeType(),
                                                  Args[1]->getExprLoc());
 
-      Synthesized = new (S.Context) ArraySubscriptExpr(Args[1], Synthesized,
-                                                       S.Context.MetaInfoTy,
-                                                       VK_LValue, OK_Ordinary,
-                                                       Range.getBegin());
+      Synthesized = new (C) ArraySubscriptExpr(Args[1], Synthesized,
+                                               C.MetaInfoTy, VK_LValue,
+                                               OK_Ordinary, Range.getBegin());
       if (Synthesized->isValueDependent() || Synthesized->isTypeDependent())
         return true;
 
@@ -2625,38 +2584,31 @@ bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
         return Diagnoser(Range.getBegin(), diag::metafn_cannot_be_arg)
             << DescriptionOf(Unwrapped) << 1 << Range;
 
-      TemplateArgument TArg = TArgFromReflection(S, Evaluator,
-                                                 Unwrapped, Range.getBegin());
+      TemplateArgument TArg = TArgFromReflection(C, Evaluator, Unwrapped,
+                                                 Range.getBegin());
       if (TArg.isNull())
         llvm_unreachable("could not form template argument?");
       TArgs.push_back(TArg);
     }
   }
 
-  {
-    TemplateArgumentListInfo TAListInfo =
-          addLocToTemplateArgs(S, TArgs, Args[1]);
+  SmallVector<TemplateArgument, 4> ExpandedTArgs;
+  expandTemplateArgPacks(TArgs, ExpandedTArgs);
 
-    SmallVector<TemplateArgument, 4> CanonicalTArgs;
-    SmallVector<TemplateArgument, 4> IgnoredSugared;
-    DefaultArguments DefaultArgs;
-    if (S.CheckTemplateArgumentList(TDecl, Range.getBegin(), TAListInfo,
-                                    DefaultArgs, false, IgnoredSugared,
-                                    CanonicalTArgs, true))
-      return true;
-    TArgs = CanonicalTArgs;
-  }
+  if (!Meta.CheckTemplateArgumentList(TDecl, ExpandedTArgs, false,
+                                      Args[0]->getExprLoc()))
+    return true;
 
   if (auto *CTD = dyn_cast<ClassTemplateDecl>(TDecl)) {
     void *InsertPos;
     ClassTemplateSpecializationDecl *TSpecDecl =
-          CTD->findSpecialization(TArgs, InsertPos);
+          CTD->findSpecialization(ExpandedTArgs, InsertPos);
 
     if (!TSpecDecl) {
       TSpecDecl = ClassTemplateSpecializationDecl::Create(
-            S.Context, CTD->getTemplatedDecl()->getTagKind(),
+            C, CTD->getTemplatedDecl()->getTagKind(),
             CTD->getDeclContext(), Range.getBegin(), Range.getBegin(),
-            CTD, TArgs, nullptr);
+            CTD, ExpandedTArgs, nullptr);
       CTD->AddSpecialization(TSpecDecl, InsertPos);
     }
     assert(TSpecDecl);
@@ -2664,78 +2616,47 @@ bool substitute(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     APValue RV(ReflectionKind::Type,
                const_cast<Type *>(TSpecDecl->getTypeForDecl()));
     return SetAndSucceed(Result, RV);
-  } else if (isa<TypeAliasTemplateDecl>(TDecl)) {
-    TemplateArgumentListInfo TAListInfo =
-          addLocToTemplateArgs(S, TArgs, Args[1]);
+  } else if (auto *TATD = dyn_cast<TypeAliasTemplateDecl>(TDecl)) {
+    TArgs.clear();
+    expandTemplateArgPacks(ExpandedTArgs, TArgs);
 
-    // TODO(P2996): Calling 'substitute' should not instantiate the alias
-    // template. Probably the logic for "substituting" the arguments into the
-    // template should be abstracted to a separate function.
-    QualType QT = S.CheckTemplateIdType(Template.getReflectedTemplate(),
-                                        Range.getBegin(), TAListInfo);
-    if (QT.isNull())
-      llvm_unreachable("Substitution failed after validating arguments?");
+    QualType QT = Meta.Substitute(TATD, TArgs, Range.getBegin());
+    assert(!QT.isNull() && "substitution failed after validating arguments?");
 
     return SetAndSucceed(Result, makeReflection(QT));
   } else if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TDecl)) {
-    void *InsertPos;
-    FunctionDecl *TSpecDecl = FTD->findSpecialization(TArgs, InsertPos);
-    if (!TSpecDecl) {
-      TemplateArgumentList *TAList = TemplateArgumentList::CreateCopy(S.Context,
-                                                                      TArgs);
+    FunctionDecl *Spec = Meta.Substitute(FTD, ExpandedTArgs, Range.getBegin());
+    assert(Spec && "substitution failed after validating arguments?");
 
-      // TODO(P2996): Calling 'substitute' should not instantiate the function
-      // template. Probably the logic for "substituting" the arguments into the
-      // template should be abstracted to a separate function.
-      TSpecDecl = S.InstantiateFunctionDeclaration(FTD, TAList,
-                                                   Range.getBegin());
-    }
-    if (!TSpecDecl)
-      // Could not instantiate function with the provided arguments.
-      llvm_unreachable("Substitution failed after validating arguments?");
-
-    return SetAndSucceed(Result,
-                         APValue(ReflectionKind::Declaration, TSpecDecl));
+    return SetAndSucceed(Result, makeReflection(Spec));
   } else if (auto *VTD = dyn_cast<VarTemplateDecl>(TDecl)) {
-    void *InsertPos;
-    VarTemplateSpecializationDecl *TSpecDecl =
-          VTD->findSpecialization(TArgs, InsertPos);
+    TArgs.clear();
+    expandTemplateArgPacks(ExpandedTArgs, TArgs);
 
-    if (!TSpecDecl) {
-      TemplateArgumentListInfo TAListInfo = addLocToTemplateArgs(S, TArgs,
-                                                                 Args[1]);
+    VarDecl *Spec = Meta.Substitute(VTD, TArgs, Range.getBegin());
+    assert(Spec && "substitution failed after validating arguments?");
 
-      DeclResult DR = S.CheckVarTemplateId(VTD, Range.getBegin(),
-                                           Range.getBegin(), TAListInfo);
-      TSpecDecl = cast<VarTemplateSpecializationDecl>(DR.get());
-      if (!TSpecDecl->getTemplateSpecializationKind())
-        TSpecDecl->setTemplateSpecializationKind(TSK_ImplicitInstantiation);
-    }
-    assert(TSpecDecl);
-
-    return SetAndSucceed(Result, makeReflection(TSpecDecl));
+    return SetAndSucceed(Result, makeReflection(Spec));
   } else if (auto *CD = dyn_cast<ConceptDecl>(TDecl)) {
-    TemplateArgumentListInfo TAListInfo = addLocToTemplateArgs(S, TArgs,
-                                                               Args[1]);
+    TArgs.clear();
+    expandTemplateArgPacks(ExpandedTArgs, TArgs);
 
-    CXXScopeSpec SS;
-    DeclarationNameInfo DNI(CD->getDeclName(), Range.getBegin());
-    ExprResult ER = S.CheckConceptTemplateId(SS, Range.getBegin(), DNI, CD, CD,
-                                             &TAListInfo);
-    assert(ER.get());
+    Expr *Spec = Meta.Substitute(CD, TArgs, Range.getBegin());
+    assert(Spec && "substitution failed after validating arguments?");
 
     APValue SatisfiesConcept;
-    if (!Evaluator(SatisfiesConcept, ER.get(), true))
-      llvm_unreachable("Substitution failed after validating arguments?");
+    if (!Evaluator(SatisfiesConcept, Spec, true))
+      llvm_unreachable("failed to evaluate substituted concept");
 
-    return SetAndSucceed(Result, SatisfiesConcept.Lift(S.Context.BoolTy));
+    return SetAndSucceed(Result, SatisfiesConcept.Lift(C.BoolTy));
   }
   llvm_unreachable("unimplemented for template kind");
 }
 
 
-bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-             QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool extract(APValue &Result, ASTContext &C, MetaActions &Meta,
+             EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+             SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
   assert(Args[1]->getType()->isReflectionType());
 
@@ -2752,7 +2673,7 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     assert(RD->isCapturelessLambda());
 
     CXXMethodDecl *CallOp = RD->getLambdaStaticInvoker();
-    QualType LambdaPtrTy = S.Context.getPointerType(CallOp->getType());
+    QualType LambdaPtrTy = C.getPointerType(CallOp->getType());
 
     if (LambdaPtrTy.getCanonicalType().getTypePtr() !=
         ResultTy.getCanonicalType().getTypePtr())
@@ -2762,9 +2683,9 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     // If not already done, generate a fake body for the call-operator.
     // The real body is generated during CodeGen.
     if (!CallOp->hasBody()) {
-      CallOp->markUsed(S.Context);
+      CallOp->markUsed(C);
       CallOp->setReferenced();
-      CallOp->setBody(new (S.Context) CompoundStmt(Range.getBegin()));
+      CallOp->setBody(new (C) CompoundStmt(Range.getBegin()));
     }
 
     APValue CallOpLV(CallOp, CharUnits::Zero(), APValue::NoLValuePath());
@@ -2777,7 +2698,7 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
 
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Object: {
-    QualType ObjectTy = RV.getTypeOfReflectedResult(S.Context);
+    QualType ObjectTy = RV.getTypeOfReflectedResult(C);
     if (ObjectTy.getCanonicalType().getTypePtr() !=
         ResultTy.getCanonicalType().getTypePtr())
       return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
@@ -2790,7 +2711,7 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
       return Diagnoser(Range.getBegin(), diag::metafn_cannot_extract)
           << 1 << DescriptionOf(RV) << Range;
 
-    QualType ValueTy = RV.getTypeOfReflectedResult(S.Context);
+    QualType ValueTy = RV.getTypeOfReflectedResult(C);
     if (auto *RD = ValueTy->getAsCXXRecordDecl();
         RD && RD->isLambda() && ResultTy->isPointerType())
       return extractLambda(Result, RD);
@@ -2821,7 +2742,7 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   }
   case ReflectionKind::Declaration: {
     ValueDecl *Decl = RV.getReflectedDecl();
-    ensureInstantiated(S, Decl, Args[1]->getSourceRange());
+    Meta.EnsureInstantiated(Decl, Args[1]->getSourceRange());
 
     if (auto *RD = Decl->getType()->getAsCXXRecordDecl();
         RD && RD->isLambda() && ResultTy->isPointerType())
@@ -2842,13 +2763,12 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
         NestedNameSpecifierLocBuilder NNSLocBuilder;
         if (auto *ParentClsDecl = dyn_cast_or_null<CXXRecordDecl>(
                 Decl->getDeclContext())) {
-          TypeSourceInfo *TSI = S.Context.CreateTypeSourceInfo(
+          TypeSourceInfo *TSI = C.CreateTypeSourceInfo(
                   QualType(ParentClsDecl->getTypeForDecl(), 0), 0);
-          NNSLocBuilder.Extend(S.Context, Range.getBegin(), TSI->getTypeLoc(),
+          NNSLocBuilder.Extend(C, Range.getBegin(), TSI->getTypeLoc(),
                                Range.getBegin());
         }
-        Synthesized = DeclRefExpr::Create(S.Context,
-                                          NNSLocBuilder.getTemporary(),
+        Synthesized = DeclRefExpr::Create(C, NNSLocBuilder.getTemporary(),
                                           SourceLocation(), Decl, false,
                                           Range.getBegin(), ResultTy,
                                           ReturnsLValue ? VK_LValue :
@@ -2862,8 +2782,7 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
           return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
               << 0 << Decl->getType() << ReturnsLValue << ResultTy << Range;
 
-        Synthesized = ExtractLValueExpr::Create(S.Context, Range, ResultTy,
-                                                Decl);
+        Synthesized = ExtractLValueExpr::Create(C, Range, ResultTy, Decl);
       }
 
       if (Synthesized->getType().getCanonicalType().getTypePtr() !=
@@ -2887,8 +2806,7 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
 
       auto *ParentTy = cast<RecordDecl>(
               Decl->getDeclContext())->getTypeForDecl();
-      QualType MemPtrTy = S.Context.getMemberPointerType(Decl->getType(),
-                                                         ParentTy);
+      QualType MemPtrTy = C.getMemberPointerType(Decl->getType(), ParentTy);
       if (MemPtrTy.getCanonicalType().getTypePtr() !=
           ResultTy.getCanonicalType().getTypePtr())
         return Diagnoser(Range.getBegin(),
@@ -2905,7 +2823,7 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
 
       return SetAndSucceed(Result, APValue(ECD->getInitVal()));
     } else {
-      QualType FnPtrTy = S.Context.getPointerType(Decl->getType());
+      QualType FnPtrTy = C.getPointerType(Decl->getType());
       if (FnPtrTy.getCanonicalType().getTypePtr() !=
           ResultTy.getCanonicalType().getTypePtr())
         return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
@@ -2927,10 +2845,11 @@ bool extract(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_public(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-               QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_public(APValue &Result, ASTContext &C, MetaActions &Meta,
+               EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+               SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -2942,22 +2861,22 @@ bool is_public(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     if (const Decl *D = findTypeDecl(RV.getReflectedType()))
       IsPublic = (D->getAccess() == AS_public);
 
-    return SetAndSucceed(Result, makeBool(S.Context, IsPublic));
+    return SetAndSucceed(Result, makeBool(C, IsPublic));
   }
   case ReflectionKind::Declaration: {
     bool IsPublic = (RV.getReflectedDecl()->getAccess() == AS_public);
-    return SetAndSucceed(Result, makeBool(S.Context, IsPublic));
+    return SetAndSucceed(Result, makeBool(C, IsPublic));
   }
   case ReflectionKind::Template: {
     const Decl *D = RV.getReflectedTemplate().getAsTemplateDecl();
 
     bool IsPublic = (D->getAccess() == AS_public);
-    return SetAndSucceed(Result, makeBool(S.Context, IsPublic));
+    return SetAndSucceed(Result, makeBool(C, IsPublic));
   }
   case ReflectionKind::BaseSpecifier: {
     CXXBaseSpecifier *Base = RV.getReflectedBaseSpecifier();
     bool IsPublic = (Base->getAccessSpecifier() == AS_public);
-    return SetAndSucceed(Result, makeBool(S.Context, IsPublic));
+    return SetAndSucceed(Result, makeBool(C, IsPublic));
   }
   case ReflectionKind::Null:
   case ReflectionKind::Object:
@@ -2965,15 +2884,16 @@ bool is_public(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
   case ReflectionKind::Namespace:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_protected(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                  QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_protected(APValue &Result, ASTContext &C, MetaActions &Meta,
+                  EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                  SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -2985,22 +2905,22 @@ bool is_protected(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     if (const Decl *D = findTypeDecl(RV.getReflectedType()))
       IsProtected = (D->getAccess() == AS_protected);
 
-    return SetAndSucceed(Result, makeBool(S.Context, IsProtected));
+    return SetAndSucceed(Result, makeBool(C, IsProtected));
   }
   case ReflectionKind::Declaration: {
     bool IsProtected = (RV.getReflectedDecl()->getAccess() == AS_protected);
-    return SetAndSucceed(Result, makeBool(S.Context, IsProtected));
+    return SetAndSucceed(Result, makeBool(C, IsProtected));
   }
   case ReflectionKind::Template: {
     const Decl *D = RV.getReflectedTemplate().getAsTemplateDecl();
 
     bool IsProtected = (D->getAccess() == AS_protected);
-    return SetAndSucceed(Result, makeBool(S.Context, IsProtected));
+    return SetAndSucceed(Result, makeBool(C, IsProtected));
   }
   case ReflectionKind::BaseSpecifier: {
     CXXBaseSpecifier *Base = RV.getReflectedBaseSpecifier();
     bool IsProtected = (Base->getAccessSpecifier() == AS_protected);
-    return SetAndSucceed(Result, makeBool(S.Context, IsProtected));
+    return SetAndSucceed(Result, makeBool(C, IsProtected));
   }
   case ReflectionKind::Null:
   case ReflectionKind::Object:
@@ -3008,15 +2928,16 @@ bool is_protected(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
   case ReflectionKind::Namespace:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_private(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_private(APValue &Result, ASTContext &C, MetaActions &Meta,
+                EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3028,22 +2949,22 @@ bool is_private(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     if (const Decl *D = findTypeDecl(RV.getReflectedType()))
       IsPrivate = (D->getAccess() == AS_private);
 
-    return SetAndSucceed(Result, makeBool(S.Context, IsPrivate));
+    return SetAndSucceed(Result, makeBool(C, IsPrivate));
   }
   case ReflectionKind::Declaration: {
     bool IsPrivate = (RV.getReflectedDecl()->getAccess() == AS_private);
-    return SetAndSucceed(Result, makeBool(S.Context, IsPrivate));
+    return SetAndSucceed(Result, makeBool(C, IsPrivate));
   }
   case ReflectionKind::Template: {
     const Decl *D = RV.getReflectedTemplate().getAsTemplateDecl();
 
     bool IsPrivate = (D->getAccess() == AS_private);
-    return SetAndSucceed(Result, makeBool(S.Context, IsPrivate));
+    return SetAndSucceed(Result, makeBool(C, IsPrivate));
   }
   case ReflectionKind::BaseSpecifier: {
     CXXBaseSpecifier *Base = RV.getReflectedBaseSpecifier();
     bool IsPrivate = (Base->getAccessSpecifier() == AS_private);
-    return SetAndSucceed(Result, makeBool(S.Context, IsPrivate));
+    return SetAndSucceed(Result, makeBool(C, IsPrivate));
   }
   case ReflectionKind::Null:
   case ReflectionKind::Object:
@@ -3051,16 +2972,16 @@ bool is_private(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Namespace:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_access_specified(APValue &Result, Sema &S, EvalFn Evaluator,
-                         DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                         ArrayRef<Expr *> Args) {
+bool is_access_specified(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   auto findAccessSpec = [](Decl *D) -> AccessSpecifier {
     DeclContext *DC = D->getDeclContext();
@@ -3082,22 +3003,22 @@ bool is_access_specified(APValue &Result, Sema &S, EvalFn Evaluator,
     if (Decl *D = findTypeDecl(RV.getReflectedType()))
       IsSpecified = findAccessSpec(D) != AS_none;
 
-    return SetAndSucceed(Result, makeBool(S.Context, IsSpecified));
+    return SetAndSucceed(Result, makeBool(C, IsSpecified));
   }
   case ReflectionKind::Declaration: {
     bool IsSpecified = findAccessSpec(RV.getReflectedDecl()) != AS_none;
-    return SetAndSucceed(Result, makeBool(S.Context, IsSpecified));
+    return SetAndSucceed(Result, makeBool(C, IsSpecified));
   }
   case ReflectionKind::Template: {
     Decl *D = RV.getReflectedTemplate().getAsTemplateDecl();
 
     bool IsSpecified = findAccessSpec(D) != AS_none;
-    return SetAndSucceed(Result, makeBool(S.Context, IsSpecified));
+    return SetAndSucceed(Result, makeBool(C, IsSpecified));
   }
   case ReflectionKind::BaseSpecifier: {
     CXXBaseSpecifier *Base = RV.getReflectedBaseSpecifier();
     bool IsSpecified = (Base->getAccessSpecifierAsWritten() != AS_none);
-    return SetAndSucceed(Result, makeBool(S.Context, IsSpecified));
+    return SetAndSucceed(Result, makeBool(C, IsSpecified));
   }
   case ReflectionKind::Null:
   case ReflectionKind::Object:
@@ -3105,37 +3026,37 @@ bool is_access_specified(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Namespace:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   }
   llvm_unreachable("invalid reflection type");
 }
 
-static bool findAccessContext(Sema &S, EvalFn Evaluator, APValue &Result) {
-  StackLocationExpr *SLE = StackLocationExpr::Create(S.Context,
-                                                     SourceRange(), 1);
+static bool findAccessContext(ASTContext &C, MetaActions &Meta,
+                              EvalFn Evaluator, APValue &Result) {
+  StackLocationExpr *SLE = StackLocationExpr::Create(C, SourceRange(), 1);
   if (!Evaluator(Result, SLE, true) || !Result.isReflection())
     return false;
 
   if (Result.getReflectedDecl() != nullptr)
     return true;
 
-  Result = makeReflection(dyn_cast<Decl>(S.CurContext));
+  Result = makeReflection(Meta.CurrentCtx());
   return true;
 }
 
-bool access_context(APValue &Result, Sema &S, EvalFn Evaluator,
-                    DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args) {
-  assert(ResultTy == S.Context.MetaInfoTy);
+bool access_context(APValue &Result, ASTContext &C, MetaActions &Meta,
+                    EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                    SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(ResultTy == C.MetaInfoTy);
 
-  return !findAccessContext(S, Evaluator, Result);
+  return !findAccessContext(C, Meta, Evaluator, Result);
 }
 
-bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                   QualType ResultTy, SourceRange Range,
-                   ArrayRef<Expr *> Args) {
+bool is_accessible(APValue &Result, ASTContext &C, MetaActions &Meta,
+                   EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                   SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue Scratch;
   if (!Evaluator(Scratch, Args[1], true) || !Scratch.isReflection())
@@ -3144,7 +3065,7 @@ bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   DeclContext *AccessDC = nullptr;
   switch (Scratch.getReflectionKind()) {
   case ReflectionKind::Null:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Type:
     AccessDC = dyn_cast<DeclContext>(findTypeDecl(Scratch.getReflectedType()));
     if (!AccessDC)
@@ -3170,24 +3091,24 @@ bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     if (!D || !D->getDeclContext() || !isa<CXXRecordDecl>(D->getDeclContext()))
       return DiagnoseReflectionKind(Diagnoser, Range, "a class member");
 
-    bool Accessible = isAccessible(S, AccessDC, D);
-    return SetAndSucceed(Result, makeBool(S.Context, Accessible));
+    bool Accessible = Meta.IsAccessible(D, AccessDC);
+    return SetAndSucceed(Result, makeBool(C, Accessible));
   }
   case ReflectionKind::Declaration: {
     ValueDecl *D = RV.getReflectedDecl();
     if (!D->getDeclContext() || !isa<CXXRecordDecl>(D->getDeclContext()))
       return DiagnoseReflectionKind(Diagnoser, Range, "a class member");
 
-    bool Accessible = isAccessible(S, AccessDC, RV.getReflectedDecl());
-    return SetAndSucceed(Result, makeBool(S.Context, Accessible));
+    bool Accessible = Meta.IsAccessible(RV.getReflectedDecl(), AccessDC);
+    return SetAndSucceed(Result, makeBool(C, Accessible));
   }
   case ReflectionKind::Template: {
     TemplateDecl *D = RV.getReflectedTemplate().getAsTemplateDecl();
     if (!D->getDeclContext() || !isa<CXXRecordDecl>(D->getDeclContext()))
       return DiagnoseReflectionKind(Diagnoser, Range, "a class member");
 
-    bool Accessible = isAccessible(S, AccessDC, D);
-    return SetAndSucceed(Result, makeBool(S.Context, Accessible));
+    bool Accessible = Meta.IsAccessible(D, AccessDC);
+    return SetAndSucceed(Result, makeBool(C, Accessible));
   }
   case ReflectionKind::BaseSpecifier: {
     CXXBaseSpecifier *BaseSpec = RV.getReflectedBaseSpecifier();
@@ -3195,23 +3116,17 @@ bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     auto *Base = findTypeDecl(BaseSpec->getType());
     assert(Base && "base class has no type declaration?");
 
+    QualType BaseTy = BaseSpec->getType();
+    QualType DerivedTy(BaseSpec->getDerived()->getTypeForDecl(), 0);
+
     CXXBasePathElement bpe = { BaseSpec, BaseSpec->getDerived(), 0 };
     CXXBasePath path;
     path.push_back(bpe);
     path.Access = BaseSpec->getAccessSpecifier();
 
-    Sema::AccessResult AR;
-    DeclContext *PreviousDC = S.CurContext;
-    {
-      S.CurContext = AccessDC;
-      AR = S.CheckBaseClassAccess(
-            Range.getBegin(), BaseSpec->getType(),
-            QualType(BaseSpec->getDerived()->getTypeForDecl(), 0), path, 0,
-            /*ForceCheck=*/true, /*ForceUnprivileged=*/false);
-      S.CurContext = PreviousDC;
-    }
-    bool Accessible = (AR == Sema::AR_accessible);
-    return SetAndSucceed(Result, makeBool(S.Context, Accessible));
+    bool Accessible = Meta.IsAccessibleBase(BaseTy, DerivedTy, path, AccessDC,
+                                            Range.getBegin());
+    return SetAndSucceed(Result, makeBool(C, Accessible));
   }
   case ReflectionKind::Null:
   case ReflectionKind::Object:
@@ -3225,10 +3140,11 @@ bool is_accessible(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_virtual(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_virtual(APValue &Result, ASTContext &C, MetaActions &Meta,
+                EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3239,11 +3155,11 @@ bool is_virtual(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Declaration: {
     if (const auto *MD = dyn_cast<CXXMethodDecl>(RV.getReflectedDecl()))
       IsVirtual = MD->isVirtual();
-    return SetAndSucceed(Result, makeBool(S.Context, IsVirtual));
+    return SetAndSucceed(Result, makeBool(C, IsVirtual));
   }
   case ReflectionKind::BaseSpecifier: {
     IsVirtual = RV.getReflectedBaseSpecifier()->isVirtual();
-    return SetAndSucceed(Result, makeBool(S.Context, IsVirtual));
+    return SetAndSucceed(Result, makeBool(C, IsVirtual));
   }
   case ReflectionKind::Null:
   case ReflectionKind::Type:
@@ -3253,16 +3169,16 @@ bool is_virtual(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::Namespace:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, IsVirtual));
+    return SetAndSucceed(Result, makeBool(C, IsVirtual));
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_pure_virtual(APValue &Result, Sema &S, EvalFn Evaluator,
-                     DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                     ArrayRef<Expr *> Args) {
+bool is_pure_virtual(APValue &Result, ASTContext &C, MetaActions &Meta,
+                     EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                     SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3278,22 +3194,23 @@ bool is_pure_virtual(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Declaration: {
     bool IsPureVirtual = false;
     if (const auto *FD = dyn_cast<FunctionDecl>(RV.getReflectedDecl()))
       IsPureVirtual = FD->isPureVirtual();
 
-    return SetAndSucceed(Result, makeBool(S.Context, IsPureVirtual));
+    return SetAndSucceed(Result, makeBool(C, IsPureVirtual));
   }
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_override(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                 QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_override(APValue &Result, ASTContext &C, MetaActions &Meta,
+                 EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                 SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3310,20 +3227,21 @@ bool is_override(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Declaration: {
     if (const auto *MD = dyn_cast<CXXMethodDecl>(RV.getReflectedDecl()))
       IsOverride = MD->size_overridden_methods() > 0;
-    return SetAndSucceed(Result, makeBool(S.Context, IsOverride));
+    return SetAndSucceed(Result, makeBool(C, IsOverride));
   }
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_deleted(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_deleted(APValue &Result, ASTContext &C, MetaActions &Meta,
+                EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3339,21 +3257,22 @@ bool is_deleted(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Declaration: {
     bool IsDeleted = false;
     if (const auto *FD = dyn_cast<FunctionDecl>(RV.getReflectedDecl()))
       IsDeleted = FD->isDeleted();
-    return SetAndSucceed(Result, makeBool(S.Context, IsDeleted));
+    return SetAndSucceed(Result, makeBool(C, IsDeleted));
   }
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_defaulted(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                  QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_defaulted(APValue &Result, ASTContext &C, MetaActions &Meta,
+                  EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                  SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3369,22 +3288,23 @@ bool is_defaulted(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Declaration: {
     bool IsDefaulted = false;
     if (const auto *FD = dyn_cast<FunctionDecl>(RV.getReflectedDecl()))
       IsDefaulted = FD->isDefaulted();
 
-    return SetAndSucceed(Result, makeBool(S.Context, IsDefaulted));
+    return SetAndSucceed(Result, makeBool(C, IsDefaulted));
   }
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_explicit(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                 QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_explicit(APValue &Result, ASTContext &C, MetaActions &Meta,
+                 EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                 SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3400,7 +3320,7 @@ bool is_explicit(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
   case ReflectionKind::Template:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Declaration: {
     ValueDecl *D = RV.getReflectedDecl();
 
@@ -3409,16 +3329,17 @@ bool is_explicit(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
       result = CtorD->getExplicitSpecifier().isExplicit();
     else if (auto *ConvD = dyn_cast<CXXConversionDecl>(D))
       result = ConvD->getExplicitSpecifier().isExplicit();
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_noexcept(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                 QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_noexcept(APValue &Result, ASTContext &C, MetaActions &Meta,
+                 EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                 SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3433,27 +3354,28 @@ bool is_noexcept(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Type: {
     const QualType QT = RV.getReflectedType();
     const auto result = isFunctionOrMethodNoexcept(QT);
 
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   case ReflectionKind::Declaration: {
     const ValueDecl *D = RV.getReflectedDecl();
     const auto result = isFunctionOrMethodNoexcept(D->getType());
 
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_bit_field(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                  QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_bit_field(APValue &Result, ASTContext &C, MetaActions &Meta,
+                  EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                  SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3466,14 +3388,14 @@ bool is_bit_field(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   } else if (RV.isReflectedDataMemberSpec()) {
     result = RV.getReflectedDataMemberSpec()->BitWidth.has_value();
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_enumerator(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                   QualType ResultTy, SourceRange Range,
-                   ArrayRef<Expr *> Args) {
+bool is_enumerator(APValue &Result, ASTContext &C, MetaActions &Meta,
+                   EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                   SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3483,13 +3405,14 @@ bool is_enumerator(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   if (RV.isReflectedDecl())
     result = isa<EnumConstantDecl>(RV.getReflectedDecl());
 
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_const(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-              QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_const(APValue &Result, ASTContext &C, MetaActions &Meta,
+              EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+              SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3502,33 +3425,34 @@ bool is_const(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Type: {
     bool result = isConstQualifiedType(RV.getReflectedType());
 
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   case ReflectionKind::Declaration: {
     bool result = false;
     if (!isa<ParmVarDecl>(RV.getReflectedDecl()))
       result = isConstQualifiedType(RV.getReflectedDecl()->getType());
 
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   case ReflectionKind::Object:
   case ReflectionKind::Value: {
-    bool result = isConstQualifiedType(RV.getTypeOfReflectedResult(S.Context));
+    bool result = isConstQualifiedType(RV.getTypeOfReflectedResult(C));
 
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_volatile(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                 QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_volatile(APValue &Result, ASTContext &C, MetaActions &Meta,
+                 EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                 SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3541,35 +3465,35 @@ bool is_volatile(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Type: {
     bool result = isVolatileQualifiedType(RV.getReflectedType());
 
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   case ReflectionKind::Declaration: {
     bool result = false;
     if (!isa<ParmVarDecl>(RV.getReflectedDecl()))
       result = isVolatileQualifiedType(RV.getReflectedDecl()->getType());
 
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   case ReflectionKind::Object:
   case ReflectionKind::Value: {
-    bool result = isVolatileQualifiedType(
-            RV.getTypeOfReflectedResult(S.Context));
+    bool result = isVolatileQualifiedType(RV.getTypeOfReflectedResult(C));
 
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_lvalue_reference_qualified(APValue &Result, Sema &S, EvalFn Evaluator,
+bool is_lvalue_reference_qualified(APValue &Result, ASTContext &C,
+                                   MetaActions &Meta, EvalFn Evaluator,
                                    DiagFn Diagnoser, QualType ResultTy,
                                    SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3584,14 +3508,15 @@ bool is_lvalue_reference_qualified(APValue &Result, Sema &S, EvalFn Evaluator,
       if (auto FT = dyn_cast<FunctionProtoType>(FD->getType()))
         result = (FT->getRefQualifier() == RQ_LValue);
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_rvalue_reference_qualified(APValue &Result, Sema &S, EvalFn Evaluator,
+bool is_rvalue_reference_qualified(APValue &Result, ASTContext &C,
+                                   MetaActions &Meta, EvalFn Evaluator,
                                    DiagFn Diagnoser, QualType ResultTy,
                                    SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3606,14 +3531,15 @@ bool is_rvalue_reference_qualified(APValue &Result, Sema &S, EvalFn Evaluator,
       if (auto FT = dyn_cast<FunctionProtoType>(FD->getType()))
         result = (FT->getRefQualifier() == RQ_RValue);
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool has_static_storage_duration(APValue &Result, Sema &S, EvalFn Evaluator,
+bool has_static_storage_duration(APValue &Result, ASTContext &C,
+                                 MetaActions &Meta, EvalFn Evaluator,
                                  DiagFn Diagnoser, QualType ResultTy,
                                  SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3628,15 +3554,15 @@ bool has_static_storage_duration(APValue &Result, Sema &S, EvalFn Evaluator,
   } else if (RV.isReflectedObject()) {
     result = true;
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool has_thread_storage_duration(APValue &Result, Sema &S,
-                                 EvalFn Evaluator, DiagFn Diagnoser,
-                                 QualType ResultTy, SourceRange Range,
-                                 ArrayRef<Expr *> Args) {
+bool has_thread_storage_duration(APValue &Result, ASTContext &C,
+                                 MetaActions &Meta, EvalFn Evaluator,
+                                 DiagFn Diagnoser, QualType ResultTy,
+                                 SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3647,15 +3573,15 @@ bool has_thread_storage_duration(APValue &Result, Sema &S,
     if (const auto *VD = dyn_cast<VarDecl>(RV.getReflectedDecl()))
       result = VD->getStorageDuration() == SD_Thread;
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool has_automatic_storage_duration(APValue &Result, Sema &S,
-                                    EvalFn Evaluator, DiagFn Diagnoser,
-                                    QualType ResultTy, SourceRange Range,
-                                    ArrayRef<Expr *> Args) {
+bool has_automatic_storage_duration(APValue &Result, ASTContext &C,
+                                    MetaActions &Meta, EvalFn Evaluator,
+                                    DiagFn Diagnoser, QualType ResultTy,
+                                    SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3666,14 +3592,14 @@ bool has_automatic_storage_duration(APValue &Result, Sema &S,
     if (const auto *VD = dyn_cast<VarDecl>(RV.getReflectedDecl()))
       result = VD->getStorageDuration() == SD_Automatic;
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool has_internal_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+bool has_internal_linkage(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3694,14 +3620,14 @@ bool has_internal_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
       result = (VD->getFormalLinkage() == Linkage::Internal);
     }
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool has_module_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args) {
+bool has_module_linkage(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3722,14 +3648,14 @@ bool has_module_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
       result = (VD->getFormalLinkage() == Linkage::Module);
     }
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool has_external_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+bool has_external_linkage(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3753,13 +3679,14 @@ bool has_external_linkage(APValue &Result, Sema &S, EvalFn Evaluator,
                 VD->getFormalLinkage() == Linkage::UniqueExternal);
     }
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool has_linkage(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                 QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool has_linkage(APValue &Result, ASTContext &C, MetaActions &Meta,
+                 EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                 SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3780,50 +3707,51 @@ bool has_linkage(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
       result = (VD->hasLinkage());
     }
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_class_member(APValue &Result, Sema &S, EvalFn Evaluator,
-                     DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                     ArrayRef<Expr *> Args) {
+bool is_class_member(APValue &Result, ASTContext &C, MetaActions &Meta,
+                     EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                     SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue Scratch;
   bool result = false;
 
   decltype(Diagnoser) SwallowDiags {};
-  if (!parent_of(Scratch, S, Evaluator, SwallowDiags, S.Context.MetaInfoTy,
-                 Range, Args)) {
+  if (!parent_of(Scratch, C, Meta, Evaluator, SwallowDiags, C.MetaInfoTy, Range,
+                 Args)) {
     assert(Scratch.isReflection());
     result = Scratch.isReflectedType();
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_namespace_member(APValue &Result, Sema &S, EvalFn Evaluator,
-                         DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                         ArrayRef<Expr *> Args) {
+bool is_namespace_member(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue Scratch;
   bool result = false;
 
   decltype(Diagnoser) SwallowDiags {};
-  if (!parent_of(Scratch, S, Evaluator, SwallowDiags, S.Context.MetaInfoTy,
-                 Range, Args)) {
+  if (!parent_of(Scratch, C, Meta, Evaluator, SwallowDiags, C.MetaInfoTy, Range,
+                 Args)) {
     assert(Scratch.isReflection());
     result = Scratch.isReflectedNamespace();
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_nonstatic_data_member(APValue &Result, Sema &S, EvalFn Evaluator,
-                              DiagFn Diagnoser, QualType ResultTy,
-                              SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_nonstatic_data_member(APValue &Result, ASTContext &C, MetaActions &Meta,
+                              EvalFn Evaluator, DiagFn Diagnoser,
+                              QualType ResultTy, SourceRange Range,
+                              ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3837,14 +3765,14 @@ bool is_nonstatic_data_member(APValue &Result, Sema &S, EvalFn Evaluator,
       result = (!FD->isBitField() || FD->getIdentifier());
     }
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_static_member(APValue &Result, Sema &S, EvalFn Evaluator,
-                      DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                      ArrayRef<Expr *> Args) {
+bool is_static_member(APValue &Result, ASTContext &C, MetaActions &Meta,
+                      EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                      SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3858,7 +3786,7 @@ bool is_static_member(APValue &Result, Sema &S, EvalFn Evaluator,
       result = MD->isStatic();
     else if (const auto *VD = dyn_cast<VarDecl>(D))
       result = VD->isStaticDataMember();
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   case ReflectionKind::Template: {
     const Decl *D = RV.getReflectedTemplate().getAsTemplateDecl();
@@ -3869,7 +3797,7 @@ bool is_static_member(APValue &Result, Sema &S, EvalFn Evaluator,
       if (const auto *VD = dyn_cast<VarDecl>(VTD->getTemplatedDecl()))
         result = VD->isStaticDataMember();
     }
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   case ReflectionKind::Null:
   case ReflectionKind::Type:
@@ -3879,54 +3807,55 @@ bool is_static_member(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   llvm_unreachable("unknown reflection kind");
 }
 
-bool is_base(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-             QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_base(APValue &Result, ASTContext &C, MetaActions &Meta,
+             EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+             SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
     return true;
 
-  return SetAndSucceed(Result,
-                       makeBool(S.Context, RV.isReflectedBaseSpecifier()));
+  return SetAndSucceed(Result, makeBool(C, RV.isReflectedBaseSpecifier()));
 }
 
-bool is_data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
-                         DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                         ArrayRef<Expr *> Args) {
+bool is_data_member_spec(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
     return true;
 
-  return SetAndSucceed(Result,
-                       makeBool(S.Context, RV.isReflectedDataMemberSpec()));
+  return SetAndSucceed(Result, makeBool(C, RV.isReflectedDataMemberSpec()));
 }
 
-bool is_namespace(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                  QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_namespace(APValue &Result, ASTContext &C, MetaActions &Meta,
+                  EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                  SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
     return true;
 
-  return SetAndSucceed(Result, makeBool(S.Context, RV.isReflectedNamespace()));
+  return SetAndSucceed(Result, makeBool(C, RV.isReflectedNamespace()));
 }
 
-bool is_function(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                 QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_function(APValue &Result, ASTContext &C, MetaActions &Meta,
+                 EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                 SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3935,13 +3864,14 @@ bool is_function(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   bool result = false;
   if (RV.isReflectedDecl())
     result = isa<const FunctionDecl>(RV.getReflectedDecl());
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_variable(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                 QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_variable(APValue &Result, ASTContext &C, MetaActions &Meta,
+                 EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                 SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3950,25 +3880,27 @@ bool is_variable(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   bool result = false;
   if (RV.isReflectedDecl())
     result = isa<const VarDecl>(RV.getReflectedDecl());
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_type(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-             QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_type(APValue &Result, ASTContext &C, MetaActions &Meta,
+             EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+             SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
     return true;
 
-  return SetAndSucceed(Result, makeBool(S.Context, RV.isReflectedType()));
+  return SetAndSucceed(Result, makeBool(C, RV.isReflectedType()));
 }
 
-bool is_alias(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-              QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_alias(APValue &Result, ASTContext &C, MetaActions &Meta,
+              EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+              SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -3977,16 +3909,16 @@ bool is_alias(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Type: {
     bool result = isTypeAlias(RV.getReflectedType());
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   case ReflectionKind::Namespace: {
     bool result = isa<NamespaceAliasDecl>(RV.getReflectedNamespace());
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   case ReflectionKind::Template: {
     TemplateDecl *TDecl = RV.getReflectedTemplate().getAsTemplateDecl();
     bool result = isa<TypeAliasTemplateDecl>(TDecl);
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   case ReflectionKind::Null:
   case ReflectionKind::Object:
@@ -3995,16 +3927,16 @@ bool is_alias(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   }
   llvm_unreachable("unknown reflection kind");
 }
 
-bool is_complete_type(APValue &Result, Sema &S, EvalFn Evaluator,
-                      DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                      ArrayRef<Expr *> Args) {
+bool is_complete_type(APValue &Result, ASTContext &C, MetaActions &Meta,
+                      EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                      SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4015,18 +3947,19 @@ bool is_complete_type(APValue &Result, Sema &S, EvalFn Evaluator,
     // If this is a declared type with a reachable definition, ensure that the
     // type is instantiated.
     if (Decl *typeDecl = findTypeDecl(RV.getReflectedType()))
-      (void) ensureInstantiated(S, typeDecl, Range);
+      (void) Meta.EnsureInstantiated(typeDecl, Range);
 
     result = !RV.getReflectedType()->isIncompleteType();
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool has_complete_definition(APValue &Result, Sema &S, EvalFn Evaluator,
-                             DiagFn Diagnoser, QualType ResultTy,
-                             SourceRange Range, ArrayRef<Expr *> Args) {
+bool has_complete_definition(APValue &Result, ASTContext &C, MetaActions &Meta,
+                             EvalFn Evaluator, DiagFn Diagnoser,
+                             QualType ResultTy, SourceRange Range,
+                             ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4058,26 +3991,27 @@ bool has_complete_definition(APValue &Result, Sema &S, EvalFn Evaluator,
     break;
   }
 
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_template(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                 QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_template(APValue &Result, ASTContext &C, MetaActions &Meta,
+                 EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                 SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
     return true;
 
-  return SetAndSucceed(Result, makeBool(S.Context, RV.isReflectedTemplate()));
+  return SetAndSucceed(Result, makeBool(C, RV.isReflectedTemplate()));
 }
 
-bool is_function_template(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+bool is_function_template(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4088,14 +4022,14 @@ bool is_function_template(APValue &Result, Sema &S, EvalFn Evaluator,
     const TemplateDecl *TD = RV.getReflectedTemplate().getAsTemplateDecl();
     IsFnTemplate = isa<FunctionTemplateDecl>(TD);
   }
-  return SetAndSucceed(Result, makeBool(S.Context, IsFnTemplate));
+  return SetAndSucceed(Result, makeBool(C, IsFnTemplate));
 }
 
-bool is_variable_template(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+bool is_variable_template(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4106,14 +4040,14 @@ bool is_variable_template(APValue &Result, Sema &S, EvalFn Evaluator,
     const TemplateDecl *TD = RV.getReflectedTemplate().getAsTemplateDecl();
     IsVarTemplate = isa<VarTemplateDecl>(TD);
   }
-  return SetAndSucceed(Result, makeBool(S.Context, IsVarTemplate));
+  return SetAndSucceed(Result, makeBool(C, IsVarTemplate));
 }
 
-bool is_class_template(APValue &Result, Sema &S, EvalFn Evaluator,
-                       DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                       ArrayRef<Expr *> Args) {
+bool is_class_template(APValue &Result, ASTContext &C, MetaActions &Meta,
+                       EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                       SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4124,14 +4058,14 @@ bool is_class_template(APValue &Result, Sema &S, EvalFn Evaluator,
     const TemplateDecl *TD = RV.getReflectedTemplate().getAsTemplateDecl();
     IsClsTemplate = isa<ClassTemplateDecl>(TD);
   }
-  return SetAndSucceed(Result, makeBool(S.Context, IsClsTemplate));
+  return SetAndSucceed(Result, makeBool(C, IsClsTemplate));
 }
 
-bool is_alias_template(APValue &Result, Sema &S, EvalFn Evaluator,
-                       DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                       ArrayRef<Expr *> Args) {
+bool is_alias_template(APValue &Result, ASTContext &C, MetaActions &Meta,
+                       EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                       SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4142,14 +4076,15 @@ bool is_alias_template(APValue &Result, Sema &S, EvalFn Evaluator,
     const TemplateDecl *TD = RV.getReflectedTemplate().getAsTemplateDecl();
     IsAliasTemplate = TD->isTypeAlias();
   }
-  return SetAndSucceed(Result, makeBool(S.Context, IsAliasTemplate));
+  return SetAndSucceed(Result, makeBool(C, IsAliasTemplate));
 }
 
-bool is_conversion_function_template(APValue &Result, Sema &S, EvalFn Evaluator,
+bool is_conversion_function_template(APValue &Result, ASTContext &C,
+                                     MetaActions &Meta, EvalFn Evaluator,
                                      DiagFn Diagnoser, QualType ResultTy,
                                      SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4161,14 +4096,15 @@ bool is_conversion_function_template(APValue &Result, Sema &S, EvalFn Evaluator,
     if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TD))
       IsConversionTemplate = isa<CXXConversionDecl>(FTD->getTemplatedDecl());
   }
-  return SetAndSucceed(Result, makeBool(S.Context, IsConversionTemplate));
+  return SetAndSucceed(Result, makeBool(C, IsConversionTemplate));
 }
 
-bool is_operator_function_template(APValue &Result, Sema &S, EvalFn Evaluator,
+bool is_operator_function_template(APValue &Result, ASTContext &C,
+                                   MetaActions &Meta, EvalFn Evaluator,
                                    DiagFn Diagnoser, QualType ResultTy,
                                    SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4181,14 +4117,15 @@ bool is_operator_function_template(APValue &Result, Sema &S, EvalFn Evaluator,
       IsOperatorTemplate = (FTD->getTemplatedDecl()->getOverloadedOperator() !=
                             OO_None);
   }
-  return SetAndSucceed(Result, makeBool(S.Context, IsOperatorTemplate));
+  return SetAndSucceed(Result, makeBool(C, IsOperatorTemplate));
 }
 
-bool is_literal_operator_template(APValue &Result, Sema &S, EvalFn Evaluator,
+bool is_literal_operator_template(APValue &Result, ASTContext &C,
+                                  MetaActions &Meta, EvalFn Evaluator,
                                   DiagFn Diagnoser, QualType ResultTy,
                                   SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4201,14 +4138,15 @@ bool is_literal_operator_template(APValue &Result, Sema &S, EvalFn Evaluator,
       IsLiteralOperator = FTD->getDeclName().getNameKind() ==
                           DeclarationName::CXXLiteralOperatorName;
   }
-  return SetAndSucceed(Result, makeBool(S.Context, IsLiteralOperator));
+  return SetAndSucceed(Result, makeBool(C, IsLiteralOperator));
 }
 
-bool is_constructor_template(APValue &Result, Sema &S, EvalFn Evaluator,
+bool is_constructor_template(APValue &Result, ASTContext &C,
+                             MetaActions &Meta, EvalFn Evaluator,
                              DiagFn Diagnoser, QualType ResultTy,
                              SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4220,13 +4158,14 @@ bool is_constructor_template(APValue &Result, Sema &S, EvalFn Evaluator,
     if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TD))
       IsCtorTemplate = isa<CXXConstructorDecl>(FTD->getTemplatedDecl());
   }
-  return SetAndSucceed(Result, makeBool(S.Context, IsCtorTemplate));
+  return SetAndSucceed(Result, makeBool(C, IsCtorTemplate));
 }
 
-bool is_concept(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_concept(APValue &Result, ASTContext &C, MetaActions &Meta,
+                EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4236,14 +4175,15 @@ bool is_concept(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   if (RV.isReflectedTemplate())
     IsConcept = isa<ConceptDecl>(RV.getReflectedTemplate().getAsTemplateDecl());
 
-  return SetAndSucceed(Result, makeBool(S.Context, IsConcept));
+  return SetAndSucceed(Result, makeBool(C, IsConcept));
 }
 
-bool is_structured_binding(APValue &Result, Sema &S, EvalFn Evaluator,
-                           DiagFn Diagnoser, QualType ResultTy,
-                           SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_structured_binding(APValue &Result, ASTContext &C, MetaActions &Meta,
+                           EvalFn Evaluator, DiagFn Diagnoser,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4253,25 +4193,27 @@ bool is_structured_binding(APValue &Result, Sema &S, EvalFn Evaluator,
   if (RV.isReflectedDecl())
     result = isa<BindingDecl>(RV.getReflectedDecl());
 
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_value(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-              QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_value(APValue &Result, ASTContext &C, MetaActions &Meta,
+              EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+              SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
     return true;
 
-  return SetAndSucceed(Result, makeBool(S.Context, RV.isReflectedValue()));
+  return SetAndSucceed(Result, makeBool(C, RV.isReflectedValue()));
 }
 
-bool is_object(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-               QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_object(APValue &Result, ASTContext &C, MetaActions &Meta,
+               EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+               SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4281,14 +4223,15 @@ bool is_object(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   if (RV.isReflectedDecl())
     IsObject = isa<TemplateParamObjectDecl>(RV.getReflectedDecl());
 
-  return SetAndSucceed(Result, makeBool(S.Context, IsObject));
+  return SetAndSucceed(Result, makeBool(C, IsObject));
 }
 
-bool has_template_arguments(APValue &Result, Sema &S, EvalFn Evaluator,
-                            DiagFn Diagnoser, QualType ResultTy,
-                            SourceRange Range, ArrayRef<Expr *> Args) {
+bool has_template_arguments(APValue &Result, ASTContext &C, MetaActions &Meta,
+                            EvalFn Evaluator, DiagFn Diagnoser,
+                            QualType ResultTy, SourceRange Range,
+                            ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4298,7 +4241,7 @@ bool has_template_arguments(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Type: {
     QualType QT = RV.getReflectedType();
     bool result = isTemplateSpecialization(QT);
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   case ReflectionKind::Declaration: {
     bool result = false;
@@ -4309,7 +4252,7 @@ bool has_template_arguments(APValue &Result, Sema &S, EvalFn Evaluator,
     else if (auto *VTSD = dyn_cast<VarTemplateSpecializationDecl>(D))
       result = VTSD->getTemplateArgs().size() > 0;
 
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   case ReflectionKind::Null:
   case ReflectionKind::Object:
@@ -4319,16 +4262,17 @@ bool has_template_arguments(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   }
   llvm_unreachable("unknown reflection kind");
 }
 
-bool has_default_member_initializer(APValue &Result, Sema &S, EvalFn Evaluator,
+bool has_default_member_initializer(APValue &Result, ASTContext &C,
+                                    MetaActions &Meta, EvalFn Evaluator,
                                     DiagFn Diagnoser, QualType ResultTy,
                                     SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4339,14 +4283,15 @@ bool has_default_member_initializer(APValue &Result, Sema &S, EvalFn Evaluator,
     if (auto *FD = dyn_cast<FieldDecl>(RV.getReflectedDecl()))
       HasInitializer = FD->hasInClassInitializer();
 
-  return SetAndSucceed(Result, makeBool(S.Context, HasInitializer));
+  return SetAndSucceed(Result, makeBool(C, HasInitializer));
 }
 
-bool is_conversion_function(APValue &Result, Sema &S, EvalFn Evaluator,
-                            DiagFn Diagnoser, QualType ResultTy,
-                            SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_conversion_function(APValue &Result, ASTContext &C, MetaActions &Meta,
+                            EvalFn Evaluator, DiagFn Diagnoser,
+                            QualType ResultTy, SourceRange Range,
+                            ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4356,14 +4301,14 @@ bool is_conversion_function(APValue &Result, Sema &S, EvalFn Evaluator,
   if (RV.isReflectedDecl())
     IsConversion = isa<CXXConversionDecl>(RV.getReflectedDecl());
 
-  return SetAndSucceed(Result, makeBool(S.Context, IsConversion));
+  return SetAndSucceed(Result, makeBool(C, IsConversion));
 }
 
-bool is_operator_function(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+bool is_operator_function(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4374,14 +4319,14 @@ bool is_operator_function(APValue &Result, Sema &S, EvalFn Evaluator,
     if (auto *FD = dyn_cast<FunctionDecl>(RV.getReflectedDecl()))
       IsOperator = (FD->getOverloadedOperator() != OO_None);
 
-  return SetAndSucceed(Result, makeBool(S.Context, IsOperator));
+  return SetAndSucceed(Result, makeBool(C, IsOperator));
 }
 
-bool is_literal_operator(APValue &Result, Sema &S, EvalFn Evaluator,
-                         DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                         ArrayRef<Expr *> Args) {
+bool is_literal_operator(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4393,14 +4338,14 @@ bool is_literal_operator(APValue &Result, Sema &S, EvalFn Evaluator,
       IsLiteralOperator = FD->getDeclName().getNameKind() ==
                           DeclarationName::CXXLiteralOperatorName;
 
-  return SetAndSucceed(Result, makeBool(S.Context, IsLiteralOperator));
+  return SetAndSucceed(Result, makeBool(C, IsLiteralOperator));
 }
 
-bool is_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
-                    DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args) {
+bool is_constructor(APValue &Result, ASTContext &C, MetaActions &Meta,
+                    EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                    SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4416,20 +4361,21 @@ bool is_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Declaration: {
     bool result = isa<CXXConstructorDecl>(RV.getReflectedDecl());
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_default_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
-                            DiagFn Diagnoser, QualType ResultTy,
-                            SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_default_constructor(APValue &Result, ASTContext &C, MetaActions &Meta,
+                            EvalFn Evaluator, DiagFn Diagnoser,
+                            QualType ResultTy, SourceRange Range,
+                            ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4440,14 +4386,14 @@ bool is_default_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
     if (auto *CtorD = dyn_cast<CXXConstructorDecl>(RV.getReflectedDecl()))
       result = CtorD->isDefaultConstructor();
 
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_copy_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
-                         DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                         ArrayRef<Expr *> Args) {
+bool is_copy_constructor(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4458,14 +4404,14 @@ bool is_copy_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
     if (auto *CtorD = dyn_cast<CXXConstructorDecl>(RV.getReflectedDecl()))
       result = CtorD->isCopyConstructor();
 
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_move_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
-                         DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                         ArrayRef<Expr *> Args) {
+bool is_move_constructor(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4476,14 +4422,14 @@ bool is_move_constructor(APValue &Result, Sema &S, EvalFn Evaluator,
     if (auto *CtorD = dyn_cast<CXXConstructorDecl>(RV.getReflectedDecl()))
       result = CtorD->isMoveConstructor();
 
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_assignment(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                   QualType ResultTy, SourceRange Range,
-                   ArrayRef<Expr *> Args) {
+bool is_assignment(APValue &Result, ASTContext &C, MetaActions &Meta,
+                   EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                   SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4494,14 +4440,14 @@ bool is_assignment(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     if (auto *FD = dyn_cast<FunctionDecl>(RV.getReflectedDecl()))
       result = (FD->getOverloadedOperator() == OO_Equal);
 
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_copy_assignment(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args) {
+bool is_copy_assignment(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4512,14 +4458,14 @@ bool is_copy_assignment(APValue &Result, Sema &S, EvalFn Evaluator,
     if (auto *MD = dyn_cast<CXXMethodDecl>(RV.getReflectedDecl()))
       result = MD->isCopyAssignmentOperator();
 
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_move_assignment(APValue &Result, Sema &S, EvalFn Evaluator,
-                        DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                        ArrayRef<Expr *> Args) {
+bool is_move_assignment(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                        SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4530,14 +4476,14 @@ bool is_move_assignment(APValue &Result, Sema &S, EvalFn Evaluator,
     if (auto *MD = dyn_cast<CXXMethodDecl>(RV.getReflectedDecl()))
       result = MD->isMoveAssignmentOperator();
 
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_destructor(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                   QualType ResultTy, SourceRange Range,
-                   ArrayRef<Expr *> Args) {
+bool is_destructor(APValue &Result, ASTContext &C, MetaActions &Meta,
+                   EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                   SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4553,20 +4499,21 @@ bool is_destructor(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Declaration: {
     bool result = isa<CXXDestructorDecl>(RV.getReflectedDecl());
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_special_member_function(APValue &Result, Sema &S, EvalFn Evaluator,
+bool is_special_member_function(APValue &Result, ASTContext &C,
+                                MetaActions &Meta, EvalFn Evaluator,
                                 DiagFn Diagnoser, QualType ResultTy,
                                 SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4581,30 +4528,30 @@ bool is_special_member_function(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(S.Context, false));
+    return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Declaration: {
     bool IsSpecial = false;
     if (auto *FD = dyn_cast<FunctionDecl>(RV.getReflectedDecl()))
       IsSpecial = isSpecialMember(FD);
 
-    return SetAndSucceed(Result, makeBool(S.Context, IsSpecial));
+    return SetAndSucceed(Result, makeBool(C, IsSpecial));
   }
   case ReflectionKind::Template: {
     bool result = false;
     TemplateDecl *TDecl = RV.getReflectedTemplate().getAsTemplateDecl();
     if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TDecl))
       result = isSpecialMember(FTD->getTemplatedDecl());
-    return SetAndSucceed(Result, makeBool(S.Context, result));
+    return SetAndSucceed(Result, makeBool(C, result));
   }
   }
   llvm_unreachable("invalid reflection type");
 }
 
-bool is_user_provided(APValue &Result, Sema &S, EvalFn Evaluator,
-                      DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                      ArrayRef<Expr *> Args) {
+bool is_user_provided(APValue &Result, ASTContext &C, MetaActions &Meta,
+                      EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                      SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -4618,12 +4565,12 @@ bool is_user_provided(APValue &Result, Sema &S, EvalFn Evaluator,
                          FD->isDefaulted());
     }
 
-  return SetAndSucceed(Result, makeBool(S.Context, IsUserProvided));
+  return SetAndSucceed(Result, makeBool(C, IsUserProvided));
 }
 
-bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
-                    DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args) {
+bool reflect_result(APValue &Result, ASTContext &C, MetaActions &Meta,
+                    EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                    SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
 
   APValue ArgTy;
@@ -4640,17 +4587,15 @@ bool reflect_result(APValue &Result, Sema &S, EvalFn Evaluator,
   if (!Evaluator(Arg, Args[1], !IsLValue))
     return true;
 
-  Expr *OVE = new (S.Context) OpaqueValueExpr(Range.getBegin(),
-                                              Args[1]->getType(),
-                                              IsLValue ? VK_LValue :
-                                                         VK_PRValue);
-  Expr *CE = ConstantExpr::Create(S.Context, OVE, Arg);
+  Expr *OVE = new (C) OpaqueValueExpr(Range.getBegin(), Args[1]->getType(),
+                                      IsLValue ? VK_LValue : VK_PRValue);
+  Expr *CE = ConstantExpr::Create(C, OVE, Arg);
   {
     Expr::EvalResult Discarded;
     ConstantExprKind CEKind = CE->getType()->isClassType() ?
                               ConstantExprKind::ClassTemplateArgument :
                               ConstantExprKind::NonClassTemplateArgument;
-    if (!CE->EvaluateAsConstantExpr(Discarded, S.Context, CEKind))
+    if (!CE->EvaluateAsConstantExpr(Discarded, C, CEKind))
       return Diagnoser(Range.getBegin(), diag::metafn_result_not_representable)
           << (IsLValue ? 1 : 0) << Range;
   }
@@ -4698,7 +4643,8 @@ bool is_nonstatic_member_function(ValueDecl *FD) {
   return false;
 }
 
-CXXMethodDecl *getCXXMethodDeclFromDeclRefExpr(DeclRefExpr *DRE, Sema &S) {
+CXXMethodDecl *getCXXMethodDeclFromDeclRefExpr(DeclRefExpr *DRE,
+                                               ASTContext &C) {
   ValueDecl *VD = DRE->getDecl();
 
   if (auto *MD = dyn_cast<CXXMethodDecl>(VD)) {
@@ -4708,7 +4654,7 @@ CXXMethodDecl *getCXXMethodDeclFromDeclRefExpr(DeclRefExpr *DRE, Sema &S) {
     // pointer to non-static method
     // validation was done in is_nonstatic_member_function
     Expr::EvalResult ER;
-    if (!DRE->EvaluateAsRValue(ER, S.Context)) {
+    if (!DRE->EvaluateAsRValue(ER, C)) {
       return nullptr;
     }
 
@@ -4727,9 +4673,9 @@ CXXMethodDecl *getCXXMethodDeclFromDeclRefExpr(DeclRefExpr *DRE, Sema &S) {
   return nullptr;
 }
 
-bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
-                    DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args) {
+bool reflect_invoke(APValue &Result, ASTContext &C, MetaActions &Meta,
+                    EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                    SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
   assert(
       Args[1]->getType()->getPointeeOrArrayElementType()->isReflectionType());
@@ -4748,15 +4694,13 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
     size_t nArgs = Scratch.getInt().getExtValue();
     Out.reserve(nArgs);
     for (uint64_t k = 0; k < nArgs; ++k) {
-      llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
-      Expr *Synthesized = IntegerLiteral::Create(S.Context, Idx,
-                                                 S.Context.getSizeType(),
+      llvm::APInt Idx(C.getTypeSize(C.getSizeType()), k, false);
+      Expr *Synthesized = IntegerLiteral::Create(C, Idx, C.getSizeType(),
                                                  DataExpr->getExprLoc());
 
-      Synthesized = new (S.Context) ArraySubscriptExpr(DataExpr, Synthesized,
-                                                       S.Context.MetaInfoTy,
-                                                       VK_LValue, OK_Ordinary,
-                                                       Range.getBegin());
+      Synthesized = new (C) ArraySubscriptExpr(DataExpr, Synthesized,
+                                               C.MetaInfoTy, VK_LValue,
+                                               OK_Ordinary, Range.getBegin());
 
       if (Synthesized->isValueDependent() || Synthesized->isTypeDependent())
         return false;
@@ -4769,27 +4713,34 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
   };
 
-  TemplateArgumentListInfo ExplicitTAListInfo;
+  APValue FnRefl;
+  if (!Evaluator(FnRefl, Args[0], true))
+    return true;
+
   SmallVector<TemplateArgument, 4> ExplicitTArgs;
   {
     SmallVector<APValue, 4> Reflections;
     if (!UnpackReflectionsIntoVector(Reflections, Args[1], Args[2]))
       llvm_unreachable("failed to unpack template arguments from vector?");
 
-    SmallVector<TemplateArgument, 4> ExplicitTArgs;
+    if (Reflections.size() > 0 && !FnRefl.isReflectedTemplate())
+      return DiagnoseReflectionKind(Diagnoser, Range, "a template",
+                                    DescriptionOf(FnRefl));
+
+    SmallVector<TemplateArgument, 4> TArgs;
     for (APValue RV : Reflections) {
       if (!CanActAsTemplateArg(RV))
         return Diagnoser(Range.getBegin(), diag::metafn_cannot_be_arg)
             << DescriptionOf(RV) << 1 << Range;
 
-      TemplateArgument TArg = TArgFromReflection(S, Evaluator, RV,
+      TemplateArgument TArg = TArgFromReflection(C, Evaluator, RV,
                                                  Range.getBegin());
       if (TArg.isNull())
         llvm_unreachable("could not form template argument?");
-      ExplicitTArgs.push_back(TArg);
+      TArgs.push_back(TArg);
     }
 
-    ExplicitTAListInfo = addLocToTemplateArgs(S, ExplicitTArgs, Args[1]);
+    expandTemplateArgPacks(TArgs, ExplicitTArgs);
   }
 
   SmallVector<Expr *, 4> ArgExprs;
@@ -4800,24 +4751,23 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
 
     for (APValue RV : Reflections) {
       if (RV.isReflectedObject()) {
-        Expr *OVE = new (S.Context) OpaqueValueExpr(
-                Range.getBegin(), RV.getTypeOfReflectedResult(S.Context),
-                VK_LValue);
-        Expr *CE = ConstantExpr::Create(S.Context, OVE,
-                                        RV.getReflectedObject());
+        Expr *OVE = new (C) OpaqueValueExpr(Range.getBegin(),
+                                            RV.getTypeOfReflectedResult(C),
+                                            VK_LValue);
+        Expr *CE = ConstantExpr::Create(C, OVE, RV.getReflectedObject());
         ArgExprs.push_back(CE);
       } else if (RV.isReflectedValue()) {
-        Expr *OVE = new (S.Context) OpaqueValueExpr(
-                Range.getBegin(), RV.getTypeOfReflectedResult(S.Context),
-                VK_PRValue);
-        Expr *CE = ConstantExpr::Create(S.Context, OVE, RV.getReflectedValue());
+        Expr *OVE = new (C) OpaqueValueExpr(Range.getBegin(),
+                                            RV.getTypeOfReflectedResult(C),
+                                            VK_PRValue);
+        Expr *CE = ConstantExpr::Create(C, OVE, RV.getReflectedValue());
         ArgExprs.push_back(CE);
       } else if (RV.isReflectedDecl()) {
         ValueDecl *D = RV.getReflectedDecl();
         ArgExprs.push_back(
-              DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
-                                  SourceLocation(), D, false, Range.getBegin(),
-                                  D->getType(), VK_LValue, D, nullptr));
+              DeclRefExpr::Create(C, NestedNameSpecifierLoc(), SourceLocation(),
+                                  D, false, Range.getBegin(), D->getType(),
+                                  VK_LValue, D, nullptr));
       } else {
         return Diagnoser(Range.getBegin(), diag::metafn_cannot_be_arg)
             << DescriptionOf(RV) << 0 << Range;
@@ -4825,16 +4775,8 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
     }
   }
 
-  APValue Scratch;
-  if (!Evaluator(Scratch, Args[0], true))
-    return true;
-
-  if (ExplicitTAListInfo.size() > 0 && !Scratch.isReflectedTemplate())
-    return DiagnoseReflectionKind(Diagnoser, Range, "a template",
-                                  DescriptionOf(Scratch));
-
   Expr *FnRefExpr = nullptr;
-  switch (Scratch.getReflectionKind()) {
+  switch (FnRefl.getReflectionKind()) {
   case ReflectionKind::Null:
   case ReflectionKind::Type:
   case ReflectionKind::Namespace:
@@ -4842,114 +4784,98 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_invoke)
-        << DescriptionOf(Scratch) << Range;
+        << DescriptionOf(FnRefl) << Range;
   case ReflectionKind::Object: {
-    Expr *OVE = new (S.Context) OpaqueValueExpr(
-          Range.getBegin(), Scratch.getTypeOfReflectedResult(S.Context),
-          VK_LValue);
-    FnRefExpr = ConstantExpr::Create(S.Context, OVE,
-                                     Scratch.getReflectedObject());
+    Expr *OVE = new (C) OpaqueValueExpr(Range.getBegin(),
+                                        FnRefl.getTypeOfReflectedResult(C),
+                                        VK_LValue);
+    FnRefExpr = ConstantExpr::Create(C, OVE, FnRefl.getReflectedObject());
     break;
   }
   case ReflectionKind::Value: {
-    Expr *OVE = new (S.Context) OpaqueValueExpr(
-          Range.getBegin(), Scratch.getTypeOfReflectedResult(S.Context),
-          VK_PRValue);
-    FnRefExpr = ConstantExpr::Create(S.Context, OVE,
-                                     Scratch.getReflectedValue());
+    Expr *OVE = new (C) OpaqueValueExpr(Range.getBegin(),
+                                        FnRefl.getTypeOfReflectedResult(C),
+                                        VK_PRValue);
+    FnRefExpr = ConstantExpr::Create(C, OVE, FnRefl.getReflectedValue());
     break;
   }
   case ReflectionKind::Declaration: {
-    ValueDecl *D = Scratch.getReflectedDecl();
-    ensureInstantiated(S, D, Range);
+    ValueDecl *D = FnRefl.getReflectedDecl();
+    Meta.EnsureInstantiated(D, Range);
 
     FnRefExpr =
-          DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
-                              SourceLocation(), D, false, Range.getBegin(),
-                              D->getType(), VK_LValue, D, nullptr);
+          DeclRefExpr::Create(C, NestedNameSpecifierLoc(), SourceLocation(), D,
+                              false, Range.getBegin(), D->getType(), VK_LValue,
+                              D, nullptr);
     break;
   }
   case ReflectionKind::Template: {
-    TemplateDecl *TDecl = Scratch.getReflectedTemplate().getAsTemplateDecl();
+    TemplateDecl *TDecl = FnRefl.getReflectedTemplate().getAsTemplateDecl();
     auto *FTD = dyn_cast<FunctionTemplateDecl>(TDecl);
     if (!FTD) {
       return Diagnoser(Range.getBegin(), diag::metafn_cannot_invoke)
-          << DescriptionOf(Scratch) << Range;
+          << DescriptionOf(FnRefl) << Range;
     }
 
-    FunctionDecl *Specialization;
+    FunctionDecl *Spec;
     {
-      sema::TemplateDeductionInfo Info(Args[0]->getExprLoc(),
-                                       FTD->getTemplateDepth());
-
       bool exclude_first_arg =
           is_nonstatic_member_function(FTD->getTemplatedDecl()) &&
           ArgExprs.size() > 0;
 
-      TemplateDeductionResult Result = S.DeduceTemplateArguments(
-          FTD, &ExplicitTAListInfo,
-          ArrayRef(ArgExprs.begin() + (exclude_first_arg ? 1 : 0),
-                   ArgExprs.end()),
-          Specialization, Info, false, true, QualType(), Expr::Classification(),
-          [](ArrayRef<QualType>) { return false; });
-      if (Result != TemplateDeductionResult::Success)
+      SmallVector<TemplateArgument, 4> ExpandedTArgs;
+      expandTemplateArgPacks(ExplicitTArgs, ExpandedTArgs);
+
+      ArrayRef ArgView(ArgExprs.begin() + (exclude_first_arg ? 1 : 0),
+                       ArgExprs.end());
+
+      Spec = Meta.DeduceSpecialization(FTD, ExpandedTArgs, ArgView,
+                                       Range.getBegin());
+      if (!Spec)
         return Diagnoser(Range.getBegin(), diag::metafn_no_specialization_found)
             << FTD << Range;
-      ensureInstantiated(S, Specialization, Range);
-    }
-    assert(Specialization && "no specialization found?");
 
-    FnRefExpr =
-          DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
-                              SourceLocation(), Specialization, false,
-                              Range.getBegin(), Specialization->getType(),
-                              VK_LValue, Specialization, nullptr);
+      Meta.EnsureInstantiated(Spec, Range);
+    }
+
+    FnRefExpr = DeclRefExpr::Create(C, NestedNameSpecifierLoc(),
+                                    SourceLocation(), Spec, false,
+                                    Range.getBegin(), Spec->getType(),
+                                    VK_LValue, Spec, nullptr);
     break;
   }
   }
 
-  ExprResult ER;
+  Expr* CallExpr;
   {
-    EnterExpressionEvaluationContext Context(
-        S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-
     auto *DRE = dyn_cast<DeclRefExpr>(FnRefExpr);
     if (DRE && dyn_cast<CXXConstructorDecl>(DRE->getDecl())) {
-      auto *CtorD = cast<CXXConstructorDecl>(DRE->getDecl());
-      ER = S.BuildCXXConstructExpr(
-          Range.getBegin(), QualType(CtorD->getParent()->getTypeForDecl(), 0),
-          CtorD, false, ArgExprs, false, false, false, false,
-          CXXConstructionKind::Complete, Range);
+      CallExpr = Meta.SynthesizeCallExpr(DRE, ArgExprs);
     } else {
       Expr *FnExpr = FnRefExpr;
       bool handle_member_func =
           DRE && is_nonstatic_member_function(DRE->getDecl());
 
       if (handle_member_func) {
-
-        if (ArgExprs.size() < 1) {
+        if (ArgExprs.size() < 1)
           // need to have object as a first argument
           return Diagnoser(Range.getBegin(),
                            diag::metafn_first_argument_is_not_object)
                  << Range;
-        }
 
         Expr *ObjExpr = ArgExprs[0];
         QualType ObjType = ObjExpr->getType();
 
         if (ObjType->isPointerType()) {
           ObjType = ObjType->getPointeeType();
-          // convert lvalue to rvalue if needed
-          // since Sema::BuildMemberExpr inside Sema::ActOnMemberAccessExpr
-          // expects prvalue
+          // Convert pointer to rvalue (if needed).
           APValue Val;
           if (!Evaluator(Val, ObjExpr, true))
             return true;
 
-          ObjExpr = new (S.Context) OpaqueValueExpr(Range.getBegin(),
-                                                    ObjExpr->getType(),
-                                                    VK_PRValue);
-          ObjExpr = ConstantExpr::Create(S.Context, ObjExpr, Val);
+          ObjExpr = new (C) OpaqueValueExpr(Range.getBegin(),
+                                            ObjExpr->getType(), VK_PRValue);
+          ObjExpr = ConstantExpr::Create(C, ObjExpr, Val);
         }
 
         if (!ObjType->getAsCXXRecordDecl()) {
@@ -4959,7 +4885,7 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
                  << Range;
         }
 
-        CXXMethodDecl *MD = getCXXMethodDeclFromDeclRefExpr(DRE, S);
+        CXXMethodDecl *MD = getCXXMethodDeclFromDeclRefExpr(DRE, C);
         if (!MD) {
           // most likely, non-constexpr pointer to method was passed
           return true;
@@ -4987,57 +4913,40 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
                  << Range;
         }
 
-        SourceLocation PlaceholderLoc;
-        // Hack below is needed to prevent lookup or overload resolution of
-        // given method reflection. Because this problem has been solved before
-        // for splice expressions, wrap our decl ref into splice expr and reuse
-        // specific overload of Sema::ActOnMemberAccessExpr
-        auto MethodAsSpliceExpr = CXXSpliceExpr::Create(
-            S.Context, DRE->getValueKind(), PlaceholderLoc, PlaceholderLoc, DRE,
-            PlaceholderLoc, &ExplicitTAListInfo,
-            /* this arg is not used */ false);
+        SmallVector<TemplateArgument, 4> ExpandedTArgs;
+        expandTemplateArgPacks(ExplicitTArgs, ExpandedTArgs);
 
-        SourceLocation ObjLoc = ObjExpr->getExprLoc();
-        ExprResult MemberAccessResult = S.ActOnMemberAccessExpr(
-            S.getCurScope(), ObjExpr, ObjLoc,
-            ObjExpr->getType()->isPointerType() ? tok::arrow : tok::period,
-            MethodAsSpliceExpr, PlaceholderLoc);
-
-        if (MemberAccessResult.isInvalid()) {
+        FnExpr = Meta.SynthesizeDirectMemberAccess(ObjExpr, DRE, ExpandedTArgs,
+                                             Range.getBegin());
+        if (!FnExpr)
           return true;
-        }
-
-        FnExpr = MemberAccessResult.get();
       }
 
-      ER = S.ActOnCallExpr(
-          S.getCurScope(), FnExpr, Range.getBegin(),
-          MutableArrayRef(ArgExprs.begin() + (handle_member_func ? 1 : 0),
-                          ArgExprs.end()),
-          Range.getEnd(), /*ExecConfig=*/nullptr);
+      MutableArrayRef<Expr *> ArgView(
+            ArgExprs.begin() + (handle_member_func ? 1 : 0), ArgExprs.end());
+      CallExpr = Meta.SynthesizeCallExpr(FnExpr, ArgView);
     }
   }
 
-  if (ER.isInvalid())
+  if (!CallExpr)
     return Diagnoser(Range.getBegin(), diag::metafn_invalid_call_expr) << Range;
-  Expr *ResultExpr = ER.get();
 
-  if (ResultExpr->isTypeDependent() || ResultExpr->isValueDependent())
+  if (CallExpr->isTypeDependent() || CallExpr->isValueDependent())
     return true;
 
-  if (!ResultExpr->getType()->isStructuralType() && !ResultExpr->isLValue())
+  if (!CallExpr->getType()->isStructuralType() && !CallExpr->isLValue())
     return Diagnoser(Range.getBegin(), diag::metafn_returns_non_structural_type)
-        << ResultExpr->getType() << Range;
+        << CallExpr->getType() << Range;
 
   Expr::EvalResult EvalResult;
-  if (!ResultExpr->EvaluateAsConstantExpr(EvalResult, S.Context))
+  if (!CallExpr->EvaluateAsConstantExpr(EvalResult, C))
     return Diagnoser(Range.getBegin(),
                      diag::metafn_invocation_not_constant_expr)
         << Range;
 
   // If this is an lvalue to a function, promote the result to reflect
   // the declaration.
-  if (ResultExpr->getType()->isFunctionType() &&
+  if (CallExpr->getType()->isFunctionType() &&
       EvalResult.Val.getKind() == APValue::LValue &&
       EvalResult.Val.getLValueOffset().isZero())
     if (!EvalResult.Val.hasLValuePath() ||
@@ -5049,12 +4958,12 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
               makeReflection(
                   const_cast<ValueDecl *>(LVBase.get<const ValueDecl *>())));
 
-  return SetAndSucceed(Result, EvalResult.Val.Lift(ResultExpr->getType()));
+  return SetAndSucceed(Result, EvalResult.Val.Lift(CallExpr->getType()));
 }
 
-bool data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
-                      DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                      ArrayRef<Expr *> Args) {
+bool data_member_spec(APValue &Result, ASTContext &C, MetaActions &Meta,
+                      EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                      SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
 
   APValue Scratch;
@@ -5085,15 +4994,13 @@ bool data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
 
     // Evaluate the data contents.
     for (uint64_t k = 0; k < nameLen; ++k) {
-      llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
-      Expr *Synthesized = IntegerLiteral::Create(S.Context, Idx,
-                                                 S.Context.getSizeType(),
+      llvm::APInt Idx(C.getTypeSize(C.getSizeType()), k, false);
+      Expr *Synthesized = IntegerLiteral::Create(C, Idx, C.getSizeType(),
                                                  Args[ArgIdx]->getExprLoc());
 
-      Synthesized = new (S.Context) ArraySubscriptExpr(Args[ArgIdx],
-                                                       Synthesized, CharTy,
-                                                       VK_LValue, OK_Ordinary,
-                                                       Range.getBegin());
+      Synthesized = new (C) ArraySubscriptExpr(Args[ArgIdx], Synthesized,
+                                               CharTy, VK_LValue, OK_Ordinary,
+                                               Range.getBegin());
       if (Synthesized->isValueDependent() || Synthesized->isTypeDependent())
         return true;
 
@@ -5109,8 +5016,8 @@ bool data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
 
   // Validate the name as an identifier.
   if (Name) {
-    Lexer Lex(Range.getBegin(), S.Context.getLangOpts(), Name->data(),
-              Name->data(), Name->data() + Name->size(), false);
+    Lexer Lex(Range.getBegin(), C.getLangOpts(), Name->data(), Name->data(),
+              Name->data() + Name->size(), false);
     if (!Lex.validateIdentifier(*Name))
       return Diagnoser(Range.getBegin(), diag::metafn_name_invalid_identifier)
           << *Name << Range;
@@ -5156,14 +5063,15 @@ bool data_member_spec(APValue &Result, Sema &S, EvalFn Evaluator,
   bool NoUniqueAddress = Scratch.getInt().getBoolValue();
   ArgIdx++;
 
-  TagDataMemberSpec *TDMS = new (S.Context) TagDataMemberSpec {
+  TagDataMemberSpec *TDMS = new (C) TagDataMemberSpec {
     MemberTy, Name, Alignment, BitWidth, NoUniqueAddress
   };
   return SetAndSucceed(Result, makeReflection(TDMS));
 }
 
-bool define_class(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                  QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool define_class(APValue &Result, ASTContext &C, MetaActions &Meta,
+                  EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                  SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
 
   APValue Scratch;
@@ -5174,245 +5082,55 @@ bool define_class(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
                                   DescriptionOf(Scratch));
 
   QualType ToComplete = Scratch.getReflectedType();
-  TagDecl *OGTag, *Tag;
+  CXXRecordDecl *IncompleteDecl;
   {
     NamedDecl *ND;
     if (!ToComplete->isIncompleteType(&ND))
       return Diagnoser(Range.getBegin(), diag::metafn_already_complete_type)
         << ToComplete << Range;
-    OGTag = Tag = cast<TagDecl>(ND);
+    IncompleteDecl = cast<CXXRecordDecl>(ND);
   }
-
-  unsigned TypeSpec = TST_struct;
-  if (Tag->getTagKind() == TagTypeKind::Class)
-    TypeSpec = TST_class;
-  else if (Tag->getTagKind() == TagTypeKind::Union)
-    TypeSpec = TST_union;
-
-  TypeResult TR;
-  SmallVector<TemplateParameterList *, 1> MTP;
-
-  DeclContext *OGDC = S.CurContext;
-  Scope ClsScope(S.getCurScope(), Scope::ClassScope | Scope::DeclScope,
-                 S.Diags);
-  ClsScope.setEntity(OGTag->getDeclContext());
-
-  S.CurContext = OGTag->getDeclContext();
-  auto RestoreDC = [&]() { S.CurContext = OGDC; };
-
-  CXXScopeSpec SS;
-
-  bool OwnedDecl = true, IsDependent = false;
-  DeclResult DR;
-  if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(OGTag)) {
-    SmallVector<TemplateIdAnnotation *, 1> CleanupList;
-
-    TemplateName TDecl(CTSD->getSpecializedTemplate());
-    ParsedTemplateTy ParsedTemplate = ParsedTemplateTy::make(TDecl);
-
-
-    SmallVector<TemplateArgument, 4> TArgs;
-    expandTemplateArgPacks(CTSD->getTemplateArgs().asArray(), TArgs);
-
-    SmallVector<ParsedTemplateArgument, 2> ParsedArgs;
-    for (const TemplateArgument &TArg : TArgs) {
-      switch (TArg.getKind()) {
-      case TemplateArgument::Type:
-        ParsedArgs.emplace_back(ParsedTemplateArgument::Type,
-                                TArg.getAsType().getAsOpaquePtr(),
-                                SourceLocation());
-        break;
-      case TemplateArgument::Integral: {
-        IntegerLiteral *IL = IntegerLiteral::Create(S.Context,
-                                                    TArg.getAsIntegral(),
-                                                    TArg.getIntegralType(),
-                                                    Range.getBegin());
-        ParsedArgs.emplace_back(ParsedTemplateArgument::NonType, IL,
-                                SourceLocation());
-        break;
-      }
-      case TemplateArgument::Template: {
-        ParsedTemplateTy Parsed = ParsedTemplateTy::make(TArg.getAsTemplate());
-        ParsedArgs.emplace_back(SS, Parsed, SourceLocation());
-        break;
-      }
-      default:
-        llvm_unreachable("unimplemented");
-      }
-    }
-
-    TemplateIdAnnotation *TAnnot = TemplateIdAnnotation::Create(
-          SourceLocation(), SourceLocation(), OGTag->getIdentifier(), OO_None,
-          ParsedTemplate, TNK_Type_template, SourceLocation(), SourceLocation(),
-          ParsedArgs, false, CleanupList);
-
-    MTP.push_back(S.ActOnTemplateParameterList(0, SourceLocation(),
-                  SourceLocation(), SourceLocation(), std::nullopt,
-                  SourceLocation(), nullptr));
-    DR = S.ActOnClassTemplateSpecialization(
-          &ClsScope, TypeSpec, TagUseKind::Definition, Args[0]->getBeginLoc(),
-          SourceLocation(), SS, *TAnnot, ParsedAttributesView::none(), MTP,
-          nullptr);
-    MTP.clear();
-
-    for (auto *TAnnot : CleanupList)
-      TAnnot->Destroy();
-  } else {
-    // If necessary, inject the tag declaration that is to be completed into the
-    // current scope. This is needed to ensure that the created Decl is
-    // constructed as a redeclaration of the provided incomplete Decl.
-    //
-    // A more robust design might allow 'ActOnTag' to take a 'PrevDecl' as an
-    // input, rather than require that it be found by name lookup.
-    bool InjectDecl = true;
-    for (Scope *Sc = S.getCurScope(); Sc; Sc = Sc->getParent())
-      if (Sc->isDeclScope(OGTag)) {
-        InjectDecl = false;
-        break;
-      }
-    if (InjectDecl) {
-      S.getCurScope()->AddDecl(OGTag);
-      S.IdResolver.AddDecl(OGTag);
-    }
-
-    // Create the new tag in the current scope.
-    DR = S.ActOnTag(S.getCurScope(), TypeSpec, TagUseKind::Definition,
-                    Args[0]->getBeginLoc(), SS, Tag->getIdentifier(),
-                    Tag->getBeginLoc(), ParsedAttributesView::none(),
-                    AS_none, SourceLocation(), MTP, OwnedDecl, IsDependent,
-                    SourceLocation(), false, TR, false, false,
-                    Sema::OOK_Outside, nullptr);
-
-    // The new tag -should- declare the same entity as the original tag.
-    assert(declaresSameEntity(OGTag, Tag) &&
-         "New tag should declare same entity as original tag (scope problem?)");
-  }
-  if (DR.isInvalid()) {
-    RestoreDC();
-    return true;
-  }
-  Tag = cast<TagDecl>(DR.get());
-
-  S.ActOnTagStartDefinition(&ClsScope, Tag);
-  S.ActOnStartCXXMemberDeclarations(&ClsScope, Tag, SourceLocation(),
-                                    false, false, SourceLocation());
 
   // Evaluate the number of members provided.
-  if (!Evaluator(Scratch, Args[1], true)) {
-    RestoreDC();
+  if (!Evaluator(Scratch, Args[1], true))
     return true;
-  }
   size_t NumMembers = static_cast<size_t>(Scratch.getInt().getExtValue());
 
-  AccessSpecifier MemberAS = (Tag->isClass() ? AS_private : AS_public);
-
-  // Iterate over members, and add them to the class definition.
-  size_t anonMemCtr = 0;
+  SmallVector<TagDataMemberSpec *, 4> MemberSpecs;
   for (size_t k = 0; k < NumMembers; ++k) {
     // Extract the reflection from the list of member specs.
-    llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
-    Expr *Synthesized = IntegerLiteral::Create(S.Context, Idx,
-                                               S.Context.getSizeType(),
+    llvm::APInt Idx(C.getTypeSize(C.getSizeType()), k, false);
+    Expr *Synthesized = IntegerLiteral::Create(C, Idx, C.getSizeType(),
                                                Args[2]->getExprLoc());
 
-    Synthesized = new (S.Context) ArraySubscriptExpr(Args[2], Synthesized,
-                                                     S.Context.MetaInfoTy,
-                                                     VK_LValue, OK_Ordinary,
-                                                     Range.getBegin());
-    if (Synthesized->isValueDependent() || Synthesized->isTypeDependent()) {
-      RestoreDC();
+    Synthesized = new (C) ArraySubscriptExpr(Args[2], Synthesized, C.MetaInfoTy,
+                                             VK_LValue, OK_Ordinary,
+                                             Range.getBegin());
+    if (Synthesized->isValueDependent() || Synthesized->isTypeDependent())
       return true;
-    }
 
     if (!Evaluator(Scratch, Synthesized, true))
       return true;
-    if (!Scratch.isReflectedDataMemberSpec()) {
-      RestoreDC();
+    if (!Scratch.isReflectedDataMemberSpec())
       return DiagnoseReflectionKind(Diagnoser, Range,
                                     "a description of a data member",
                                     DescriptionOf(Scratch));
-    }
-    TagDataMemberSpec *TDMS = Scratch.getReflectedDataMemberSpec();
-
-
-    // Build the member declaration from the extracted TagDataMemberSpec.
-    unsigned DiagID;
-    const char *PrevSpec;
-    AttributeFactory AttrFactory;
-    AttributePool AttrPool(AttrFactory);
-    DeclSpec DS(AttrFactory);
-    DS.SetStorageClassSpec(S, DeclSpec::SCS_unspecified,
-                           Args[0]->getBeginLoc(),
-                           PrevSpec, DiagID, S.Context.getPrintingPolicy());
-
-    ParsedType MemberTy = ParsedType::make(TDMS->Ty);
-    DS.SetTypeSpecType(TST_typename, Args[0]->getBeginLoc(), PrevSpec, DiagID,
-                       MemberTy, S.Context.getPrintingPolicy());
-
-    // Add any attributes (i.e., 'AlignAttr' if alignment is specified).
-    ParsedAttributesView MemberAttrs;
-    if (TDMS->Alignment) {
-      IdentifierInfo &AttrII = S.Context.Idents.get("alignas");
-
-      IntegerLiteral *IL = IntegerLiteral::Create(
-              S.Context,
-              llvm::APSInt::getUnsigned(TDMS->Alignment.value()),
-              S.Context.getSizeType(),
-              Range.getBegin());
-
-      ArgsUnion Args(IL);
-      ParsedAttr::Form Form(tok::kw_alignas);
-      ParsedAttr *Attr = AttrPool.create(&AttrII, Range, nullptr,
-                                         SourceLocation(), &Args, 1, Form);
-      MemberAttrs.addAtEnd(Attr);
-    }
-    if (TDMS->NoUniqueAddress) {
-      IdentifierInfo &AttrII = S.Context.Idents.get("no_unique_address");
-      ParsedAttr *Attr = AttrPool.create(&AttrII, Range, nullptr,
-                                         SourceLocation(), nullptr, 0,
-                                         ParsedAttr::Form::CXX11());
-      MemberAttrs.addAtEnd(Attr);
-    }
-
-    Declarator MemberDeclarator(DS, MemberAttrs, DeclaratorContext::Member);
-
-    if (!TDMS->BitWidth || *TDMS->BitWidth > 0) {
-      std::string MemberName = TDMS->Name.value_or(
-              "__" + llvm::toString(llvm::APSInt::get(anonMemCtr++), 10));
-      IdentifierInfo &II = S.Context.Idents.get(MemberName);
-      MemberDeclarator.SetIdentifier(&II, Tag->getBeginLoc());
-    }
-
-    // Create an expression for bit width, if specified.
-    Expr *BitWidthCE = nullptr;
-    if (TDMS->BitWidth) {
-      BitWidthCE = IntegerLiteral::Create(
-              S.Context,
-              llvm::APSInt::getUnsigned(TDMS->BitWidth.value()),
-              S.Context.getSizeType(),
-              Range.getBegin());
-    }
-
-    VirtSpecifiers VS;
-    S.ActOnCXXMemberDeclarator(&ClsScope, MemberAS, MemberDeclarator, MTP,
-                               BitWidthCE, VS, ICIS_NoInit);
+    MemberSpecs.push_back(Scratch.getReflectedDataMemberSpec());
   }
 
-  S.ActOnFinishCXXMemberSpecification(&ClsScope, Tag->getBeginLoc(), Tag,
-                                      SourceLocation(), SourceLocation(),
-                                      ParsedAttributesView::none());
+  CXXRecordDecl *Definition = Meta.DefineClass(IncompleteDecl, MemberSpecs,
+                                               Range.getBegin());
+  if (!Definition)
+    return true;
 
-  S.ActOnTagFinishDefinition(&ClsScope, Tag, Args[0]->getSourceRange());
-  S.ActOnPopScope(Range.getEnd(), &ClsScope);
-
-  RestoreDC();
   return SetAndSucceed(Result, makeReflection(ToComplete));
 }
 
-bool offset_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-               QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool offset_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+               EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+               SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.getSizeType());
+  assert(ResultTy == C.getSizeType());
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -5432,11 +5150,9 @@ bool offset_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
                                   DescriptionOf(RV));
   case ReflectionKind::Declaration: {
     if (const FieldDecl *FD = dyn_cast<FieldDecl>(RV.getReflectedDecl())) {
-      size_t Offset = getBitOffsetOfField(S.Context, FD) /
-                      S.Context.getTypeSize(S.Context.CharTy);
-      return SetAndSucceed(
-              Result,
-              APValue(S.Context.MakeIntValue(Offset, S.Context.getSizeType())));
+      size_t Offset = getBitOffsetOfField(C, FD) / C.getTypeSize(C.CharTy);
+      return SetAndSucceed(Result,
+                           APValue(C.MakeIntValue(Offset, C.getSizeType())));
     }
     return DiagnoseReflectionKind(Diagnoser, Range, "a non-static data member",
                                   DescriptionOf(RV));
@@ -5445,10 +5161,11 @@ bool offset_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool size_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-             QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool size_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+             EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+             SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.getSizeType());
+  assert(ResultTy == C.getSizeType());
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -5461,32 +5178,24 @@ bool size_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
       return Diagnoser(Range.getBegin(), diag::metafn_cannot_introspect_type)
           << 4 << 0 << Range;
 
-    size_t Sz = S.Context.getTypeSizeInChars(QT).getQuantity();
-    return SetAndSucceed(
-            Result,
-            APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
+    size_t Sz = C.getTypeSizeInChars(QT).getQuantity();
+    return SetAndSucceed(Result, APValue(C.MakeIntValue(Sz, C.getSizeType())));
   }
   case ReflectionKind::Object:
   case ReflectionKind::Value: {
-    QualType QT = RV.getTypeOfReflectedResult(S.Context);
-    size_t Sz = S.Context.getTypeSizeInChars(QT).getQuantity();
-    return SetAndSucceed(
-            Result,
-            APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
+    QualType QT = RV.getTypeOfReflectedResult(C);
+    size_t Sz = C.getTypeSizeInChars(QT).getQuantity();
+    return SetAndSucceed(Result, APValue(C.MakeIntValue(Sz, C.getSizeType())));
   }
   case ReflectionKind::Declaration: {
     ValueDecl *VD = RV.getReflectedDecl();
-    size_t Sz = S.Context.getTypeSizeInChars(VD->getType()).getQuantity();
-    return SetAndSucceed(
-            Result,
-            APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
+    size_t Sz = C.getTypeSizeInChars(VD->getType()).getQuantity();
+    return SetAndSucceed(Result, APValue(C.MakeIntValue(Sz, C.getSizeType())));
   }
   case ReflectionKind::DataMemberSpec: {
     TagDataMemberSpec *TDMS = RV.getReflectedDataMemberSpec();
-    size_t Sz = S.Context.getTypeSizeInChars(TDMS->Ty).getQuantity();
-    return SetAndSucceed(
-            Result,
-            APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
+    size_t Sz = C.getTypeSizeInChars(TDMS->Ty).getQuantity();
+    return SetAndSucceed(Result, APValue(C.MakeIntValue(Sz, C.getSizeType())));
   }
   case ReflectionKind::Null:
   case ReflectionKind::Template:
@@ -5499,11 +5208,11 @@ bool size_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool bit_offset_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                   QualType ResultTy, SourceRange Range,
-                   ArrayRef<Expr *> Args) {
+bool bit_offset_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                   EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                   SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.getSizeType());
+  assert(ResultTy == C.getSizeType());
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -5523,11 +5232,9 @@ bool bit_offset_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
                                   DescriptionOf(RV));
   case ReflectionKind::Declaration: {
     if (FieldDecl *FD = dyn_cast<FieldDecl>(RV.getReflectedDecl())) {
-      size_t Offset = getBitOffsetOfField(S.Context, FD) %
-                      S.Context.getTypeSize(S.Context.CharTy);
-      return SetAndSucceed(
-              Result,
-              APValue(S.Context.MakeIntValue(Offset, S.Context.getSizeType())));
+      size_t Offset = getBitOffsetOfField(C, FD) % C.getTypeSize(C.CharTy);
+      return SetAndSucceed(Result, APValue(C.MakeIntValue(Offset,
+                                                          C.getSizeType())));
     }
     return DiagnoseReflectionKind(Diagnoser, Range, "a non-static data member",
                                   DescriptionOf(RV));
@@ -5536,10 +5243,11 @@ bool bit_offset_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool bit_size_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                 QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool bit_size_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                 EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                 SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.getSizeType());
+  assert(ResultTy == C.getSizeType());
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -5552,37 +5260,29 @@ bool bit_size_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
       return Diagnoser(Range.getBegin(), diag::metafn_cannot_introspect_type)
           << 4 << 0 << Range;
 
-    size_t Sz = S.Context.getTypeSize(QT);
-    return SetAndSucceed(
-            Result,
-            APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
+    size_t Sz = C.getTypeSize(QT);
+    return SetAndSucceed(Result, APValue(C.MakeIntValue(Sz, C.getSizeType())));
   }
   case ReflectionKind::Object:
   case ReflectionKind::Value: {
-    size_t Sz = S.Context.getTypeSize(RV.getTypeOfReflectedResult(S.Context));
-    return SetAndSucceed(
-            Result,
-            APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
+    size_t Sz = C.getTypeSize(RV.getTypeOfReflectedResult(C));
+    return SetAndSucceed(Result, APValue(C.MakeIntValue(Sz, C.getSizeType())));
   }
   case ReflectionKind::Declaration: {
     const ValueDecl *VD = cast<ValueDecl>(RV.getReflectedDecl());
-    size_t Sz = S.Context.getTypeSize(VD->getType());
+    size_t Sz = C.getTypeSize(VD->getType());
 
     if (const FieldDecl *FD = dyn_cast<const FieldDecl>(VD))
       if (FD->isBitField())
-        Sz = FD->getBitWidthValue(S.Context);
+        Sz = FD->getBitWidthValue(C);
 
-    return SetAndSucceed(
-            Result,
-            APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
+    return SetAndSucceed(Result, APValue(C.MakeIntValue(Sz, C.getSizeType())));
   }
   case ReflectionKind::DataMemberSpec: {
     TagDataMemberSpec *TDMS = RV.getReflectedDataMemberSpec();
 
-    size_t Sz = TDMS->BitWidth.value_or(S.Context.getTypeSize(TDMS->Ty));
-    return SetAndSucceed(
-            Result,
-            APValue(S.Context.MakeIntValue(Sz, S.Context.getSizeType())));
+    size_t Sz = TDMS->BitWidth.value_or(C.getTypeSize(TDMS->Ty));
+    return SetAndSucceed(Result, APValue(C.MakeIntValue(Sz, C.getSizeType())));
   }
 
   case ReflectionKind::Null:
@@ -5596,11 +5296,11 @@ bool bit_size_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                  QualType ResultTy, SourceRange Range,
-                  ArrayRef<Expr *> Args) {
+bool alignment_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                  EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                  SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.getSizeType());
+  assert(ResultTy == C.getSizeType());
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -5613,32 +5313,29 @@ bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
       return Diagnoser(Range.getBegin(), diag::metafn_cannot_introspect_type)
           << 3 << 0 << Range;
 
-    size_t Align = S.Context.getTypeAlignInChars(QT).getQuantity();
-    return SetAndSucceed(
-            Result,
-            APValue(S.Context.MakeIntValue(Align, S.Context.getSizeType())));
+    size_t Align = C.getTypeAlignInChars(QT).getQuantity();
+    return SetAndSucceed(Result,
+                         APValue(C.MakeIntValue(Align, C.getSizeType())));
   }
   case ReflectionKind::Object:
   case ReflectionKind::Value: {
-    QualType QT = RV.getTypeOfReflectedResult(S.Context);
-    size_t Align = S.Context.getTypeAlignInChars(QT).getQuantity();
-    return SetAndSucceed(
-            Result,
-            APValue(S.Context.MakeIntValue(Align, S.Context.getSizeType())));
+    QualType QT = RV.getTypeOfReflectedResult(C);
+    size_t Align = C.getTypeAlignInChars(QT).getQuantity();
+    return SetAndSucceed(Result,
+                         APValue(C.MakeIntValue(Align, C.getSizeType())));
   }
   case ReflectionKind::Declaration: {
     const ValueDecl *VD = cast<ValueDecl>(RV.getReflectedDecl());
-    size_t Align = S.Context.getTypeAlignInChars(VD->getType()).getQuantity();
+    size_t Align = C.getTypeAlignInChars(VD->getType()).getQuantity();
 
     if (const FieldDecl *FD = dyn_cast<const FieldDecl>(VD)) {
       if (FD->isBitField())
         return true;
     }
-    Align = S.Context.getDeclAlign(VD, true).getQuantity();
+    Align = C.getDeclAlign(VD, true).getQuantity();
 
-    return SetAndSucceed(
-            Result,
-            APValue(S.Context.MakeIntValue(Align, S.Context.getSizeType())));
+    return SetAndSucceed(Result,
+                         APValue(C.MakeIntValue(Align, C.getSizeType())));
   }
   case ReflectionKind::DataMemberSpec: {
     TagDataMemberSpec *TDMS = RV.getReflectedDataMemberSpec();
@@ -5646,11 +5343,10 @@ bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
       return true;
 
     size_t Align = TDMS->Alignment.value_or(
-          S.Context.getTypeAlignInChars(TDMS->Ty).getQuantity());
+          C.getTypeAlignInChars(TDMS->Ty).getQuantity());
 
-    return SetAndSucceed(
-            Result,
-            APValue(S.Context.MakeIntValue(Align, S.Context.getSizeType())));
+    return SetAndSucceed(Result,
+                         APValue(C.MakeIntValue(Align, C.getSizeType())));
   }
   case ReflectionKind::Null:
   case ReflectionKind::Template:
@@ -5663,8 +5359,8 @@ bool alignment_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool define_static_string(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+bool define_static_string(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
   assert(Args[1]->getType()->isReflectionType());
@@ -5685,15 +5381,13 @@ bool define_static_string(APValue &Result, Sema &S, EvalFn Evaluator,
 
   // Evaluate the given name. Miserably inefficient, but gets the job done.
   for (uint64_t k = 0; k < Length; ++k) {
-    llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
-    Expr *Synthesized = IntegerLiteral::Create(S.Context, Idx,
-                                               S.Context.getSizeType(),
+    llvm::APInt Idx(C.getTypeSize(C.getSizeType()), k, false);
+    Expr *Synthesized = IntegerLiteral::Create(C, Idx, C.getSizeType(),
                                                Args[3]->getExprLoc());
 
-    Synthesized = new (S.Context) ArraySubscriptExpr(Args[3],
-                                                     Synthesized, CharTy,
-                                                     VK_LValue, OK_Ordinary,
-                                                     Range.getBegin());
+    Synthesized = new (C) ArraySubscriptExpr(Args[3], Synthesized, CharTy,
+                                             VK_LValue, OK_Ordinary,
+                                             Range.getBegin());
     if (Synthesized->isValueDependent() || Synthesized->isTypeDependent())
       return true;
 
@@ -5707,15 +5401,14 @@ bool define_static_string(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
   bool IsUtf8 = Scratch.getInt().getBoolValue();
 
-  VarDecl *AnonArr = S.Context.getGeneratedCharArray(Contents, IsUtf8);
+  VarDecl *AnonArr = C.getGeneratedCharArray(Contents, IsUtf8);
   if (!AnonArr->hasInit()) {
-    Expr *StrLit = makeStrLiteral(Contents, S.Context, IsUtf8);
+    Expr *StrLit = makeStrLiteral(Contents, C, IsUtf8);
 
     AnonArr->setConstexpr(true);
-    S.AddInitializerToDecl(AnonArr, StrLit, false);
+    Meta.AttachInitializer(AnonArr, StrLit);
 
-    DeclGroupRef DG(AnonArr);
-    S.Consumer.HandleTopLevelDecl(DG);
+    Meta.BroadcastInjectedDecl(AnonArr);
   }
   assert(AnonArr->getFormalLinkage() == Linkage::Internal);
 
@@ -5724,8 +5417,8 @@ bool define_static_string(APValue &Result, Sema &S, EvalFn Evaluator,
                        APValue(AnonArr, CharUnits::Zero(), Path, false));
 }
 
-bool define_static_array(APValue &Result, Sema &S, EvalFn Evaluator,
-                         DiagFn Diagnoser, QualType ResultTy,
+bool define_static_array(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                          SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
   assert(Args[1]->getType()->isReflectionType());
@@ -5745,15 +5438,13 @@ bool define_static_array(APValue &Result, Sema &S, EvalFn Evaluator,
   Elems.resize(Length);
 
   for (uint64_t k = 0; k < Length; ++k) {
-    llvm::APInt Idx(S.Context.getTypeSize(S.Context.getSizeType()), k, false);
-    Expr *Synthesized = IntegerLiteral::Create(S.Context, Idx,
-                                               S.Context.getSizeType(),
+    llvm::APInt Idx(C.getTypeSize(C.getSizeType()), k, false);
+    Expr *Synthesized = IntegerLiteral::Create(C, Idx, C.getSizeType(),
                                                Args[3]->getExprLoc());
 
-    Synthesized = new (S.Context) ArraySubscriptExpr(Args[3],
-                                                     Synthesized, ValueTy,
-                                                     VK_LValue, OK_Ordinary,
-                                                     Range.getBegin());
+    Synthesized = new (C) ArraySubscriptExpr(Args[3], Synthesized, ValueTy,
+                                             VK_LValue, OK_Ordinary,
+                                             Range.getBegin());
     if (Synthesized->isValueDependent() || Synthesized->isTypeDependent())
       return true;
 
@@ -5761,9 +5452,9 @@ bool define_static_array(APValue &Result, Sema &S, EvalFn Evaluator,
     if (!Evaluator(Val, Synthesized, true))
       return true;
 
-    Synthesized = new (S.Context) OpaqueValueExpr(Range.getBegin(), ValueTy,
-                                                  VK_PRValue);
-    Synthesized = ConstantExpr::Create(S.Context, Synthesized, Val);
+    Synthesized = new (C) OpaqueValueExpr(Range.getBegin(), ValueTy,
+                                          VK_PRValue);
+    Synthesized = ConstantExpr::Create(C, Synthesized, Val);
 
     Elems[k] = Synthesized;
   }
@@ -5775,26 +5466,21 @@ bool define_static_array(APValue &Result, Sema &S, EvalFn Evaluator,
     NameOut << "__gen_array_" << (gen_id++);
   }
 
-  QualType ArrTy = S.Context.getConstantArrayType(ValueTy,
-                                                  llvm::APSInt::get(Length),
-                                                  Args[2],
-                                                  ArraySizeModifier::Normal,
-                                                  /*IndexTypeQuals=*/0);
-  VarDecl *AnonArr = VarDecl::Create(S.Context,
-                                     S.Context.getTranslationUnitDecl(),
+  QualType ArrTy = C.getConstantArrayType(ValueTy, llvm::APSInt::get(Length),
+                                          Args[2], ArraySizeModifier::Normal,
+                                          /*IndexTypeQuals=*/0);
+  VarDecl *AnonArr = VarDecl::Create(C, C.getTranslationUnitDecl(),
                                      SourceLocation(), SourceLocation(),
-                                     &S.Context.Idents.get(Name), ArrTy,
-                                     nullptr, SC_Static);
+                                     &C.Idents.get(Name), ArrTy, nullptr,
+                                     SC_Static);
   {
-    ExprResult ILE = S.ActOnInitList(Range.getBegin(), Elems, Range.getEnd());
-    if (ILE.isInvalid())
+    Expr *ILE = Meta.CreateInitList(Elems, Range);
+    if (!ILE)
       return true;
     AnonArr->setConstexpr(true);
-    S.AddInitializerToDecl(AnonArr, ILE.get(), true);
+    Meta.AttachInitializer(AnonArr, ILE);
 
-    DeclGroupRef DG(AnonArr);
-    assert(AnonArr->hasLinkage());
-    S.Consumer.HandleTopLevelDecl(DG);
+    Meta.BroadcastInjectedDecl(AnonArr);
   }
   assert(AnonArr->getFormalLinkage() == Linkage::Internal);
 
@@ -5804,11 +5490,11 @@ bool define_static_array(APValue &Result, Sema &S, EvalFn Evaluator,
 }
 
 
-bool get_ith_parameter_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+bool get_ith_parameter_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.MetaInfoTy);
+  assert(ResultTy == C.MetaInfoTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -5861,11 +5547,12 @@ bool get_ith_parameter_of(APValue &Result, Sema &S, EvalFn Evaluator,
       << 5 << DescriptionOf(RV) << Range;
 }
 
-bool has_consistent_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
+bool has_consistent_identifier(APValue &Result, ASTContext &C,
+                               MetaActions &Meta, EvalFn Evaluator,
                                DiagFn Diagnoser, QualType ResultTy,
                                SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -5877,7 +5564,7 @@ bool has_consistent_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
       [[maybe_unused]] std::string Unused;
       bool Consistent = getParameterName(PVD, Unused);
 
-      return SetAndSucceed(Result, makeBool(S.Context, Consistent));
+      return SetAndSucceed(Result, makeBool(C, Consistent));
     }
     [[fallthrough]];
   case ReflectionKind::Null:
@@ -5889,17 +5576,18 @@ bool has_consistent_identifier(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return has_identifier(Result, S, Evaluator, Diagnoser, ResultTy, Range,
-                          Args);
+    return has_identifier(Result, C, Meta, Evaluator, Diagnoser, ResultTy,
+                          Range, Args);
   }
   llvm_unreachable("unknown reflection kind");
 }
 
-bool has_ellipsis_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
-                            DiagFn Diagnoser, QualType ResultTy,
-                            SourceRange Range, ArrayRef<Expr *> Args) {
+bool has_ellipsis_parameter(APValue &Result, ASTContext &C, MetaActions &Meta,
+                            EvalFn Evaluator, DiagFn Diagnoser,
+                            QualType ResultTy, SourceRange Range,
+                            ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -5919,14 +5607,14 @@ bool has_ellipsis_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Type:
     if (auto *FPT = dyn_cast<FunctionProtoType>(RV.getReflectedType())) {
       bool HasEllipsis = FPT->isVariadic();
-      return SetAndSucceed(Result, makeBool(S.Context, HasEllipsis));
+      return SetAndSucceed(Result, makeBool(C, HasEllipsis));
     }
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_introspect_type)
         << 2 << 2;
   case ReflectionKind::Declaration: {
     if (auto *FD = dyn_cast<FunctionDecl>(RV.getReflectedDecl())) {
       bool HasEllipsis = FD->getEllipsisLoc().isValid();
-      return SetAndSucceed(Result, makeBool(S.Context, HasEllipsis));
+      return SetAndSucceed(Result, makeBool(C, HasEllipsis));
     }
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
       << 5 << DescriptionOf(RV) << Range;
@@ -5935,11 +5623,11 @@ bool has_ellipsis_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool has_default_argument(APValue &Result, Sema &S, EvalFn Evaluator,
-                          DiagFn Diagnoser, QualType ResultTy,
+bool has_default_argument(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -5948,7 +5636,7 @@ bool has_default_argument(APValue &Result, Sema &S, EvalFn Evaluator,
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Declaration: {
     if (auto *PVD = dyn_cast<ParmVarDecl>(RV.getReflectedDecl())) {
-      return SetAndSucceed(Result, makeBool(S.Context, PVD->hasDefaultArg()));
+      return SetAndSucceed(Result, makeBool(C, PVD->hasDefaultArg()));
     }
     [[fallthrough]];
   case ReflectionKind::Null:
@@ -5967,11 +5655,12 @@ bool has_default_argument(APValue &Result, Sema &S, EvalFn Evaluator,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool is_explicit_object_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
+bool is_explicit_object_parameter(APValue &Result, ASTContext &C,
+                                  MetaActions &Meta, EvalFn Evaluator,
                                   DiagFn Diagnoser, QualType ResultTy,
                                   SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -5982,14 +5671,15 @@ bool is_explicit_object_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
     if (auto *PVD = dyn_cast<ParmVarDecl>(RV.getReflectedDecl()))
       result = PVD->isExplicitObjectParameter();
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool is_function_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
-                           DiagFn Diagnoser, QualType ResultTy,
-                           SourceRange Range, ArrayRef<Expr *> Args) {
+bool is_function_parameter(APValue &Result, ASTContext &C, MetaActions &Meta,
+                           EvalFn Evaluator, DiagFn Diagnoser,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -5999,14 +5689,14 @@ bool is_function_parameter(APValue &Result, Sema &S, EvalFn Evaluator,
   if (RV.isReflectedDecl()) {
     result = isa<const ParmVarDecl>(RV.getReflectedDecl());
   }
-  return SetAndSucceed(Result, makeBool(S.Context, result));
+  return SetAndSucceed(Result, makeBool(C, result));
 }
 
-bool return_type_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                    DiagFn Diagnoser, QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args) {
+bool return_type_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                    EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                    SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.MetaInfoTy);
+  assert(ResultTy == C.MetaInfoTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -6038,11 +5728,12 @@ bool return_type_of(APValue &Result, Sema &S, EvalFn Evaluator,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool get_ith_annotation_of(APValue &Result, Sema &S, EvalFn Evaluator,
-                           DiagFn Diagnoser, QualType ResultTy,
-                           SourceRange Range, ArrayRef<Expr *> Args) {
+bool get_ith_annotation_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                           EvalFn Evaluator, DiagFn Diagnoser,
+                           QualType ResultTy, SourceRange Range,
+                           ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.MetaInfoTy);
+  assert(ResultTy == C.MetaInfoTy);
 
   auto findAnnotation = [&](Decl *D, size_t idx, APValue Sentinel) {
     D = D ? D->getMostRecentDecl() : D;
@@ -6076,7 +5767,7 @@ bool get_ith_annotation_of(APValue &Result, Sema &S, EvalFn Evaluator,
   case ReflectionKind::Type: {
     NamedDecl *typeDecl = findTypeDecl(RV.getReflectedType());
     if (typeDecl)
-      ensureInstantiated(S, typeDecl, Range);
+      Meta.EnsureInstantiated(typeDecl, Range);
 
     return SetAndSucceed(Result, findAnnotation(typeDecl, idx, Sentinel));
   }
@@ -6109,24 +5800,25 @@ bool get_ith_annotation_of(APValue &Result, Sema &S, EvalFn Evaluator,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool is_annotation(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-                   QualType ResultTy, SourceRange Range,
-                   ArrayRef<Expr *> Args) {
+bool is_annotation(APValue &Result, ASTContext &C, MetaActions &Meta,
+                   EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                   SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.BoolTy);
+  assert(ResultTy == C.BoolTy);
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
     return true;
 
-  return SetAndSucceed(Result, makeBool(S.Context, RV.isReflectedAnnotation()));
+  return SetAndSucceed(Result, makeBool(C, RV.isReflectedAnnotation()));
 }
 
-bool annotate(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
-              QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args) {
+bool annotate(APValue &Result, ASTContext &C, MetaActions &Meta,
+              EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+              SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
   assert(Args[1]->getType()->isReflectionType());
-  assert(ResultTy == S.Context.MetaInfoTy);
+  assert(ResultTy == C.MetaInfoTy);
 
   APValue Appertainee;
   if (!Evaluator(Appertainee, Args[0], true))
@@ -6138,21 +5830,13 @@ bool annotate(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
 
   CXX26AnnotationAttr *Annot = nullptr;
   {
-    Expr *OVE = new (S.Context) OpaqueValueExpr(
-            Range.getBegin(),
-            Value.getTypeOfReflectedResult(S.Context),
-            VK_PRValue);
-    Expr *CE = ConstantExpr::Create(S.Context, OVE, Value.getReflectedValue());
+    Expr *OVE = new (C) OpaqueValueExpr(Range.getBegin(),
+                                        Value.getTypeOfReflectedResult(C),
+                                        VK_PRValue);
+    Expr *CE = ConstantExpr::Create(C, OVE, Value.getReflectedValue());
+    AttributeCommonInfo *ACI = Meta.SynthesizeAnnotation(CE, Range.getBegin());
 
-    IdentifierTable &IT = S.Context.Idents;
-    IdentifierInfo &Placeholder = IT.get("__annotation_placeholder");
-
-    AttributeFactory AF;
-    ParsedAttributes PAs(AF);
-    ParsedAttr *PA = PAs.addNew(&Placeholder, Range, nullptr, Range.getBegin(),
-                                nullptr, 0, ParsedAttr::Form::Annotation());
-
-    Annot = CXX26AnnotationAttr::Create(S.Context, CE, *PA);
+    Annot = CXX26AnnotationAttr::Create(C, CE, *ACI);
     Annot->setValue(Value.getReflectedValue());
     Annot->setEqLoc(Range.getBegin());
   }

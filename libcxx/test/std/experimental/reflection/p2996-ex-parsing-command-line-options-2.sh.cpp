@@ -17,7 +17,6 @@
 //
 // [reflection]
 //
-// RUN: ls /Users/dkatz85/src/bloomberg/clang-p2996/build-llvm/runtimes/runtimes-bins/libcxx/
 // RUN: %{build}
 // RUN: %{exec} %t.exe -n WG21 --count 5 > %t.stdout
 
