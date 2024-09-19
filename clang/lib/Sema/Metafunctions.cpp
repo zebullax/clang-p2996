@@ -4942,7 +4942,14 @@ bool reflect_invoke(APValue &Result, Sema &S, EvalFn Evaluator,
           // convert lvalue to rvalue if needed
           // since Sema::BuildMemberExpr inside Sema::ActOnMemberAccessExpr
           // expects prvalue
-          ObjExpr = S.DefaultFunctionArrayLvalueConversion(ObjExpr).get();
+          APValue Val;
+          if (!Evaluator(Val, ObjExpr, true))
+            return true;
+
+          ObjExpr = new (S.Context) OpaqueValueExpr(Range.getBegin(),
+                                                    ObjExpr->getType(),
+                                                    VK_PRValue);
+          ObjExpr = ConstantExpr::Create(S.Context, ObjExpr, Val);
         }
 
         if (!ObjType->getAsCXXRecordDecl()) {
