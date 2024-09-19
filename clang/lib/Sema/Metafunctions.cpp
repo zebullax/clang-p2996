@@ -5345,7 +5345,7 @@ bool define_class(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     // Add any attributes (i.e., 'AlignAttr' if alignment is specified).
     ParsedAttributesView MemberAttrs;
     if (TDMS->Alignment) {
-      IdentifierInfo &AttrII = S.PP.getIdentifierTable().get("alignas");
+      IdentifierInfo &AttrII = S.Context.Idents.get("alignas");
 
       IntegerLiteral *IL = IntegerLiteral::Create(
               S.Context,
@@ -5360,8 +5360,7 @@ bool define_class(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
       MemberAttrs.addAtEnd(Attr);
     }
     if (TDMS->NoUniqueAddress) {
-      IdentifierInfo &AttrII =
-          S.PP.getIdentifierTable().get("no_unique_address");
+      IdentifierInfo &AttrII = S.Context.Idents.get("no_unique_address");
       ParsedAttr *Attr = AttrPool.create(&AttrII, Range, nullptr,
                                          SourceLocation(), nullptr, 0,
                                          ParsedAttr::Form::CXX11());
@@ -5373,7 +5372,7 @@ bool define_class(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
     if (!TDMS->BitWidth || *TDMS->BitWidth > 0) {
       std::string MemberName = TDMS->Name.value_or(
               "__" + llvm::toString(llvm::APSInt::get(anonMemCtr++), 10));
-      IdentifierInfo &II = S.PP.getIdentifierTable().get(MemberName);
+      IdentifierInfo &II = S.Context.Idents.get(MemberName);
       MemberDeclarator.SetIdentifier(&II, Tag->getBeginLoc());
     }
 
@@ -6138,7 +6137,7 @@ bool annotate(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
             VK_PRValue);
     Expr *CE = ConstantExpr::Create(S.Context, OVE, Value.getReflectedValue());
 
-    IdentifierTable &IT = S.PP.getIdentifierTable();
+    IdentifierTable &IT = S.Context.Idents;
     IdentifierInfo &Placeholder = IT.get("__annotation_placeholder");
 
     AttributeFactory AF;
