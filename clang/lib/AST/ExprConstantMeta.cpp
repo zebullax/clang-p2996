@@ -1,4 +1,4 @@
-//===--- Metafunctions.cpp - Functions targeting reflections ----*- C++ -*-===//
+//===-- ExprConstantMeta.cpp - Functions targeting reflections --*- C++ -*-===//
 //
 // Copyright 2024 Bloomberg Finance L.P.
 //
@@ -19,13 +19,13 @@
 #include "clang/AST/DeclGroup.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/Metafunction.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/Reflection.h"
 #include "clang/Basic/DiagnosticMetafn.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/Preprocessor.h"
-#include "clang/Sema/Metafunction.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"

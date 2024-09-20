@@ -13,8 +13,8 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_SEMA_METAFUNCTION_H
-#define LLVM_CLANG_SEMA_METAFUNCTION_H
+#ifndef LLVM_CLANG_AST_METAFUNCTION_H
+#define LLVM_CLANG_AST_METAFUNCTION_H
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ExprCXX.h"

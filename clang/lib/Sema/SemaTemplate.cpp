@@ -46,7 +46,6 @@
 
 #include <iterator>
 #include <optional>
-#include <iostream>
 using namespace clang;
 using namespace sema;
 

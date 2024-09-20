@@ -32,7 +32,6 @@
 #include "clang/Sema/SemaCodeCompletion.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/TimeProfiler.h"
-#include <iostream>
 #include <optional>
 
 using namespace clang;
