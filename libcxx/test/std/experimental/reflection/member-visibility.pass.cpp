@@ -198,12 +198,15 @@ consteval std::meta::access_context FriendFnOfAccess() {
                             // new_accessibility_api
                             // =====================
 
+
+static_assert(get_ctx_repr(std::meta::access_context{}) == ^^::);
 static_assert(get_ctx_repr(std::meta::access_context::current()) == ^^::);
 namespace new_accessibility_api {
 static_assert(get_ctx_repr(std::meta::access_context::current()) ==
               ^^::new_accessibility_api);
 
 void fn() {
+  static_assert(get_ctx_repr(std::meta::access_context{}) == ^^::);
   static_assert(get_ctx_repr(std::meta::access_context::current()) == ^^fn);
   [] {
     constexpr auto repr = get_ctx_repr(std::meta::access_context::current());
