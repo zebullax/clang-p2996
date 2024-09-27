@@ -9044,6 +9044,8 @@ TreeTransform<Derived>::TransformCXXDependentMemberSpliceExpr(
                                               CXXDependentMemberSpliceExpr *E) {
   ExprResult Base = getDerived().TransformExpr(E->getBase());
   ExprResult RHS = getDerived().TransformExpr(E->getRHS());
+  if (Base.isInvalid() || RHS.isInvalid())
+    return ExprError();
 
   return getSema().BuildMemberReferenceExpr(
           nullptr, Base.get(), E->getOpLoc(),
