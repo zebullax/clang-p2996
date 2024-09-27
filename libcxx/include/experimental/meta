@@ -66,6 +66,12 @@ consteval auto nonstatic_data_members_of(info class_type) -> vector<info>;
 consteval auto subobjects_of(info class_type) -> vector<info>;
 consteval auto enumerators_of(info enum_type) -> vector<info>;
 
+// public member queries
+consteval auto get_public_members(info) -> vector<info>;
+consteval auto get_public_bases(info) -> vector<info>;
+consteval auto get_static_data_members(info) -> vector<info>;
+consteval auto get_nonstatic_data_members(info) -> vector<info>;
+
 // member access queries
 struct access_context {
   consteval access_context();
@@ -947,6 +953,29 @@ consteval auto enumerators_of(info r) -> vector<info> {
   return vector<info>{rng.begin(), rng.end()};
 }
 
+// Returns whether the reflected entity is a public class member.
+consteval auto is_public(info r) -> bool {
+  return __metafunction(detail::__metafn_is_public, r);
+}
+
+consteval auto get_public_members(info r) -> vector<info> {
+  return members_of(r) | views::filter(is_public) | ranges::to<vector>();
+}
+
+consteval auto get_public_bases(info r) -> vector<info> {
+  return bases_of(r) | views::filter(is_public) | ranges::to<vector>();
+}
+
+consteval auto get_public_static_data_members(info r) -> vector<info> {
+  return static_data_members_of(r) | views::filter(is_public) |
+                                     ranges::to<vector>();
+}
+
+consteval auto get_public_nonstatic_data_members(info r) -> vector<info> {
+  return nonstatic_data_members_of(r) | views::filter(is_public) |
+                                        ranges::to<vector>();
+}
+
 class access_context {
   const info repr;
 
@@ -1059,11 +1088,6 @@ consteval auto substitute(info templ, R &&args) -> info {
 template <typename Ty> requires (!is_rvalue_reference_v<Ty>)
 consteval auto extract(info r) -> Ty {
   return __metafunction(detail::__metafn_extract, LIFT(Ty), r);
-}
-
-// Returns whether the reflected entity is a public class member.
-consteval auto is_public(info r) -> bool {
-  return __metafunction(detail::__metafn_is_public, r);
 }
 
 // Returns whether the reflected entity is a protected class member.
