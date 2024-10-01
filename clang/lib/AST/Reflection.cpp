@@ -17,7 +17,7 @@
 namespace clang {
 
 bool TagDataMemberSpec::operator==(TagDataMemberSpec const &Rhs) const {
-  return (Ty == Ty &&
+  return (Ty == Rhs.Ty &&
           Alignment == Rhs.Alignment &&
           BitWidth == Rhs.BitWidth &&
           Name == Rhs.Name);
