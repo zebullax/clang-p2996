@@ -997,7 +997,7 @@ public:
 
   let HasCustomParsing = 1;
   let TemplateDependent = 1;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def ARMInterrupt : InheritableAttr, TargetSpecificAttr<TargetARM> {
