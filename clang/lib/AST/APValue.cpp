@@ -513,9 +513,7 @@ static void profileReflection(llvm::FoldingSetNodeID &ID, APValue V) {
     if (auto *TST = dyn_cast<TemplateSpecializationType>(QT)) {
       // Note: This sugar only kept for alias template specializations.
       ID.AddInteger(Type::TemplateSpecialization);
-      ID.AddPointer(TST->getTemplateName().getAsTemplateDecl());
-      if (auto *D = QT->getAsRecordDecl())
-        ID.AddPointer(D->getCanonicalDecl());
+      QT.getCanonicalType().Profile(ID);
     } else {
       ID.AddInteger(0);
       if (auto *TDT = dyn_cast<TypedefType>(QT)) {

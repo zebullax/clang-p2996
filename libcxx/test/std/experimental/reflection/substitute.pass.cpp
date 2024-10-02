@@ -424,4 +424,17 @@ static_assert(!can_substitute(^^Cls,
                               {^^int, ^^bool, ^^std::array, ^^std::array}));
 }  // namespace invalid_template_ids
 
+                  // ========================================
+                  // bb_clang_p2996_issue_101_regression_test
+                  // ========================================
+
+namespace bb_clang_p2996_issue_101_regression_test {
+template <class C, typename T> using member_pointer = T C::*;
+
+struct Test { };
+static_assert(substitute(^^member_pointer, {^^Test, ^^int}) !=
+              substitute(^^member_pointer, {^^Test, ^^float}));
+}  // namespace bb_clang_p2996_issue_101_regression_test
+
+
 int main() { }
