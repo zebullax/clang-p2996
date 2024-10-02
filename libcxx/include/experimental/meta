@@ -368,6 +368,13 @@ template <reflection_range R = initializer_list<info>>
 consteval auto type_unwrap_reference(info) -> info;
 consteval auto type_unwrap_ref_decay(info) -> info;
 
+// tuple and variant queries
+consteval auto type_tuple_size(info) -> size_t;
+consteval auto type_tuple_element(size_t, info) -> info;
+
+consteval auto type_variant_size(info) -> size_t;
+consteval auto type_variant_alternative(size_t, info) -> info;
+
 // function parameters (P3096)
 consteval auto parameters_of(info) -> vector<info>;
 consteval auto has_consistent_identifier(info) -> bool;
@@ -2094,6 +2101,25 @@ consteval auto type_unwrap_reference(info type) -> info {
 consteval auto type_unwrap_ref_decay(info type) -> info {
   return dealias(substitute(LIFT(unwrap_ref_decay_t), {type}));
 }
+
+consteval auto type_tuple_size(info type) -> size_t {
+  return extract<size_t>(substitute(LIFT(tuple_size_v), {type}));
+}
+
+consteval auto type_tuple_element(size_t index, info type) -> info {
+  return dealias(substitute(LIFT(tuple_element_t),
+                            {std::meta::reflect_value(index), type}));
+}
+
+consteval auto type_variant_size(info type) -> size_t {
+  return extract<size_t>(substitute(LIFT(variant_size_v), {type}));
+}
+
+consteval auto type_variant_alternative(size_t index, info type) -> info {
+  return dealias(substitute(LIFT(variant_alternative_t),
+                 {std::meta::reflect_value(index), type}));
+}
+
 
 namespace detail {
 template <class T> struct __wrap_workaround { using type = T; };

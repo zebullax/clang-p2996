@@ -28,12 +28,6 @@
 #include <tuple>
 
 
-namespace std::meta {
-    consteval auto type_tuple_size(info type) -> size_t {
-        return extract<size_t>(substitute(^^std::tuple_size_v, {type}));
-    }
-}
-
 template<std::pair<std::size_t, std::size_t>... indices>
 struct Indexer {
    template<typename Tuples>

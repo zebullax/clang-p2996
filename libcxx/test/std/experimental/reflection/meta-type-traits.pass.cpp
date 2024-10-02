@@ -218,5 +218,12 @@ static_assert(
           type_unwrap_ref_decay(^^std::reference_wrapper<const int>)) ==
     display_string_of(^^const int &));
 
+using Tup = std::tuple<int, bool, char>;
+static_assert(type_tuple_size(^^Tup) == 3);
+static_assert(type_tuple_element(1, ^^Tup) == ^^bool);
+
+using Var = std::variant<int, bool, char, int *>;
+static_assert(type_variant_size(^^Var) == 4);
+static_assert(type_variant_alternative(3, ^^Var) == ^^int *);
 
 int main() { }
