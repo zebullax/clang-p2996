@@ -791,16 +791,15 @@ consteval auto u8display_string_of(info r) -> u8string_view;
 
 // Enumeration of all overloadable operators.
 enum class operators {
-  new_object = 1, delete_object, new_array, delete_array, coroutine_await,
-  parentheses, square_brackets, arrow, arrow_asterisk, tilde,
-  exclamation_mark, plus, minus, asterisk, solidus, percent,
-  caret, ampersand, pipe, equals, plus_equals, minus_equals,
-  asterisk_equals, solidus_equals, percent_equals, caret_equals,
-  ampersand_equals, pipe_equals, equals_equals, exclamation_equals,
-  less, greater, less_equals, greater_equals, three_way_compare,
-  ampersand_ampersand, pipe_pipe, less_less, greater_greater,
-  less_less_equals, greater_greater_equals, plus_plus, minus_minus,
-  comma,
+  op_new = 1, op_delete, op_array_new, op_array_delete, op_co_await,
+  op_call, op_index, op_arrow, op_arrow_asterisk, op_tilde, op_not, op_plus,
+  op_minus, op_asterisk, op_slash, op_percent, op_caret, op_and, op_or,
+  op_equals, op_plus_equals, op_minus_equals, op_asterisk_equals,
+  op_slash_equals, op_percent_equals, op_caret_equals, op_and_equals,
+  op_or_equals, op_equals_equals, op_not_equals, op_less, op_greater,
+  op_less_equals, op_greater_equals, op_three_way_compare, op_and_and,
+  op_or_or, op_less_less, op_greater_greater, op_less_less_equals,
+  op_greater_greater_equals, op_plus_plus, op_minus_minus, op_comma,
 };
 
 // Returns the operator overloaded by the represented operator function or
@@ -812,6 +811,29 @@ consteval auto operator_of(info r) -> operators {
 // Returns whether the reflected entity has an associated identifier.
 consteval auto has_identifier(info r) -> bool {
   return __metafunction(detail::__metafn_has_identifier, r);
+}
+
+// Returns the string representation of the operator.
+consteval auto operator_symbol_of(operators op) -> string_view {
+  static constexpr string_view op_names[45] = {
+      {}, "new", "delete", "new[]", "delete[]", "coawait", "()", "[]", "->",
+      "->*", "~", "!", "+", "-", "*", "/", "%", "^", "&", "|", "=", "+=", "-=",
+      "*=", "/=", "%=", "^", "&=", "|=", "==", "!=", "<", ">", "<=", ">=",
+      "<=>", "&&", "||", "<<", ">>", "<<=", ">>=", "++", "--", ","
+  };
+  return op_names[int(op)];
+}
+
+consteval auto u8operator_symbol_of(operators op) -> u8string_view {
+  static constexpr u8string_view op_names[45] = {
+      {}, u8"new", u8"delete", u8"new[]", u8"delete[]", u8"coawait", u8"()",
+      u8"[]", u8"->", u8"->*", u8"~", u8"!", u8"+", u8"-", u8"*", u8"/", u8"%",
+      u8"^", u8"&", u8"|", u8"=", u8"+=", u8"-=", u8"*=", u8"/=", u8"%=",
+      u8"^", u8"&=", u8"|=", u8"==", u8"!=", u8"<", u8">", u8"<=", u8">=",
+      u8"<=>", u8"&&", u8"||", u8"<<", u8">>", u8"<<=", u8">>=", u8"++",
+      u8"--", u8","
+  };
+  return op_names[int(op)];
 }
 
 // Returns the source location of the reflected entity.
@@ -2296,30 +2318,18 @@ struct pretty_printer {
     }
   }
 
-  static constexpr basic_string_view<CharT> op_names[45] = {
-      {}, string_constant("new"), string_constant("delete"),
-      string_constant("new[]"), string_constant("delete[]"),
-      string_constant("coawait"), string_constant("()"), string_constant("[]"),
-      string_constant("->"), string_constant("->*"), string_constant("~"),
-      string_constant("!"), string_constant("+"), string_constant("-"),
-      string_constant("*"), string_constant("/"), string_constant("%"),
-      string_constant("^"), string_constant("&"), string_constant("|"),
-      string_constant("="), string_constant("+="), string_constant("-="),
-      string_constant("*="), string_constant("/="), string_constant("%="),
-      string_constant("^"), string_constant("&="), string_constant("|="),
-      string_constant("=="), string_constant("!="), string_constant("<"),
-      string_constant(">"), string_constant("<="), string_constant(">="),
-      string_constant("<=>"), string_constant("&&"), string_constant("||"),
-      string_constant("<<"), string_constant(">>"), string_constant("<<="),
-      string_constant(">>="), string_constant("++"), string_constant("--"),
-      string_constant(","),
-  };
-
   static consteval auto identifier_helper(info R) {
     if constexpr (IsUtf8)
       return u8identifier_of(R);
     else
       return identifier_of(R);
+  }
+
+  static consteval auto operator_symbol_helper(operators Op) {
+    if constexpr (IsUtf8)
+      return u8operator_symbol_of(Op);
+    else
+      return operator_symbol_of(Op);
   }
 
   template <info R>
@@ -2601,15 +2611,15 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
 
     string_t result = "operator";
     switch (op) {
-    case std::meta::operators::new_object:
-    case std::meta::operators::delete_object:
-    case std::meta::operators::new_array:
-    case std::meta::operators::delete_array:
-    case std::meta::operators::coroutine_await:
+    case std::meta::operators::op_new:
+    case std::meta::operators::op_delete:
+    case std::meta::operators::op_array_new:
+    case std::meta::operators::op_array_delete:
+    case std::meta::operators::op_co_await:
       result += " ";
       [[fallthrough]];
     default:
-      return result + string_t {op_names[int(operator_of(R))]};
+      return result + operator_symbol_helper(op);
     }
   } else if (is_conversion_function_template(R))
     return string_constant("(conversion-function-template)");
@@ -2650,15 +2660,15 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
 
     result = "operator";
     switch (op) {
-    case std::meta::operators::new_object:
-    case std::meta::operators::delete_object:
-    case std::meta::operators::new_array:
-    case std::meta::operators::delete_array:
-    case std::meta::operators::coroutine_await:
+    case std::meta::operators::op_new:
+    case std::meta::operators::op_delete:
+    case std::meta::operators::op_array_new:
+    case std::meta::operators::op_array_delete:
+    case std::meta::operators::op_co_await:
       result += " ";
       [[fallthrough]];
     default:
-      return result + string_t {op_names[int(operator_of(R))]};
+      return result + operator_symbol_helper(op);
     }
   } else if constexpr (is_conversion_function(R)) {
 #if __has_feature(parameter_reflection)
