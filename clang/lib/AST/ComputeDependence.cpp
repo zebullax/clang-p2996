@@ -18,6 +18,7 @@
 #include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/ExprOpenMP.h"
+#include "clang/AST/Reflection.h"
 #include "clang/Basic/ExceptionSpecificationType.h"
 #include "llvm/ADT/ArrayRef.h"
 
@@ -470,7 +471,7 @@ ExprDependence clang::computeDependence(ArraySectionExpr *E) {
 
 ExprDependence clang::computeDependence(OMPArrayShapingExpr *E) {
   auto D = E->getBase()->getDependence();
-  for (Expr *Dim: E->getDimensions())
+  for (Expr *Dim : E->getDimensions())
     if (Dim)
       D |= turnValueToTypeDependence(Dim->getDependence());
   return D;
@@ -935,7 +936,7 @@ ExprDependence clang::computeDependence(ConceptSpecializationExpr *E,
   ExprDependence D =
       ValueDependent ? ExprDependence::Value : ExprDependence::None;
   auto Res = D | toExprDependence(TA);
-  if(!ValueDependent && E->getSatisfaction().ContainsErrors)
+  if (!ValueDependent && E->getSatisfaction().ContainsErrors)
     Res |= ExprDependence::Error;
   return Res;
 }
@@ -986,20 +987,20 @@ ExprDependence clang::computeDependence(CXXReflectExpr *E,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Attribute:
     return ExprDependence::None;
   }
   llvm_unreachable("unknown reflection kind while computing dependence");
 }
 
 ExprDependence clang::computeDependence(CXXMetafunctionExpr *E) {
-    auto D = ExprDependence::None;
-    for (unsigned I = 0; I < E->getNumArgs(); ++I) {
-      Expr *Arg = E->getArg(I);
-      D |= Arg->getDependence();
-    }
-    return D & ~ExprDependence::UnexpandedPack;
+  auto D = ExprDependence::None;
+  for (unsigned I = 0; I < E->getNumArgs(); ++I) {
+    Expr *Arg = E->getArg(I);
+    D |= Arg->getDependence();
+  }
+  return D & ~ExprDependence::UnexpandedPack;
 }
-
 
 ExprDependence clang::computeDependence(CXXSpliceSpecifierExpr *E) {
   return E->getOperand()->getDependence();
@@ -1046,8 +1047,8 @@ ExprDependence clang::computeDependence(CXXExpansionInitListSelectExpr *E) {
   return D;
 }
 
-ExprDependence clang::computeDependence(
-        CXXDestructurableExpansionSelectExpr *E) {
+ExprDependence
+clang::computeDependence(CXXDestructurableExpansionSelectExpr *E) {
   auto D = E->getRange()->getDependence() | E->getIdx()->getDependence();
   if (D & ExprDependence::Value)
     D |= ExprDependence::Type;

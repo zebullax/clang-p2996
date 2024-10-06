@@ -489,6 +489,10 @@ public:
     return isReflection() && getReflectionKind() == ReflectionKind::Annotation;
   }
 
+  bool isReflectedAttribute() const {
+    return isReflection() && getReflectionKind() == ReflectionKind::Attribute;
+  }
+
   void dump() const;
   void dump(raw_ostream &OS, const ASTContext &Context) const;
 
