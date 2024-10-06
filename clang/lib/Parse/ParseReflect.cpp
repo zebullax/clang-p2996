@@ -16,15 +16,13 @@
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
-#include "clang/Sema/Ownership.h"
-#include "clang/Sema/ParsedAttr.h"
 using namespace clang;
 
 ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
   SourceLocation OperandLoc = Tok.getLocation();
 
   EnterExpressionEvaluationContext EvalContext(
-      Actions, Sema::ExpressionEvaluationContext::ReflectionContext);
+        Actions, Sema::ExpressionEvaluationContext::ReflectionContext);
 
   // Parse a leading nested-name-specifier, e.g.,
   //
@@ -99,8 +97,9 @@ ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
   }
   TentativeAction.Revert();
 
-  if (SS.isSet() && TryAnnotateTypeOrScopeTokenAfterScopeSpec(
-                        SS, true, ImplicitTypenameContext::No)) {
+  if (SS.isSet() &&
+      TryAnnotateTypeOrScopeTokenAfterScopeSpec(SS, true,
+                                                ImplicitTypenameContext::No)) {
     SkipUntil(tok::semi, StopAtSemi | StopBeforeMatch);
     return ExprError();
   }
@@ -187,7 +186,8 @@ bool Parser::ParseCXXSpliceSpecifier(SourceLocation TemplateKWLoc) {
   return false;
 }
 
-TypeResult Parser::ParseCXXSpliceAsType(bool AllowDependent, bool Complain) {
+TypeResult Parser::ParseCXXSpliceAsType(bool AllowDependent,
+                                        bool Complain) {
   assert(Tok.is(tok::annot_splice) && "expected annot_splice");
 
   if (NextToken().is(tok::less)) {
@@ -209,7 +209,8 @@ TypeResult Parser::ParseCXXSpliceAsType(bool AllowDependent, bool Complain) {
       return TypeError();
 
   TypeResult Result = Actions.ActOnCXXSpliceExpectingType(
-      Splice.getLocation(), ER.get(), Splice.getAnnotationEndLoc(), Complain);
+          Splice.getLocation(), ER.get(), Splice.getAnnotationEndLoc(),
+          Complain);
   if (!Result.isInvalid())
     ConsumeAnnotationToken();
 
@@ -231,8 +232,8 @@ ExprResult Parser::ParseCXXSpliceAsExpr(bool AllowMemberReference) {
   SourceLocation LAngleLoc, RAngleLoc;
   if (TemplateKWLoc.isValid() && Tok.is(tok::less)) {
     TemplateArgList TArgs;
-    if (ParseTemplateIdAfterTemplateName(/*ConsumeLastToken=*/true, LAngleLoc,
-                                         TArgs, RAngleLoc,
+    if (ParseTemplateIdAfterTemplateName(/*ConsumeLastToken=*/true,
+                                         LAngleLoc, TArgs, RAngleLoc,
                                          /*Template=*/nullptr))
       return ExprError();
 
@@ -254,7 +255,7 @@ DeclResult Parser::ParseCXXSpliceAsNamespace() {
   assert(!ER.isInvalid());
 
   DeclResult Result = Actions.ActOnCXXSpliceExpectingNamespace(
-      Splice.getLocation(), ER.get(), Splice.getAnnotationEndLoc());
+          Splice.getLocation(), ER.get(), Splice.getAnnotationEndLoc());
 
   return Result;
 }
@@ -268,9 +269,9 @@ Parser::TemplateTy Parser::ParseCXXSpliceAsTemplate() {
   ExprResult ER = getExprAnnotation(Splice);
   assert(!ER.isInvalid());
 
-  return Actions.ActOnCXXSpliceExpectingTemplate(Splice.getLocation(), ER.get(),
-                                                 Splice.getAnnotationEndLoc(),
-                                                 /*Complain=*/true);
+  return Actions.ActOnCXXSpliceExpectingTemplate(
+          Splice.getLocation(), ER.get(), Splice.getAnnotationEndLoc(),
+          /*Complain=*/true);
 }
 
 static TemplateNameKind classifyTemplateDecl(TemplateName TName) {
@@ -303,7 +304,8 @@ bool Parser::ParseTemplateAnnotationFromSplice(SourceLocation TemplateKWLoc,
   ConsumeAnnotationToken();
 
   TemplateTy Template = Actions.ActOnCXXSpliceExpectingTemplate(
-      Splice.getLocation(), ER.get(), Splice.getAnnotationEndLoc(), Complain);
+          Splice.getLocation(), ER.get(), Splice.getAnnotationEndLoc(),
+          Complain);
   if (!Template)
     return true;
   bool IsDependent = Template.get().isDependent();
@@ -333,12 +335,12 @@ bool Parser::ParseTemplateAnnotationFromSplice(SourceLocation TemplateKWLoc,
     CXXScopeSpec SS;
     ASTTemplateArgsPtr TArgsPtr(TArgs);
 
-    TypeResult Type =
-        ArgsInvalid
-            ? TypeError()
-            : Actions.ActOnTemplateIdType(getCurScope(), SS, TemplateKWLoc,
-                                          Template, nullptr, TemplateNameLoc,
-                                          LAngleLoc, TArgsPtr, RAngleLoc);
+    TypeResult Type = ArgsInvalid
+                          ? TypeError()
+                          : Actions.ActOnTemplateIdType(
+                                getCurScope(), SS, TemplateKWLoc, Template,
+                                nullptr, TemplateNameLoc, LAngleLoc, TArgsPtr,
+                                RAngleLoc);
 
     Tok.setKind(tok::annot_typename);
     setTypeAnnotation(Tok, Type);
