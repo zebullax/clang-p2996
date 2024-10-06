@@ -4888,9 +4888,12 @@ public:
                                SourceLocation AliasLoc, IdentifierInfo *Alias,
                                CXXScopeSpec &SS, SourceLocation IdentLoc,
                                IdentifierInfo *Ident);
-  Decl *ActOnNamespaceAliasDef(Scope *CurScope, SourceLocation NamespaceLoc,
-                               SourceLocation AliasLoc, IdentifierInfo *Alias,
-                               CXXScopeSpec &SS, SourceLocation IdentLoc,
+  Decl *ActOnNamespaceAliasDef(Scope *CurScope,
+                               SourceLocation NamespaceLoc,
+                               SourceLocation AliasLoc,
+                               IdentifierInfo *Alias,
+                               CXXScopeSpec &SS,
+                               SourceLocation IdentLoc,
                                NamedDecl *ND);
 
   /// Remove decls we can't actually see from a lookup being used to declare
@@ -8567,11 +8570,12 @@ public:
                          Scope *BodyScope);
   void ActOnFinishRequiresExpr();
   concepts::Requirement *ActOnSimpleRequirement(Expr *E);
-  concepts::Requirement *
-  ActOnTypeRequirement(SourceLocation TypenameKWLoc, CXXScopeSpec &SS,
-                       SourceLocation NameLoc, const IdentifierInfo *TypeName,
-                       TemplateIdAnnotation *TemplateId,
-                       CXXSpliceSpecifierExpr *SpliceExpr);
+  concepts::Requirement *ActOnTypeRequirement(SourceLocation TypenameKWLoc,
+                                              CXXScopeSpec &SS,
+                                              SourceLocation NameLoc,
+                                              const IdentifierInfo *TypeName,
+                                              TemplateIdAnnotation *TemplateId,
+                                              CXXSpliceSpecifierExpr *SpliceExpr);
   concepts::Requirement *ActOnCompoundRequirement(Expr *E,
                                                   SourceLocation NoexceptLoc);
   concepts::Requirement *ActOnCompoundRequirement(
@@ -15160,12 +15164,12 @@ public:
   bool suppressDiagnostics() const { return SuppressDiagnostics; }
 
   ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc,
-                                 SourceLocation TemplateKWLoc, CXXScopeSpec &SS,
-                                 UnqualifiedId &Id);
+                                 SourceLocation TemplateKWLoc,
+                                 CXXScopeSpec &SS, UnqualifiedId &Id);
 
   ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc, TypeResult T);
-  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc, SourceLocation ArgLoc,
-                                 Decl *D);
+  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc,
+                                 SourceLocation ArgLoc, Decl *D);
   ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc,
                                  ParsedTemplateArgument Template);
   ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc, CXXSpliceExpr *E);
@@ -15179,10 +15183,13 @@ public:
                                          SourceLocation LSpliceLoc,
                                          Expr *Operand,
                                          SourceLocation RSpliceLoc);
-  TypeResult ActOnCXXSpliceExpectingType(SourceLocation LSplice, Expr *Operand,
-                                         SourceLocation RSplice, bool Complain);
+  TypeResult ActOnCXXSpliceExpectingType(SourceLocation LSplice,
+                                         Expr *Operand,
+                                         SourceLocation RSplice,
+                                         bool Complain);
   ExprResult ActOnCXXSpliceExpectingExpr(SourceLocation TemplateKWLoc,
-                                         SourceLocation LSplice, Expr *Operand,
+                                         SourceLocation LSplice,
+                                         Expr *Operand,
                                          SourceLocation RSplice,
                                          SourceLocation LAngleLoc,
                                          ASTTemplateArgsPtr TemplateArgs,
@@ -15198,13 +15205,14 @@ public:
   ParsedTemplateArgument
   ActOnTemplateSpliceSpecifierArgument(CXXSpliceSpecifierExpr *Splice);
 
-  bool
-  ActOnCXXNestedNameSpecifierReflectionSplice(CXXScopeSpec &SS,
-                                              CXXSpliceSpecifierExpr *Splice,
-                                              SourceLocation ColonColonLoc);
+  bool ActOnCXXNestedNameSpecifierReflectionSplice(
+      CXXScopeSpec &SS, CXXSpliceSpecifierExpr *Splice,
+      SourceLocation ColonColonLoc);
 
-  ExprResult ActOnMemberAccessExpr(Scope *S, Expr *Base, SourceLocation OpLoc,
-                                   tok::TokenKind OpKind, CXXSpliceExpr *RHS,
+  ExprResult ActOnMemberAccessExpr(Scope *S, Expr *Base,
+                                   SourceLocation OpLoc,
+                                   tok::TokenKind OpKind,
+                                   CXXSpliceExpr *RHS,
                                    SourceLocation TemplateKWLoc);
 
   // Reflection of non-expression operands.
@@ -15215,6 +15223,7 @@ public:
   ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
                                  SourceLocation OperandLoc,
                                  TemplateName Template);
+  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc, ParsedAttr *A);
 
   // Reflection of expression operands.
   ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc, Expr *E);
@@ -15222,8 +15231,8 @@ public:
                                  UnresolvedLookupExpr *E);
   ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
                                  SubstNonTypeTemplateParmExpr *E);
-  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc, CXXSpliceExpr *E);
-  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc, ParsedAttr *A);
+  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
+                                 CXXSpliceExpr *E);
 
   ExprResult BuildCXXMetafunctionExpr(SourceLocation KwLoc,
                                       SourceLocation LParenLoc,
@@ -15236,11 +15245,13 @@ public:
                                          SourceLocation LSpliceLoc,
                                          Expr *Operand,
                                          SourceLocation RSpliceLoc);
-  QualType BuildReflectionSpliceType(SourceLocation LSplice, Expr *Operand,
-                                     SourceLocation RSplice, bool Complain);
+  QualType BuildReflectionSpliceType(SourceLocation LSplice,
+                                     Expr *Operand,
+                                     SourceLocation RSplice,
+                                     bool Complain);
   QualType BuildReflectionSpliceTypeLoc(TypeLocBuilder &TLB,
-                                        SourceLocation LSpliceLoc, Expr *E,
-                                        SourceLocation RSpliceLoc,
+                                        SourceLocation LSpliceLoc,
+                                        Expr *E, SourceLocation RSpliceLoc,
                                         bool Complain);
   ExprResult BuildReflectionSpliceExpr(SourceLocation TemplateKWLoc,
                                        SourceLocation LSplice, Expr *Operand,
@@ -15257,7 +15268,8 @@ public:
 
   ExprResult BuildMemberReferenceExpr(Scope *S, Expr *Base,
                                       SourceLocation OpLoc,
-                                      tok::TokenKind OpKind, CXXSpliceExpr *RHS,
+                                      tok::TokenKind OpKind,
+                                      CXXSpliceExpr *RHS,
                                       SourceLocation TemplateKWLoc);
   ExprResult BuildDependentMemberSpliceExpr(Expr *Base, SourceLocation OpLoc,
                                             bool IsArrow, CXXSpliceExpr *RHS);
@@ -15270,10 +15282,10 @@ private:
   // Lambdas having bound references to this Sema object, used to evaluate
   // metafunction (C++26, P2996) at constant evaluation time.
   llvm::SmallDenseMap<unsigned, std::unique_ptr<CXXMetafunctionExpr::ImplFn>>
-      MetafunctionImplCbs;
+    MetafunctionImplCbs;
 
   // Whether to elide access control when checking access to class members.
-  bool EllideAccessControl{false};
+  bool EllideAccessControl {false};
 
   // Used to check whether a template substitution is valid without producing
   // a diagnostic.
@@ -15281,16 +15293,16 @@ private:
 
   class AccessControlScopeGuard final {
   public:
-    AccessControlScopeGuard(const AccessControlScopeGuard &) = delete;
-    AccessControlScopeGuard(AccessControlScopeGuard &&) = delete;
-    AccessControlScopeGuard &
-    operator=(const AccessControlScopeGuard &) = delete;
-    AccessControlScopeGuard &operator=(AccessControlScopeGuard &&) = delete;
+    AccessControlScopeGuard(const AccessControlScopeGuard&) = delete;
+    AccessControlScopeGuard(AccessControlScopeGuard&&) = delete;
+    AccessControlScopeGuard& operator=(const AccessControlScopeGuard&) = delete;
+    AccessControlScopeGuard& operator=(AccessControlScopeGuard&&) = delete;
 
     // Sets EllideAccessControl to the new override value & keeps the
     // previous one, so we can revert when the scope guard exits
     explicit AccessControlScopeGuard(Sema &S, bool ellideAccessControlOverride)
-        : S_{S}, previousEllideAccessControl_{S_.EllideAccessControl} {
+    : S_{S}
+    , previousEllideAccessControl_{S_.EllideAccessControl} {
       S_.EllideAccessControl = ellideAccessControlOverride;
     }
 
@@ -15300,7 +15312,7 @@ private:
 
   private:
     Sema &S_;
-    bool previousEllideAccessControl_{false};
+    bool previousEllideAccessControl_ {false};
   };
 
   ///@}
@@ -15324,17 +15336,26 @@ public:
                                    SourceLocation RParenLoc,
                                    BuildForRangeKind Kind);
 
-  StmtResult ActOnCXXInitListExpansionStmt(
-      SourceLocation TemplateKWLoc, SourceLocation ForLoc,
-      SourceLocation LParenLoc, Stmt *Init, Stmt *ExpansionVarStmt,
-      SourceLocation ColonLoc, CXXExpansionInitListExpr *Range,
-      SourceLocation RParenLoc, Expr *TParmRef, BuildForRangeKind Kind);
+  StmtResult ActOnCXXInitListExpansionStmt(SourceLocation TemplateKWLoc,
+                                           SourceLocation ForLoc,
+                                           SourceLocation LParenLoc, Stmt *Init,
+                                           Stmt *ExpansionVarStmt,
+                                           SourceLocation ColonLoc,
+                                           CXXExpansionInitListExpr *Range,
+                                           SourceLocation RParenLoc,
+                                           Expr *TParmRef,
+                                           BuildForRangeKind Kind);
 
-  StmtResult ActOnCXXDestructurableExpansionStmt(
-      SourceLocation TemplateKWLoc, SourceLocation ForLoc,
-      SourceLocation LParenLoc, Stmt *Init, Stmt *ExpansionVarStmt,
-      SourceLocation ColonLoc, Expr *Range, SourceLocation RParenLoc,
-      Expr *TParmRef, BuildForRangeKind Kind);
+  StmtResult ActOnCXXDestructurableExpansionStmt(SourceLocation TemplateKWLoc,
+                                                 SourceLocation ForLoc,
+                                                 SourceLocation LParenLoc,
+                                                 Stmt *Init,
+                                                 Stmt *ExpansionVarStmt,
+                                                 SourceLocation ColonLoc,
+                                                 Expr *Range,
+                                                 SourceLocation RParenLoc,
+                                                 Expr *TParmRef,
+                                                 BuildForRangeKind Kind);
 
   bool ComputeDecompositionExpansionArity(Expr *Range, unsigned &Result);
 
@@ -15350,17 +15371,26 @@ public:
   ExprResult ActOnCXXDestructurableExpansionSelectExpr(Expr *Range, Expr *Idx,
                                                        bool Constexpr);
 
-  StmtResult BuildCXXInitListExpansionStmt(
-      SourceLocation TemplateKWLoc, SourceLocation ForLoc,
-      SourceLocation LParenLoc, Stmt *Init, Stmt *ExpansionVarStmt,
-      SourceLocation ColonLoc, CXXExpansionInitListExpr *Range,
-      SourceLocation RParenLoc, unsigned TemplateDepth, BuildForRangeKind Kind);
+  StmtResult BuildCXXInitListExpansionStmt(SourceLocation TemplateKWLoc,
+                                           SourceLocation ForLoc,
+                                           SourceLocation LParenLoc, Stmt *Init,
+                                           Stmt *ExpansionVarStmt,
+                                           SourceLocation ColonLoc,
+                                           CXXExpansionInitListExpr *Range,
+                                           SourceLocation RParenLoc,
+                                           unsigned TemplateDepth,
+                                           BuildForRangeKind Kind);
 
-  StmtResult BuildCXXDestructurableExpansionStmt(
-      SourceLocation TemplateKWLoc, SourceLocation ForLoc,
-      SourceLocation LParenLoc, Stmt *Init, Stmt *ExpansionVarStmt,
-      SourceLocation ColonLoc, Expr *Range, SourceLocation RParenLoc,
-      unsigned TemplateDepth, BuildForRangeKind Kind);
+  StmtResult BuildCXXDestructurableExpansionStmt(SourceLocation TemplateKWLoc,
+                                                 SourceLocation ForLoc,
+                                                 SourceLocation LParenLoc,
+                                                 Stmt *Init,
+                                                 Stmt *ExpansionVarStmt,
+                                                 SourceLocation ColonLoc,
+                                                 Expr *Range,
+                                                 SourceLocation RParenLoc,
+                                                 unsigned TemplateDepth,
+                                                 BuildForRangeKind Kind);
 
   ExprResult BuildCXXExpansionInitList(SourceLocation LBraceLoc,
                                        MultiExprArg SubExprs,

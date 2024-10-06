@@ -118,8 +118,8 @@ struct TagDataMemberSpec {
   std::optional<size_t> BitWidth;
   bool NoUniqueAddress;
 
-  bool operator==(TagDataMemberSpec const &Rhs) const;
-  bool operator!=(TagDataMemberSpec const &Rhs) const;
+  bool operator==(TagDataMemberSpec const& Rhs) const;
+  bool operator!=(TagDataMemberSpec const& Rhs) const;
 };
 } // namespace clang
 
