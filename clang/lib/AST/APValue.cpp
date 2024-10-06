@@ -547,6 +547,7 @@ static void profileReflection(llvm::FoldingSetNodeID &ID, APValue V) {
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     ID.AddPointer(V.getOpaqueReflectionData());
     return;
   case ReflectionKind::DataMemberSpec: {
@@ -939,6 +940,13 @@ CXX26AnnotationAttr *APValue::getReflectedAnnotation() const {
   assert(getReflectionKind() == ReflectionKind::Annotation &&
          "not a reflection of an annotation");
   return reinterpret_cast<CXX26AnnotationAttr *>(
+          const_cast<void *>(getOpaqueReflectionData()));
+}
+
+ParsedAttr *APValue::getReflectedAttribute() const {
+  assert(getReflectionKind() == ReflectionKind::Attribute &&
+         "not a reflection of an attribute");
+  return reinterpret_cast<ParsedAttr *>(
           const_cast<void *>(getOpaqueReflectionData()));
 }
 
