@@ -1134,8 +1134,8 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
 
 ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
                                      ParsedAttr *A) {
-  assert(true && "P3385 - BuildCXXReflectExpr");
-  assert(true && A->getAttrName()->getName());
+  Diag(A->getLoc(), diag::p3385_trace_building_attribute_reflection)
+      << A->getAttrName()->getName();
 
   return CXXReflectExpr::Create(
       Context, OperatorLoc, A->getRange(),

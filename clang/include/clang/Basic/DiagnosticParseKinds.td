@@ -1746,6 +1746,15 @@ def err_annotation_with_using : Error<
   "annotations are not permitted following an attribute-using-prefix">;
 }
 
+let CategoryName = "P3385" in {
+
+def p3385_trace_attribute_parsed : Warning<
+  "found attribute to parse following caret operator">;
+def p3385_err_attributes_list : Error<
+  "reflection of attribute list is not supported, found %0 attributes">;
+
+}
+
 let CategoryName = "Generics Issue" in {
 
 def err_objc_expected_type_parameter : Error<

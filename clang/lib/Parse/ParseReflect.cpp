@@ -40,24 +40,6 @@ ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
   //
   TentativeParsingAction TentativeAction(*this);
 
-  // Check for a standard attribute
-  {
-    assert(true && "P3385 - ParseCXXReflectExpression");
-    ParsedAttributes attrs(AttrFactory);
-    if (MaybeParseAttributes(CXX11AttributeKind::CAK_AttributeSpecifier,
-                             attrs)) {
-      if (attrs.size() > 1) {
-        assert(attrs.size() == 1 && "Attributes list are not supported");
-        TentativeAction.Revert();
-        return ExprError();
-      }
-
-      TentativeAction.Commit();
-      return Actions.ActOnCXXReflectExpr(OpLoc, &attrs.front());
-    }
-    TentativeAction.Revert();
-  }
-
   // Next, check for an unqualified-id.
   if (Tok.isOneOf(tok::identifier, tok::kw_operator, tok::kw_template,
                   tok::tilde, tok::annot_template_id)) {
@@ -96,6 +78,26 @@ ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
     return Actions.ActOnCXXReflectExpr(OpLoc, SourceLocation(), TUDecl);
   }
   TentativeAction.Revert();
+
+
+  // Check for a standard attribute
+  {
+    ParsedAttributes attrs(AttrFactory);
+    if (MaybeParseAttributes(CXX11AttributeKind::CAK_AttributeSpecifier,
+                             attrs)) {
+      Diag(OperandLoc, diag::p3385_trace_attribute_parsed);
+      // FIXME handle empty [[]]
+      if (attrs.size() != 1) {
+        Diag(OperandLoc, diag::p3385_err_attributes_list) << attrs.size();
+        TentativeAction.Revert();
+        return ExprError();
+      }
+
+      TentativeAction.Commit();
+      return Actions.ActOnCXXReflectExpr(OpLoc, &attrs.front());
+    }
+    TentativeAction.Revert();
+  }
 
   if (SS.isSet() &&
       TryAnnotateTypeOrScopeTokenAfterScopeSpec(SS, true,
