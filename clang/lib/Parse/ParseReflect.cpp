@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/Attr.h"
 #include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
@@ -89,7 +90,6 @@ ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
       // FIXME handle empty [[]]
       if (attrs.size() != 1) {
         Diag(OperandLoc, diag::p3385_err_attributes_list) << attrs.size();
-        TentativeAction.Revert();
         return ExprError();
       }
 

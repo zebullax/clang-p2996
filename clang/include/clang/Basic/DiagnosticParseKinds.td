@@ -1749,9 +1749,9 @@ def err_annotation_with_using : Error<
 let CategoryName = "P3385" in {
 
 def p3385_trace_attribute_parsed : Warning<
-  "found attribute to parse following caret operator">;
+  "(p3385) found attribute to parse following caret operator">;
 def p3385_err_attributes_list : Error<
-  "reflection of attribute list is not supported, found %0 attributes">;
+  "(p3385) reflection of attribute list is not supported, found %0 attributes">;
 
 }
 
