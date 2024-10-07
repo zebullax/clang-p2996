@@ -5080,7 +5080,6 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
   }
 
   if (Tok.isRegularKeywordAttribute()) {
-    Diag(Tok.getLocation(), diag::p3385_trace_ParseCXX11AttributeSpecifierInternal) << "0";
     SourceLocation Loc = Tok.getLocation();
     IdentifierInfo *AttrName = Tok.getIdentifierInfo();
     ParsedAttr::Form Form = ParsedAttr::Form(Tok.getKind());
@@ -5135,9 +5134,7 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
 
   bool AttrParsed = false;
   while (!Tok.isOneOf(tok::r_square, tok::semi, tok::eof, tok::r_splice)) {
-    Diag(Tok.getLocation(), diag::p3385_trace_ParseCXX11AttributeSpecifierInternal) << "1";
     if (AttrParsed) {
-      Diag(Tok.getLocation(), diag::p3385_trace_ParseCXX11AttributeSpecifierInternal) << "1.1";
       // If we parsed an attribute, a comma is required before parsing any
       // additional attributes.
       if (ExpectAndConsume(tok::comma)) {
@@ -5168,11 +5165,9 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
     AttrName = TryParseCXX11AttributeIdentifier(
         AttrLoc, SemaCodeCompletion::AttributeCompletion::Attribute,
         CommonScopeName);
-    if (!AttrName) {
-      Diag(Tok.getLocation(), diag::p3385_trace_ParseCXX11AttributeSpecifierInternal) << "2";
+    if (!AttrName)
       // Break out to the "expected ']'" diagnostic.
       break;
-    }
 
     // scoped attribute
     if (TryConsumeToken(tok::coloncolon)) {
@@ -5201,13 +5196,11 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
 
     // Parse attribute arguments
     if (Tok.is(tok::l_paren)){
-      Diag(Tok.getLocation(), diag::p3385_trace_ParseCXX11AttributeSpecifierInternal) << "3";
       AttrParsed = ParseCXX11AttributeArgs(AttrName, AttrLoc, Attrs, EndLoc,
                                            ScopeName, ScopeLoc, OpenMPTokens);
     }
 
     if (!AttrParsed) {
-      Diag(Tok.getLocation(), diag::p3385_trace_ParseCXX11AttributeSpecifierInternal) << "4";
       Attrs.addNew(
           AttrName,
           SourceRange(ScopeLoc.isValid() ? ScopeLoc : AttrLoc, AttrLoc),
