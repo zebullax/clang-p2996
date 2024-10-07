@@ -80,23 +80,24 @@ ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
   }
   TentativeAction.Revert();
 
-
   // Check for a standard attribute
   {
     ParsedAttributes attrs(AttrFactory);
-    if (MaybeParseAttributes(CXX11AttributeKind::CAK_AttributeSpecifier,
-                             attrs)) {
+    if (MaybeParseCXX11Attributes(attrs)) {
       Diag(OperandLoc, diag::p3385_trace_attribute_parsed);
-      // FIXME handle empty [[]]
-      if (attrs.size() != 1) {
+
+      // FIXME handle empty [[]] gracefully
+      if (attrs.empty()) {
+        Diag(OperandLoc, diag::p3385_trace_empty_attributes_list);
+        return ExprError();
+      }
+      if (attrs.size() > 1) {
         Diag(OperandLoc, diag::p3385_err_attributes_list) << attrs.size();
         return ExprError();
       }
 
-      TentativeAction.Commit();
       return Actions.ActOnCXXReflectExpr(OpLoc, &attrs.front());
     }
-    TentativeAction.Revert();
   }
 
   if (SS.isSet() &&

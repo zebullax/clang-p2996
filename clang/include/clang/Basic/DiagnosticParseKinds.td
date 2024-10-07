@@ -1750,6 +1750,10 @@ let CategoryName = "P3385" in {
 
 def p3385_trace_attribute_parsed : Warning<
   "(p3385) found attribute to parse following caret operator">;
+def p3385_trace_empty_attributes_list : Warning<
+  "(p3385) reflection of an empty attribute list">;
+def p3385_trace_ParseCXX11AttributeSpecifierInternal : Warning<
+  "(p3385) ParseCXX11AttributeSpecifierInternal %0">;
 def p3385_err_attributes_list : Error<
   "(p3385) reflection of attribute list is not supported, found %0 attributes">;
 
