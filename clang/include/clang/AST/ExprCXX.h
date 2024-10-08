@@ -5321,7 +5321,8 @@ public:
 };
 
 /// Represents a C++2c reflect expression (P2996). The operand of the expression
-/// is either a type, an expression, a template-name, or a namespace.
+/// is either a type, an expression, a template-name, an attribute or a
+/// namespace.
 class CXXReflectExpr : public Expr {
   enum class OperandKind {
     Unset,

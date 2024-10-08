@@ -26,6 +26,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
@@ -288,6 +289,10 @@ static bool is_data_member_spec(APValue &Result, ASTContext &C,
                                 SourceRange Range, ArrayRef<Expr *> Args);
 
 static bool is_namespace(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args);
+
+static bool is_attribute(APValue &Result, ASTContext &C, MetaActions &Meta,
                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                          SourceRange Range, ArrayRef<Expr *> Args);
 
@@ -627,6 +632,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_base },
   { Metafunction::MFRK_bool, 1, 1, is_data_member_spec },
   { Metafunction::MFRK_bool, 1, 1, is_namespace },
+  { Metafunction::MFRK_bool, 1, 1, is_attribute },
   { Metafunction::MFRK_bool, 1, 1, is_function },
   { Metafunction::MFRK_bool, 1, 1, is_variable },
   { Metafunction::MFRK_bool, 1, 1, is_type },
@@ -1869,6 +1875,11 @@ bool identifier_of(APValue &Result, ASTContext &C, MetaActions &Meta,
       return Diagnoser(Range.getBegin(),
                        diag::metafn_name_of_unnamed_singleton) << 1 << Range;
     getDeclName(Name, C, RV.getReflectedNamespace());
+    break;
+  }
+  case clang::ReflectionKind::Attribute: {
+    ParsedAttr* attr = RV.getReflectedAttribute();
+    Name = attr->getAttrName()->getName();
     break;
   }
   case ReflectionKind::DataMemberSpec: {
@@ -3849,6 +3860,19 @@ bool is_namespace(APValue &Result, ASTContext &C, MetaActions &Meta,
     return true;
 
   return SetAndSucceed(Result, makeBool(C, RV.isReflectedNamespace()));
+}
+
+bool is_attribute(APValue &Result, ASTContext &C, MetaActions &Meta,
+                  EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                  SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == C.BoolTy);
+
+  APValue RV;
+  if (!Evaluator(RV, Args[0], true))
+    return true;
+
+  return SetAndSucceed(Result, makeBool(C, RV.isReflectedAttribute()));
 }
 
 bool is_function(APValue &Result, ASTContext &C, MetaActions &Meta,

@@ -153,6 +153,7 @@ consteval auto is_static_member(info) -> bool;
 consteval auto is_base(info) -> bool;
 consteval auto is_data_member_spec(info) -> bool;
 consteval auto is_namespace(info) -> bool;
+consteval auto is_attribute(info) -> bool;
 consteval auto is_function(info) -> bool;
 consteval auto is_variable(info) -> bool;
 consteval auto is_type(info) -> bool;
@@ -479,6 +480,7 @@ enum : unsigned {
   __metafn_is_base,
   __metafn_is_data_member_spec,
   __metafn_is_namespace,
+  __metafn_is_attribute,
   __metafn_is_function,
   __metafn_is_variable,
   __metafn_is_type,
@@ -884,6 +886,11 @@ consteval auto members_of(info r) -> vector<info> {
 // Returns whether the reflected entity is a namespace.
 consteval auto is_namespace(info r) -> bool {
   return __metafunction(detail::__metafn_is_namespace, r);
+}
+
+// Returns whether the reflected entity is an attribute.
+consteval auto is_attribute(info r) -> bool {
+  return __metafunction(detail::__metafn_is_attribute, r);
 }
 
 consteval auto bases_of(info r) -> vector<info> {
