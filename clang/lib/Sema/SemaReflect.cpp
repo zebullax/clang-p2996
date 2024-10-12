@@ -960,6 +960,10 @@ ParsedTemplateArgument Sema::ActOnTemplateSpliceSpecifierArgument(
     Diag(Splice->getExprLoc(), diag::err_unsupported_splice_kind)
       << "data member specs" << 0 << 0;
     break;
+  case ReflectionKind::Attribute:
+    Diag(Splice->getExprLoc(), diag::err_unsupported_splice_kind)
+      << "attribute" << 0 << 0;
+    break;
   }
   return ParsedTemplateArgument();
 }
@@ -1496,6 +1500,7 @@ ExprResult Sema::BuildReflectionSpliceExpr(
     case ReflectionKind::BaseSpecifier:
     case ReflectionKind::DataMemberSpec:
     case ReflectionKind::Annotation:
+    case ReflectionKind::Attribute:
       Diag(SpliceOp->getOperand()->getExprLoc(),
            diag::err_unexpected_reflection_kind_in_splice)
           << 1 << SpliceOp->getOperand()->getSourceRange();
@@ -1624,6 +1629,7 @@ DeclContext *Sema::TryFindDeclContextOf(const Expr *E) {
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     Diag(E->getExprLoc(), diag::err_expected_class_or_namespace)
         << "spliced entity" << getLangOpts().CPlusPlus;
     return nullptr;

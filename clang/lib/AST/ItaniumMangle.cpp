@@ -29,6 +29,7 @@
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/LocInfoType.h"
 #include "clang/AST/Mangle.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/ABI.h"
 #include "clang/Basic/DiagnosticAST.h"
@@ -4797,6 +4798,10 @@ void CXXNameMangler::mangleReflection(const APValue &R) {
       Out << 'A' << (*TDMS->Alignment);
     if (TDMS->BitWidth)
       Out << 'B' << (*TDMS->BitWidth);
+    break;
+  }
+  case ReflectionKind::Attribute: {
+    Out << "Atr" << (R.getReflectedAttribute())->getAttrName()->getName();
     break;
   }
   case ReflectionKind::Annotation: {

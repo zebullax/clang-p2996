@@ -5195,10 +5195,9 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
     }
 
     // Parse attribute arguments
-    if (Tok.is(tok::l_paren)){
+    if (Tok.is(tok::l_paren))
       AttrParsed = ParseCXX11AttributeArgs(AttrName, AttrLoc, Attrs, EndLoc,
                                            ScopeName, ScopeLoc, OpenMPTokens);
-    }
 
     if (!AttrParsed) {
       Attrs.addNew(
