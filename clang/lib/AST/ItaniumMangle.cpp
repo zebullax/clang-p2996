@@ -4800,10 +4800,6 @@ void CXXNameMangler::mangleReflection(const APValue &R) {
       Out << 'B' << (*TDMS->BitWidth);
     break;
   }
-  case ReflectionKind::Attribute: {
-    Out << "Atr" << (R.getReflectedAttribute())->getAttrName()->getName();
-    break;
-  }
   case ReflectionKind::Annotation: {
     Out << 'a';
 

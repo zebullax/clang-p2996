@@ -292,10 +292,6 @@ static bool is_namespace(APValue &Result, ASTContext &C, MetaActions &Meta,
                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                          SourceRange Range, ArrayRef<Expr *> Args);
 
-static bool is_attribute(APValue &Result, ASTContext &C, MetaActions &Meta,
-                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
-                         SourceRange Range, ArrayRef<Expr *> Args);
-
 static bool is_function(APValue &Result, ASTContext &C, MetaActions &Meta,
                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                         SourceRange Range, ArrayRef<Expr *> Args);
@@ -563,6 +559,26 @@ static bool annotate(APValue &Result, ASTContext &C, MetaActions &Meta,
                      EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
                      SourceRange Range, ArrayRef<Expr *> Args);
 
+// -----------------------------------------------------------------------------
+// P3385 Metafunction declarations
+// -----------------------------------------------------------------------------
+
+
+static bool get_begin_attributes_of(APValue &Result, ASTContext &C,
+                                    MetaActions &Meta, EvalFn Evaluator,
+                                    DiagFn Diagnoser, QualType ResultTy,
+                                    SourceRange Range,
+                                    ArrayRef<Expr *> Args);
+
+static bool get_next_attributes_of(APValue &Result, ASTContext &C,
+                                   MetaActions &Meta, EvalFn Evaluator,
+                                   DiagFn Diagnoser, QualType ResultTy,
+                                   SourceRange Range,
+                                   ArrayRef<Expr *> Args);
+
+static bool is_attribute(APValue &Result, ASTContext &C, MetaActions &Meta,
+                         EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
+                         SourceRange Range, ArrayRef<Expr *> Args);
 
 // -----------------------------------------------------------------------------
 // Metafunction table
@@ -632,7 +648,6 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_bool, 1, 1, is_base },
   { Metafunction::MFRK_bool, 1, 1, is_data_member_spec },
   { Metafunction::MFRK_bool, 1, 1, is_namespace },
-  { Metafunction::MFRK_bool, 1, 1, is_attribute },
   { Metafunction::MFRK_bool, 1, 1, is_function },
   { Metafunction::MFRK_bool, 1, 1, is_variable },
   { Metafunction::MFRK_bool, 1, 1, is_type },
@@ -692,6 +707,12 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_metaInfo, 3, 3, get_ith_annotation_of },
   { Metafunction::MFRK_bool, 1, 1, is_annotation },
   { Metafunction::MFRK_metaInfo, 2, 2, annotate },
+
+  // P3385 attributes reflection
+  { Metafunction::MFRK_metaInfo, 2, 2, get_begin_attributes_of },
+  { Metafunction::MFRK_metaInfo, 2, 2, get_next_attributes_of },
+  { Metafunction::MFRK_bool, 1, 1, is_attribute },
+
 };
 constexpr const unsigned NumMetafunctions = sizeof(Metafunctions) /
                                             sizeof(Metafunction);
@@ -1422,6 +1443,22 @@ bool DiagnoseReflectionKind(DiagFn Diagnoser, SourceRange Range,
 // Metafunction implementations
 // -----------------------------------------------------------------------------
 
+bool get_begin_attributes_of(APValue &Result, ASTContext &C,
+                             MetaActions &Meta, EvalFn Evaluator,
+                             DiagFn Diagnoser, QualType ResultTy,
+                             SourceRange Range, ArrayRef<Expr *> Args) {
+  // TODO P3385
+  return false;
+}
+
+bool get_next_attributes_of(APValue &Result, ASTContext &C,
+                             MetaActions &Meta, EvalFn Evaluator,
+                             DiagFn Diagnoser, QualType ResultTy,
+                             SourceRange Range, ArrayRef<Expr *> Args) {
+  // TODO P3385
+  return false;
+}
+
 bool get_begin_enumerator_decl_of(APValue &Result, ASTContext &C,
                                   MetaActions &Meta, EvalFn Evaluator,
                                   DiagFn Diagnoser, QualType ResultTy,
@@ -1459,6 +1496,7 @@ bool get_begin_enumerator_decl_of(APValue &Result, ASTContext &C,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Attribute:
   case ReflectionKind::Annotation: {
     return DiagnoseReflectionKind(Diagnoser, Range, "an enum type",
                                   DescriptionOf(RV));
@@ -1499,6 +1537,7 @@ bool get_next_enumerator_decl_of(APValue &Result, ASTContext &C,
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Attribute:
   case ReflectionKind::Annotation: {
     llvm_unreachable("should have failed in 'get_begin_enumerator_decl_of'");
   }
@@ -1556,6 +1595,7 @@ bool get_ith_base_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     return DiagnoseReflectionKind(Diagnoser, Range, "a class type",
                                   DescriptionOf(RV));
   }
@@ -1610,6 +1650,7 @@ bool get_ith_template_argument_of(APValue &Result, ASTContext &C,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     return DiagnoseReflectionKind(Diagnoser, Range, "a template specialization",
                                   DescriptionOf(RV));
   }
@@ -1699,6 +1740,7 @@ bool get_begin_member_decl_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     return true;
   }
   llvm_unreachable("unknown reflection kind");
@@ -2082,6 +2124,7 @@ bool type_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Null:
   case ReflectionKind::Type:
+  case ReflectionKind::Attribute:
   case ReflectionKind::Template:
   case ReflectionKind::Namespace:
     return Diagnoser(Range.getBegin(), diag::metafn_no_associated_property)
@@ -2157,6 +2200,7 @@ bool parent_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     if (Diagnoser)
       return Diagnoser(Range.getBegin(), diag::metafn_no_associated_property)
           << DescriptionOf(RV) << 1 << Range;
@@ -2210,6 +2254,7 @@ bool dealias(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     return SetAndSucceed(Result, RV);
   case ReflectionKind::Type: {
     QualType QT = RV.getReflectedType();
@@ -2271,6 +2316,7 @@ bool object_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
         << 1 << DescriptionOf(RV) << Range;
   }
@@ -2360,6 +2406,7 @@ bool value_of(APValue &Result, ASTContext &C, MetaActions &Meta,
                               /*DropCV=*/true, /*DropRefs=*/false);
     return SetAndSucceed(Result, A->getValue().Lift(Ty));
   }
+  case ReflectionKind::Attribute: // TODO P3385 anything to do ?
   case ReflectionKind::Null:
   case ReflectionKind::Type:
   case ReflectionKind::Template:
@@ -2407,6 +2454,7 @@ bool template_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     return DiagnoseReflectionKind(Diagnoser, Range, "a template specialization",
                                   DescriptionOf(RV));
     return true;
@@ -2429,6 +2477,7 @@ static bool CanActAsTemplateArg(const APValue &RV) {
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
   case ReflectionKind::Null:
     return false;
   }
@@ -2896,6 +2945,7 @@ bool is_public(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
   case ReflectionKind::Namespace:
+  case ReflectionKind::Attribute:
     return SetAndSucceed(Result, makeBool(C, false));
   }
   llvm_unreachable("invalid reflection type");
@@ -5915,6 +5965,7 @@ bool annotate(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_annotate)
         << DescriptionOf(Appertainee) << Range;
   }

@@ -153,7 +153,6 @@ consteval auto is_static_member(info) -> bool;
 consteval auto is_base(info) -> bool;
 consteval auto is_data_member_spec(info) -> bool;
 consteval auto is_namespace(info) -> bool;
-consteval auto is_attribute(info) -> bool;
 consteval auto is_function(info) -> bool;
 consteval auto is_variable(info) -> bool;
 consteval auto is_type(info) -> bool;
@@ -382,6 +381,10 @@ template <typename T>
 consteval auto is_annotation(info) -> bool;
 consteval auto annotate(info) -> info;
 
+// Attributes reflection (P3385)
+consteval auto is_attribute(info) -> bool;
+consteval auto attributes_of(info r) -> vector<info>;
+
 } // namespace reflection_v2
 } // namespace meta
 } // namespace std
@@ -480,7 +483,6 @@ enum : unsigned {
   __metafn_is_base,
   __metafn_is_data_member_spec,
   __metafn_is_namespace,
-  __metafn_is_attribute,
   __metafn_is_function,
   __metafn_is_variable,
   __metafn_is_type,
@@ -540,6 +542,11 @@ enum : unsigned {
   __metafn_get_ith_annotation_of,
   __metafn_is_annotation,
   __metafn_annotate,
+
+  // P3385 attributes reflection
+  __metafn_get_begin_attributes_of,
+  __metafn_get_get_next_attributes_of,
+  __metafn_is_attribute,
 };
 
 consteval auto __workaround_expand_compiler_builtins(info type) -> info;
@@ -886,11 +893,6 @@ consteval auto members_of(info r) -> vector<info> {
 // Returns whether the reflected entity is a namespace.
 consteval auto is_namespace(info r) -> bool {
   return __metafunction(detail::__metafn_is_namespace, r);
-}
-
-// Returns whether the reflected entity is an attribute.
-consteval auto is_attribute(info r) -> bool {
-  return __metafunction(detail::__metafn_is_attribute, r);
 }
 
 consteval auto bases_of(info r) -> vector<info> {
@@ -2181,6 +2183,19 @@ consteval auto annotate(info entity, info val) -> info {
 
 #endif  // __has_feature(annotation_attributes)
 
+// #ifdef TODO Feature flag for P3385
+
+// Returns whether the reflected entity is an attribute.
+consteval auto is_attribute(info r) -> bool {
+  return __metafunction(detail::__metafn_is_attribute, r);
+}
+
+consteval auto attributes_of(info r) -> vector<info> {
+  // TODO P3385
+  throw("P3385 - unimplemented");
+}
+
+// #endif TODO Feature flag for P3385
 
 template <typename Ty>
 [[deprecated("separated into 'reflect_value', 'reflect_result', and "
