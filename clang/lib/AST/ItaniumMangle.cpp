@@ -29,7 +29,6 @@
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/LocInfoType.h"
 #include "clang/AST/Mangle.h"
-#include "clang/Sema/ParsedAttr.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/ABI.h"
 #include "clang/Basic/DiagnosticAST.h"

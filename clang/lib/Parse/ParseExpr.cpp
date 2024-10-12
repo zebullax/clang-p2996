@@ -26,7 +26,6 @@
 #include "clang/AST/Availability.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/LocInfoType.h"
-#include "clang/Basic/DiagnosticParse.h"
 #include "clang/Basic/PrettyStackTrace.h"
 #include "clang/Lex/LiteralSupport.h"
 #include "clang/Parse/Parser.h"
