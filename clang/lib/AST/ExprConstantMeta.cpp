@@ -1458,8 +1458,6 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
   assert(Args[0]->getType()->isReflectionType());
   assert(ResultTy == C.MetaInfoTy);
 
-  Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of";
-
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
     return true;
@@ -1476,36 +1474,30 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
 
   switch (RV.getReflectionKind()) {
     case ReflectionKind::Attribute: {
-      Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case attribute";
       // We don't allow ^^[[ attribute, attribute]], so when reflected type is
       // attribute idx must be 0
       if (idx == 0) {
-        Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case attribute idx = 0";
         ParsedAttr *Attr = RV.getReflectedAttribute();
         return SetAndSucceed(Result, makeReflection(Attr));
       }
-      Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case attribute idx > 0";
       return SetAndSucceed(Result, Sentinel);
     }
     case ReflectionKind::Declaration: {
-      Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case declaration";
       Decl *D = RV.getReflectedDecl();
       auto attrs = C.getDeclAttrs(D);
       if (attrs.empty()) {
-        Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case declaration, empty ";
         return SetAndSucceed(Result, Sentinel);
       }
       if (idx == attrs.size()) {
-        Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case declaration, finished ";
         return SetAndSucceed(Result, Sentinel);
       }
-      Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case declaration, ith ";
       
       Attr* attr = attrs[idx];
       static AttributeScratchpad scratchpad;
       
       if (attr->getForm().getSyntax() != AttributeCommonInfo::Syntax::AS_CXX11) {
-        // FIXME Filter them instead of erroring
+        // FIXME Filter them instead of erroring...
+        // or we can filter with "| std::filter" on arrival
         return DiagnoseReflectionKind(Diagnoser, Range, "a standard CXX11 attribute",
                                     DescriptionOf(RV));
       }
