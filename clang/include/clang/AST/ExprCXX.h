@@ -5409,12 +5409,12 @@ public:
 /// reflections (P2996). Arguments vary by function.
 class CXXMetafunctionExpr : public Expr {
 public:
-  // Type of callback provided to executing metafunctinons to help evaluate an
+  // Type of callback provided to executing metafunctions to help evaluate an
   // expression in the current constant evaluation context.
   using EvaluateFn = std::function<bool(APValue &, const Expr *,
                                         bool ConvertToRValue)>;
 
-  // Type of callback provided to report a diagnistc to the evaluation context.
+  // Type of callback provided to report a diagnostic to the evaluation context.
   using DiagnoseFn = std::function<PartialDiagnostic &(SourceLocation,
                                                        unsigned)>;
 

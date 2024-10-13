@@ -544,8 +544,7 @@ enum : unsigned {
   __metafn_annotate,
 
   // P3385 attributes reflection
-  __metafn_get_begin_attributes_of,
-  __metafn_get_get_next_attributes_of,
+  __metafn_get_ith_attribute_of,
   __metafn_is_attribute,
 };
 
@@ -756,6 +755,25 @@ struct front_annotation_of {
                           reflectedEntity, LIFT(sentinel), 0);
   }
 };
+
+// TODO #ifdef P3385 feature flag
+
+struct front_attribute_of {
+  consteval info operator()(info reflectedEntity) const {
+    return __metafunction(detail::__metafn_get_ith_attribute_of,
+                          reflectedEntity, LIFT(sentinel), 0);
+  }
+};
+
+struct next_attribute_of {
+  consteval info operator()(auto /*currItrInfo */, info reflectedEntity,
+                            size_t idx) const {
+    return __metafunction(detail::__metafn_get_ith_attribute_of,
+                          reflectedEntity, LIFT(sentinel), idx);
+  }
+};
+
+// TODO #endif P3385 feature flag
 
 }  // namespace __range_of_infos
 
@@ -2191,8 +2209,13 @@ consteval auto is_attribute(info r) -> bool {
 }
 
 consteval auto attributes_of(info r) -> vector<info> {
-  // TODO P3385
-  throw("P3385 - unimplemented");
+  using iterator =
+  __range_of_infos::iterator<__range_of_infos::front_attribute_of,
+                             __range_of_infos::next_attribute_of,
+                             __range_of_infos::map_identity_fn>;
+  using range = __range_of_infos::range<iterator>;
+  auto rng = range{r};
+  return vector<info>{rng.begin(), rng.end()};
 }
 
 // #endif TODO Feature flag for P3385

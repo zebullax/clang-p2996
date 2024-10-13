@@ -22,7 +22,9 @@
 #include "clang/AST/Metafunction.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/Reflection.h"
+#include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Basic/DiagnosticMetafn.h"
+#include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/Preprocessor.h"
@@ -563,18 +565,11 @@ static bool annotate(APValue &Result, ASTContext &C, MetaActions &Meta,
 // P3385 Metafunction declarations
 // -----------------------------------------------------------------------------
 
-
-static bool get_begin_attributes_of(APValue &Result, ASTContext &C,
-                                    MetaActions &Meta, EvalFn Evaluator,
-                                    DiagFn Diagnoser, QualType ResultTy,
-                                    SourceRange Range,
-                                    ArrayRef<Expr *> Args);
-
-static bool get_next_attributes_of(APValue &Result, ASTContext &C,
-                                   MetaActions &Meta, EvalFn Evaluator,
-                                   DiagFn Diagnoser, QualType ResultTy,
-                                   SourceRange Range,
-                                   ArrayRef<Expr *> Args);
+static bool get_ith_attribute_of(APValue &Result, ASTContext &C,
+                                 MetaActions &Meta, EvalFn Evaluator,
+                                 DiagFn Diagnoser, QualType ResultTy,
+                                 SourceRange Range,
+                                 ArrayRef<Expr *> Args);
 
 static bool is_attribute(APValue &Result, ASTContext &C, MetaActions &Meta,
                          EvalFn Evaluator, DiagFn Diagnoser, QualType ResultTy,
@@ -709,8 +704,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_metaInfo, 2, 2, annotate },
 
   // P3385 attributes reflection
-  { Metafunction::MFRK_metaInfo, 2, 2, get_begin_attributes_of },
-  { Metafunction::MFRK_metaInfo, 2, 2, get_next_attributes_of },
+  { Metafunction::MFRK_metaInfo, 3, 3, get_ith_attribute_of },
   { Metafunction::MFRK_bool, 1, 1, is_attribute },
 
 };
@@ -773,6 +767,10 @@ static APValue makeReflection(TagDataMemberSpec *TDMS) {
 
 static APValue makeReflection(CXX26AnnotationAttr *A) {
   return APValue(ReflectionKind::Annotation, A);
+}
+
+static APValue makeReflection(ParsedAttr *Attr) {
+  return APValue(ReflectionKind::Attribute, Attr);
 }
 
 static Expr *makeStrLiteral(StringRef Str, ASTContext &C, bool Utf8) {
@@ -1423,6 +1421,9 @@ StringRef DescriptionOf(APValue RV, bool Granular = true) {
   case ReflectionKind::Annotation: {
     return "an annotation";
   }
+  case ReflectionKind::Attribute: {
+    return "an attribute";
+  }
   }
 }
 
@@ -1443,19 +1444,93 @@ bool DiagnoseReflectionKind(DiagFn Diagnoser, SourceRange Range,
 // Metafunction implementations
 // -----------------------------------------------------------------------------
 
-bool get_begin_attributes_of(APValue &Result, ASTContext &C,
-                             MetaActions &Meta, EvalFn Evaluator,
-                             DiagFn Diagnoser, QualType ResultTy,
-                             SourceRange Range, ArrayRef<Expr *> Args) {
-  // TODO P3385
-  return false;
-}
+// FIXME Reconciliate Attr and Attribute by just storing AttributeCommonInfo
+struct AttributeScratchpad {
+      AttributeFactory factory;
+      ParsedAttributes attributes;
+      AttributeScratchpad() : factory(), attributes(factory) {}
+};
 
-bool get_next_attributes_of(APValue &Result, ASTContext &C,
-                             MetaActions &Meta, EvalFn Evaluator,
-                             DiagFn Diagnoser, QualType ResultTy,
-                             SourceRange Range, ArrayRef<Expr *> Args) {
-  // TODO P3385
+bool get_ith_attribute_of(APValue &Result, ASTContext &C,
+                          MetaActions &Meta, EvalFn Evaluator,
+                          DiagFn Diagnoser, QualType ResultTy,
+                          SourceRange Range, ArrayRef<Expr *> Args) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == C.MetaInfoTy);
+  Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of";
+
+  APValue RV;
+  if (!Evaluator(RV, Args[0], true))
+    return true;
+
+  APValue Sentinel;
+  if (!Evaluator(Sentinel, Args[1], true))
+    return true;
+  assert(Sentinel.isReflectedType());
+
+  APValue Idx;
+  if (!Evaluator(Idx, Args[2], true))
+    return true;
+  size_t idx = Idx.getInt().getExtValue();
+
+  switch (RV.getReflectionKind()) {
+    case ReflectionKind::Attribute: {
+      Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case attribute";
+      // We don't allow ^^[[ attribute, attribute]], so when reflected type is
+      // attribute idx must be 0
+      if (idx == 0) {
+        Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case attribute idx = 0";
+        ParsedAttr *Attr = RV.getReflectedAttribute();
+        return SetAndSucceed(Result, makeReflection(Attr));
+      }
+      Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case attribute idx > 0";
+      return SetAndSucceed(Result, Sentinel);
+    }
+    case ReflectionKind::Declaration: {
+      Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case declaration";
+      Decl *D = RV.getReflectedDecl();
+      auto attrs = C.getDeclAttrs(D);
+      if (attrs.empty()) {
+        Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case declaration, empty ";
+        return SetAndSucceed(Result, Sentinel);
+      }
+      if (idx == attrs.size()) {
+        Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case declaration, finished ";
+        return SetAndSucceed(Result, Sentinel);
+      }
+      Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case declaration, ith ";
+      
+      Attr* attr = attrs[idx];
+      static AttributeScratchpad scratchpad;
+      
+      if (attr->getForm().getSyntax() != AttributeCommonInfo::Syntax::AS_CXX11) {
+        // FIXME Filter them instead of erroring
+        return DiagnoseReflectionKind(Diagnoser, Range, "a standard CXX11 attribute",
+                                    DescriptionOf(RV));
+      }
+      scratchpad.attributes.addNew(
+        const_cast<IdentifierInfo*>(attr->getAttrName()), // FIXME...
+        attr->getRange(),
+        nullptr,
+        attr->getLocation(),
+         nullptr, nullptr, nullptr,
+         attr->getForm());
+        
+      return SetAndSucceed(Result, makeReflection(&scratchpad.attributes[0]));
+    }
+    case ReflectionKind::Type: 
+    case ReflectionKind::Null:
+    case ReflectionKind::Template:
+    case ReflectionKind::Object:
+    case ReflectionKind::Value:
+    case ReflectionKind::Namespace:
+    case ReflectionKind::BaseSpecifier:
+    case ReflectionKind::DataMemberSpec:
+    case ReflectionKind::Annotation:
+      return DiagnoseReflectionKind(Diagnoser, Range, "declaration or attribute",
+                                    DescriptionOf(RV));
+  }
+  llvm_unreachable("unknown reflection kind");
   return false;
 }
 
