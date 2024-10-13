@@ -90,6 +90,8 @@ def metafn_result_not_representable : Note<
   "provided %select{value|object}0 cannot be represented by a reflection">;
 def metafn_p3385_trace_execution_checkpoint : Note<
   "(p3385-metafn) trace_execution_checkpoint %0">;
+def metafn_p3385_non_standard_attribute : Warning<
+  "(p3385-metafn) Non standard attribute discovered %0">;
 
 // Class definition.
 def metafn_name_invalid_identifier : Note<

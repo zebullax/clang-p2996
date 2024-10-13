@@ -28,7 +28,6 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/Preprocessor.h"
-#include "clang/Sema/ParsedAttr.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
@@ -769,7 +768,7 @@ static APValue makeReflection(CXX26AnnotationAttr *A) {
   return APValue(ReflectionKind::Annotation, A);
 }
 
-static APValue makeReflection(ParsedAttr *Attr) {
+static APValue makeReflection(AttributeCommonInfo *Attr) {
   return APValue(ReflectionKind::Attribute, Attr);
 }
 
@@ -1444,21 +1443,12 @@ bool DiagnoseReflectionKind(DiagFn Diagnoser, SourceRange Range,
 // Metafunction implementations
 // -----------------------------------------------------------------------------
 
-// FIXME Reconciliate Attr and Attribute by just storing AttributeCommonInfo
-struct AttributeScratchpad {
-      AttributeFactory factory;
-      ParsedAttributes attributes;
-      AttributeScratchpad() : factory(), attributes(factory) {}
-};
-
 bool get_ith_attribute_of(APValue &Result, ASTContext &C,
                           MetaActions &Meta, EvalFn Evaluator,
                           DiagFn Diagnoser, QualType ResultTy,
                           SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
   assert(ResultTy == C.MetaInfoTy);
-
-  Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of";
 
   APValue RV;
   if (!Evaluator(RV, Args[0], true))
@@ -1476,48 +1466,33 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
 
   switch (RV.getReflectionKind()) {
     case ReflectionKind::Attribute: {
-      Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case attribute";
       // We don't allow ^^[[ attribute, attribute]], so when reflected type is
       // attribute idx must be 0
       if (idx == 0) {
-        Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case attribute idx = 0";
-        ParsedAttr *Attr = RV.getReflectedAttribute();
-        return SetAndSucceed(Result, makeReflection(Attr));
+        AttributeCommonInfo *attr = RV.getReflectedAttribute();
+        if (attr->getForm().getSyntax() == AttributeCommonInfo::Syntax::AS_CXX11) {
+          return SetAndSucceed(Result, makeReflection(attr));
+        }
+        Diagnoser(Range.getBegin(), diag::metafn_p3385_non_standard_attribute) << attr->getAttrName();
       }
-      Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case attribute idx > 0";
       return SetAndSucceed(Result, Sentinel);
     }
     case ReflectionKind::Declaration: {
-      Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case declaration";
       Decl *D = RV.getReflectedDecl();
       auto attrs = C.getDeclAttrs(D);
       if (attrs.empty()) {
-        Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case declaration, empty ";
         return SetAndSucceed(Result, Sentinel);
       }
       if (idx == attrs.size()) {
-        Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case declaration, finished ";
         return SetAndSucceed(Result, Sentinel);
       }
-      Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of : case declaration, ith ";
       
       Attr* attr = attrs[idx];
-      static AttributeScratchpad scratchpad;
-      
-      if (attr->getForm().getSyntax() != AttributeCommonInfo::Syntax::AS_CXX11) {
-        // FIXME Filter them instead of erroring
-        return DiagnoseReflectionKind(Diagnoser, Range, "a standard CXX11 attribute",
-                                    DescriptionOf(RV));
-      }
-      scratchpad.attributes.addNew(
-        const_cast<IdentifierInfo*>(attr->getAttrName()), // FIXME...
-        attr->getRange(),
-        nullptr,
-        attr->getLocation(),
-         nullptr, nullptr, nullptr,
-         attr->getForm());
-      
-      return SetAndSucceed(Result, makeReflection(&scratchpad.attributes[0]));
+        if (attr->getForm().getSyntax() == AttributeCommonInfo::Syntax::AS_CXX11) {
+          return SetAndSucceed(Result, makeReflection(attr));
+        }
+        Diagnoser(Range.getBegin(), diag::metafn_p3385_non_standard_attribute) << attr->getAttrName();
+        return SetAndSucceed(Result, Sentinel);
     }
     case ReflectionKind::Type: 
     case ReflectionKind::Null:
@@ -1996,7 +1971,7 @@ bool identifier_of(APValue &Result, ASTContext &C, MetaActions &Meta,
     break;
   }
   case ReflectionKind::Attribute: {
-    ParsedAttr* attr = RV.getReflectedAttribute();
+    AttributeCommonInfo* attr = RV.getReflectedAttribute();
     Name = attr->getAttrName()->getName();
     break;
   }
