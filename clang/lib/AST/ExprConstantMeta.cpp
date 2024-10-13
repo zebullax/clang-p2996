@@ -1457,6 +1457,7 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
                           SourceRange Range, ArrayRef<Expr *> Args) {
   assert(Args[0]->getType()->isReflectionType());
   assert(ResultTy == C.MetaInfoTy);
+
   Diagnoser(Range.getBegin(), diag::metafn_p3385_trace_execution_checkpoint) << "get_ith_attribute_of";
 
   APValue RV;
@@ -1515,7 +1516,7 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
         attr->getLocation(),
          nullptr, nullptr, nullptr,
          attr->getForm());
-        
+      
       return SetAndSucceed(Result, makeReflection(&scratchpad.attributes[0]));
     }
     case ReflectionKind::Type: 
