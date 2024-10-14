@@ -28,7 +28,6 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/Preprocessor.h"
-#include "clang/Sema/ParsedAttr.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
@@ -769,7 +768,7 @@ static APValue makeReflection(CXX26AnnotationAttr *A) {
   return APValue(ReflectionKind::Annotation, A);
 }
 
-static APValue makeReflection(ParsedAttr *Attr) {
+static APValue makeReflection(AttributeCommonInfo *Attr) {
   return APValue(ReflectionKind::Attribute, Attr);
 }
 
@@ -1444,13 +1443,6 @@ bool DiagnoseReflectionKind(DiagFn Diagnoser, SourceRange Range,
 // Metafunction implementations
 // -----------------------------------------------------------------------------
 
-// FIXME Reconciliate Attr and Attribute by just storing AttributeCommonInfo
-struct AttributeScratchpad {
-      AttributeFactory factory;
-      ParsedAttributes attributes;
-      AttributeScratchpad() : factory(), attributes(factory) {}
-};
-
 bool get_ith_attribute_of(APValue &Result, ASTContext &C,
                           MetaActions &Meta, EvalFn Evaluator,
                           DiagFn Diagnoser, QualType ResultTy,
@@ -1477,8 +1469,11 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
       // We don't allow ^^[[ attribute, attribute]], so when reflected type is
       // attribute idx must be 0
       if (idx == 0) {
-        ParsedAttr *Attr = RV.getReflectedAttribute();
-        return SetAndSucceed(Result, makeReflection(Attr));
+        AttributeCommonInfo *attr = RV.getReflectedAttribute();
+        if (attr->getForm().getSyntax() == AttributeCommonInfo::Syntax::AS_CXX11) {
+          return SetAndSucceed(Result, makeReflection(attr));
+        }
+        Diagnoser(Range.getBegin(), diag::metafn_p3385_non_standard_attribute) << attr->getAttrName();
       }
       return SetAndSucceed(Result, Sentinel);
     }
@@ -1493,23 +1488,11 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
       }
       
       Attr* attr = attrs[idx];
-      static AttributeScratchpad scratchpad;
-      
-      if (attr->getForm().getSyntax() != AttributeCommonInfo::Syntax::AS_CXX11) {
-        // FIXME Filter them instead of erroring...
-        // or we can filter with "| std::filter" on arrival
-        return DiagnoseReflectionKind(Diagnoser, Range, "a standard CXX11 attribute",
-                                    DescriptionOf(RV));
-      }
-      scratchpad.attributes.addNew(
-        const_cast<IdentifierInfo*>(attr->getAttrName()), // FIXME...
-        attr->getRange(),
-        nullptr,
-        attr->getLocation(),
-         nullptr, nullptr, nullptr,
-         attr->getForm());
-      
-      return SetAndSucceed(Result, makeReflection(&scratchpad.attributes[0]));
+        if (attr->getForm().getSyntax() == AttributeCommonInfo::Syntax::AS_CXX11) {
+          return SetAndSucceed(Result, makeReflection(attr));
+        }
+        Diagnoser(Range.getBegin(), diag::metafn_p3385_non_standard_attribute) << attr->getAttrName();
+        return SetAndSucceed(Result, Sentinel);
     }
     case ReflectionKind::Type: 
     case ReflectionKind::Null:
@@ -1988,7 +1971,7 @@ bool identifier_of(APValue &Result, ASTContext &C, MetaActions &Meta,
     break;
   }
   case ReflectionKind::Attribute: {
-    ParsedAttr* attr = RV.getReflectedAttribute();
+    AttributeCommonInfo* attr = RV.getReflectedAttribute();
     Name = attr->getAttrName()->getName();
     break;
   }
