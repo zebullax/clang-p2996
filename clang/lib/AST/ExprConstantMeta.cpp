@@ -22,6 +22,7 @@
 #include "clang/AST/Metafunction.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/Reflection.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Basic/DiagnosticMetafn.h"
 #include "clang/Basic/IdentifierTable.h"
@@ -31,7 +32,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
-
 
 namespace clang {
 
@@ -768,7 +768,7 @@ static APValue makeReflection(CXX26AnnotationAttr *A) {
   return APValue(ReflectionKind::Annotation, A);
 }
 
-static APValue makeReflection(AttributeCommonInfo *Attr) {
+static APValue makeReflection(const AttributeCommonInfo * Attr) {
   return APValue(ReflectionKind::Attribute, Attr);
 }
 
@@ -1473,28 +1473,64 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
         if (attr->getForm().getSyntax() == AttributeCommonInfo::Syntax::AS_CXX11) {
           return SetAndSucceed(Result, makeReflection(attr));
         }
-        Diagnoser(Range.getBegin(), diag::metafn_p3385_non_standard_attribute) << attr->getAttrName();
+        return Diagnoser(Range.getBegin(), diag::metafn_p3385_non_standard_attribute) << attr->getAttrName();
+      }
+      // TODO diagnostic ?
+      return SetAndSucceed(Result, Sentinel);
+    }
+    // Weirdly enough I thought it would be needed... then again what do I know...
+    //
+    // case ReflectionKind::Declaration: {
+    //   Decl *D = RV.getReflectedDecl();
+    //
+    //   auto attrs = C.getDeclAttrs(D);
+    //   if (attrs.empty()) {
+    //     return SetAndSucceed(Result, Sentinel);
+    //   }
+    //   if (idx == attrs.size()) {
+    //     return SetAndSucceed(Result, Sentinel);
+    //   }
+    //
+    //   Attr* attr = attrs[idx];
+    //     if (attr->getForm().getSyntax() == AttributeCommonInfo::Syntax::AS_CXX11) {
+    //       return SetAndSucceed(Result, makeReflection(attr));
+    //     }
+    //     Diagnoser(Range.getBegin(), diag::metafn_p3385_non_standard_attribute) << attr->getAttrName();
+    //     return SetAndSucceed(Result, Sentinel);
+    // }
+    case ReflectionKind::Type: {
+      QualType qType = RV.getReflectedType();
+      Decl *D = findTypeDecl(qType);
+      if (!D) {
+        return DiagnoseReflectionKind(Diagnoser, Range, "attribute or type",
+                                    DescriptionOf(RV));
+      }
+      TypeSourceInfo* typeInfo = C.getTrivialTypeSourceInfo(qType, Range.getBegin());
+
+      VarDecl *var = VarDecl::Create(
+        C,
+        D->getDeclContext(),
+        Range.getBegin(),
+        Range.getBegin(),
+        nullptr,
+        qType,
+        typeInfo,
+        SC_None);
+      auto attrs = var->attrs();
+      // FIXME cache this...
+      if (auto* attr = attrs.begin(); attr != attrs.end()) {
+          while(idx != 0) {
+            ++attr;
+            --idx;
+            if (attr == attrs.end()) {
+              return SetAndSucceed(Result, Sentinel);
+            }
+          }
+          return SetAndSucceed(Result, makeReflection(*attr));
       }
       return SetAndSucceed(Result, Sentinel);
     }
-    case ReflectionKind::Declaration: {
-      Decl *D = RV.getReflectedDecl();
-      auto attrs = C.getDeclAttrs(D);
-      if (attrs.empty()) {
-        return SetAndSucceed(Result, Sentinel);
-      }
-      if (idx == attrs.size()) {
-        return SetAndSucceed(Result, Sentinel);
-      }
-      
-      Attr* attr = attrs[idx];
-        if (attr->getForm().getSyntax() == AttributeCommonInfo::Syntax::AS_CXX11) {
-          return SetAndSucceed(Result, makeReflection(attr));
-        }
-        Diagnoser(Range.getBegin(), diag::metafn_p3385_non_standard_attribute) << attr->getAttrName();
-        return SetAndSucceed(Result, Sentinel);
-    }
-    case ReflectionKind::Type: 
+    case ReflectionKind::Declaration:
     case ReflectionKind::Null:
     case ReflectionKind::Template:
     case ReflectionKind::Object:
