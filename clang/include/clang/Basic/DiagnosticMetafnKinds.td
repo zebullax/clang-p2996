@@ -88,7 +88,8 @@ def metafn_value_not_structural_type : Note<
   "values of non-structural type %0 cannot be represented as reflections">;
 def metafn_result_not_representable : Note<
   "provided %select{value|object}0 cannot be represented by a reflection">;
-def metafn_p3385_trace_execution_checkpoint : Note<
+
+def metafn_p3385_trace_execution_checkpoint : Warning<
   "(p3385-metafn) trace_execution_checkpoint %0">;
 def metafn_p3385_non_standard_attribute : Warning<
   "(p3385-metafn) Non standard attribute discovered %0">;

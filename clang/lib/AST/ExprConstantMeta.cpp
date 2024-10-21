@@ -962,6 +962,15 @@ static bool findAnnotLoc(APValue &Result, ASTContext &C, EvalFn Evaluator,
   return !Evaluator(Result, SLE, true);
 }
 
+static bool findAttrLoc(APValue &Result, ASTContext &C, EvalFn Evaluator,
+                         QualType ResultTy, AttributeCommonInfo *A) {
+  SourceLocExpr *SLE =
+          new (C) SourceLocExpr(C, SourceLocIdentKind::SourceLocStruct,
+                                ResultTy, A->getLoc(), SourceLocation(),
+                                nullptr);
+  return !Evaluator(Result, SLE, true);
+}
+
 static QualType desugarType(QualType QT, bool UnwrapAliases, bool DropCV,
                             bool DropRefs) {
   bool IsConst = QT.isConstQualified();
@@ -1466,17 +1475,15 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
 
   switch (RV.getReflectionKind()) {
     case ReflectionKind::Attribute: {
-      // We don't allow ^^[[ attribute, attribute]], so when reflected type is
-      // attribute idx must be 0
-      if (idx == 0) {
-        AttributeCommonInfo *attr = RV.getReflectedAttribute();
-        if (attr->getForm().getSyntax() == AttributeCommonInfo::Syntax::AS_CXX11) {
-          return SetAndSucceed(Result, makeReflection(attr));
-        }
-        return Diagnoser(Range.getBegin(), diag::metafn_p3385_non_standard_attribute) << attr->getAttrName();
-      }
-      // TODO diagnostic ?
+      if (idx != 0) {
       return SetAndSucceed(Result, Sentinel);
+      }
+      AttributeCommonInfo *attr = RV.getReflectedAttribute();
+      if (attr->getForm().getSyntax() == AttributeCommonInfo::Syntax::AS_CXX11) {
+        return SetAndSucceed(Result, makeReflection(attr));
+      }
+      // Non standard
+      return Diagnoser(Range.getBegin(), diag::metafn_p3385_non_standard_attribute) << attr->getAttrName();
     }
     // Weirdly enough I thought it would be needed... then again what do I know...
     //
@@ -1502,21 +1509,27 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
       QualType qType = RV.getReflectedType();
       Decl *D = findTypeDecl(qType);
       if (!D) {
+        // FIXME how would we end up here ?
         return DiagnoseReflectionKind(Diagnoser, Range, "attribute or type",
                                     DescriptionOf(RV));
       }
-      TypeSourceInfo* typeInfo = C.getTrivialTypeSourceInfo(qType, Range.getBegin());
+      // TypeSourceInfo* typeInfo = C.getTrivialTypeSourceInfo(qType, Range.getBegin());
 
-      VarDecl *var = VarDecl::Create(
-        C,
-        D->getDeclContext(),
-        Range.getBegin(),
-        Range.getBegin(),
-        nullptr,
-        qType,
-        typeInfo,
-        SC_None);
-      auto attrs = var->attrs();
+      // VarDecl *var = VarDecl::Create(
+      //   C,
+      //   D->getDeclContext(),
+      //   Range.getBegin(),
+      //   Range.getBegin(),
+      //   nullptr,
+      //   qType,
+      //   typeInfo,
+      //   SC_None);
+      // auto attrs = var->attrs();
+      auto attrs = D->attrs();
+      
+      if (attrs.empty()) {
+        return SetAndSucceed(Result, Sentinel);
+      }
       // FIXME cache this...
       if (auto* attr = attrs.begin(); attr != attrs.end()) {
           while(idx != 0) {
@@ -2190,6 +2203,9 @@ bool source_location_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::Annotation:
     return findAnnotLoc(Result, C, Evaluator, ResultTy,
                         RV.getReflectedAnnotation());
+  case ReflectionKind::Attribute:
+    return findAttrLoc(Result, C, Evaluator, ResultTy,
+                        RV.getReflectedAttribute());
   case ReflectionKind::Object:
   case ReflectionKind::Value:
   case ReflectionKind::Null:
@@ -2985,6 +3001,7 @@ bool extract(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::Type:
   case ReflectionKind::Template:
   case ReflectionKind::Namespace:
+  case ReflectionKind::Attribute:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_extract)
@@ -3076,6 +3093,7 @@ bool is_protected(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::Value:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
   case ReflectionKind::Namespace:
     return SetAndSucceed(Result, makeBool(C, false));
   }
@@ -3121,6 +3139,7 @@ bool is_private(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::Namespace:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     return SetAndSucceed(Result, makeBool(C, false));
   }
   llvm_unreachable("invalid reflection type");
@@ -3511,6 +3530,7 @@ bool is_noexcept(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Type: {
     const QualType QT = RV.getReflectedType();
@@ -3582,6 +3602,7 @@ bool is_const(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Type: {
     bool result = isConstQualifiedType(RV.getReflectedType());
@@ -3622,6 +3643,7 @@ bool is_volatile(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     return SetAndSucceed(Result, makeBool(C, false));
   case ReflectionKind::Type: {
     bool result = isVolatileQualifiedType(RV.getReflectedType());
@@ -3964,7 +3986,8 @@ bool is_static_member(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return SetAndSucceed(Result, makeBool(C, result));
+  case ReflectionKind::Attribute:
+    return SetAndSucceed(Result, makeBool(C, false));
   }
   llvm_unreachable("unknown reflection kind");
 }
@@ -4096,6 +4119,7 @@ bool is_alias(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     return SetAndSucceed(Result, makeBool(C, false));
   }
   llvm_unreachable("unknown reflection kind");
@@ -4157,6 +4181,7 @@ bool has_complete_definition(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     break;
   }
 
@@ -4956,6 +4981,7 @@ bool reflect_invoke(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_invoke)
         << DescriptionOf(FnRefl) << Range;
   case ReflectionKind::Object: {
