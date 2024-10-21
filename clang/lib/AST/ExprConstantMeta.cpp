@@ -1485,26 +1485,6 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
       // Non standard
       return Diagnoser(Range.getBegin(), diag::metafn_p3385_non_standard_attribute) << attr->getAttrName();
     }
-    // Weirdly enough I thought it would be needed... then again what do I know...
-    //
-    // case ReflectionKind::Declaration: {
-    //   Decl *D = RV.getReflectedDecl();
-    //
-    //   auto attrs = C.getDeclAttrs(D);
-    //   if (attrs.empty()) {
-    //     return SetAndSucceed(Result, Sentinel);
-    //   }
-    //   if (idx == attrs.size()) {
-    //     return SetAndSucceed(Result, Sentinel);
-    //   }
-    //
-    //   Attr* attr = attrs[idx];
-    //     if (attr->getForm().getSyntax() == AttributeCommonInfo::Syntax::AS_CXX11) {
-    //       return SetAndSucceed(Result, makeReflection(attr));
-    //     }
-    //     Diagnoser(Range.getBegin(), diag::metafn_p3385_non_standard_attribute) << attr->getAttrName();
-    //     return SetAndSucceed(Result, Sentinel);
-    // }
     case ReflectionKind::Type: {
       QualType qType = RV.getReflectedType();
       Decl *D = findTypeDecl(qType);
@@ -1513,23 +1493,12 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
         return DiagnoseReflectionKind(Diagnoser, Range, "attribute or type",
                                     DescriptionOf(RV));
       }
-      // TypeSourceInfo* typeInfo = C.getTrivialTypeSourceInfo(qType, Range.getBegin());
-
-      // VarDecl *var = VarDecl::Create(
-      //   C,
-      //   D->getDeclContext(),
-      //   Range.getBegin(),
-      //   Range.getBegin(),
-      //   nullptr,
-      //   qType,
-      //   typeInfo,
-      //   SC_None);
-      // auto attrs = var->attrs();
       auto attrs = D->attrs();
       
       if (attrs.empty()) {
         return SetAndSucceed(Result, Sentinel);
       }
+
       // FIXME cache this...
       if (auto* attr = attrs.begin(); attr != attrs.end()) {
           while(idx != 0) {
