@@ -1014,7 +1014,6 @@ void Decl::dropAttrs() {
 }
 
 void Decl::addAttr(Attr *A, const ParsedAttr* pA) {
-  assert(pA != nullptr && "Found null syntactic attribute while creating semantic attribute");
   A->setParsedAttr(pA);
   this->addAttr(A);
 }

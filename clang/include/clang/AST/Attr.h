@@ -116,7 +116,8 @@ public:
   const ParsedAttr* fromParsedAttr() const { return Backlink; }
   // FIXME p3385, garbage design
   void setParsedAttr(const ParsedAttr* parsedAttr) {
-    assert(parsedAttr && "backlink to parsed attributes should not be null");
+    // Next line would make sense, except for delayed splice attr... we dont have any backlink there.
+    // assert(parsedAttr && "backlink to parsed attributes should not be null");
     assert(Backlink == nullptr && "backlink should not be reassigned");
     Backlink = parsedAttr;
   }
