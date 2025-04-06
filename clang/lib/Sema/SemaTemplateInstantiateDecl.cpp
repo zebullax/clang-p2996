@@ -13,6 +13,7 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTMutationListener.h"
+#include "clang/AST/Attrs.inc"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclVisitor.h"
 #include "clang/AST/DependentDiagnostic.h"
@@ -21,6 +22,7 @@
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/AST/TypeOrdering.h"
+#include "clang/Basic/DiagnosticParse.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
@@ -37,9 +39,45 @@
 #include "clang/Sema/Template.h"
 #include "clang/Sema/TemplateInstCallback.h"
 #include "llvm/Support/TimeProfiler.h"
+#include "llvm/Support/raw_ostream.h"
 #include <optional>
 
 using namespace clang;
+
+// FIXME I'm copypasting this straight from ExprConstantMeta
+//
+static NamedDecl *findTypeDecl(QualType QT) {
+  // If it's an ElaboratedType, get the underlying NamedType.
+  if (const ElaboratedType *ET = dyn_cast<ElaboratedType>(QT))
+    QT = ET->getNamedType();
+
+  // Get the type's declaration.
+  NamedDecl *D = nullptr;
+  if (auto *TDT = dyn_cast<TypedefType>(QT))
+    D = TDT->getDecl();
+  else if (auto *UT = dyn_cast<UsingType>(QT))
+    D = UT->getFoundDecl();
+  else if (auto *TD = QT->getAsTagDecl())
+    return TD;
+  else if (auto *TT = dyn_cast<TagType>(QT))
+    D = TT->getDecl();
+  else if (auto *UUTD = dyn_cast<UnresolvedUsingType>(QT))
+    D = UUTD->getDecl();
+  else if (auto *TS = dyn_cast<TemplateSpecializationType>(QT)) {
+    if (auto *CTD = dyn_cast<ClassTemplateDecl>(
+          TS->getTemplateName().getAsTemplateDecl())) {
+      void *InsertPos;
+      D = CTD->findSpecialization(TS->template_arguments(), InsertPos);
+    }
+  } else if (auto *STTP = dyn_cast<SubstTemplateTypeParmType>(QT))
+    D = findTypeDecl(STTP->getReplacementType());
+  else if (auto *ICNT = dyn_cast<InjectedClassNameType>(QT))
+    D = ICNT->getDecl();
+  else if (auto *DTT = dyn_cast<DecltypeType>(QT))
+    D = findTypeDecl(DTT->getUnderlyingType());
+
+  return D;
+}
 
 static bool isDeclWithinFunction(const Decl *D) {
   const DeclContext *DC = D->getDeclContext();
@@ -5262,6 +5300,52 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
     if (addInstantiatedParametersToScope(Function, PatternDecl, Scope,
                                          TemplateArgs))
       return;
+
+    // Act on stashed spliced reflection attribute
+    if (Function && Function->hasAttr<DelayedSpliceAttr>()) {
+      Diag(PatternDecl->getLocation(), diag::p3385_delayed_splice_attr)
+        << Function->getNameAsString();
+
+      const DelayedSpliceAttr * attr = Function->getAttr<DelayedSpliceAttr>();
+      Expr* delayedSpliceExpr = attr->getSpliceExpression();
+      auto substResult = SubstExpr(delayedSpliceExpr, TemplateArgs);
+      if (Expr* splicedExpr = substResult.isInvalid() ? nullptr : substResult.get(); splicedExpr != nullptr) {
+        Expr::EvalResult ER;
+        if (!splicedExpr->EvaluateAsRValue(ER, getASTContext(), true)) {
+          Diag(PatternDecl->getLocation(), diag::p3385_err_attribute_splicing_error) << Function->getNameAsString();
+          return;
+        }
+        SourceLocation loc = PatternDecl->getLocation();
+        SourceRange range(loc);
+        switch (ER.Val.getReflectionKind()) {
+          case ReflectionKind::Type: {
+            QualType qType = ER.Val.getReflectedType();
+            NamedDecl *D = findTypeDecl(qType);
+            if (!D) {
+              Diag(loc, diag::p3385_err_attribute_splicing_error)
+                << "Error no declaration found related to the type";
+              return;
+            }
+            for (auto *const attr : D->attrs()) {
+              // We dont attach another DelayedSplice attr
+              if (DelayedSpliceAttr::classof(attr)) {
+                continue;
+              }
+              // Only splice [[ ]] attributes
+              if (!attr->isCXX11Attribute()) {
+                continue;
+              }
+              Function->addAttr(attr);
+              Function->dropAttr<DelayedSpliceAttr>();
+            }
+            break;
+          }
+          default:
+              Diag(PatternDecl->getLocation(), diag::p3385_err_attribute_splicing_error)
+                << "Only reflection of 'type' is supported in dependent attribute splicing";
+        }
+      }
+    }
 
     StmtResult Body;
     if (PatternDecl->hasSkippedBody()) {
