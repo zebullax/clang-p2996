@@ -5166,6 +5166,7 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
         return true;
       }
       for (auto *const attr : D->attrs()) {
+        ArgExprs.clear();
         // Only splice [[ ]] attributes
         if (!attr->isCXX11Attribute()) {
           continue;
