@@ -1551,7 +1551,6 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
       }
 
       auto attrs = D->attrs();
-
       if (attrs.empty()) {
         return SetAndSucceed(Result, Sentinel);
       }
@@ -1574,7 +1573,6 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
       static AttributeScratchpad scratchpad;
 
       const ParsedAttr * parsedAttr = val->fromParsedAttr();
-
       assert(parsedAttr && "no backlink from semantic attribute");
 
       scratchpad.ArgExprs.clear();
