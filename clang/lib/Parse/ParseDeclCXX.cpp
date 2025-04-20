@@ -5117,14 +5117,13 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
   ArgsVector ArgExprs;
   auto *SpliceExpr = cast<CXXSpliceSpecifierExpr>(Result.get());
 
-  // In `template <class T> [[ [: ^^T :] ]] ... ` ^^T is found to be
-  // a value dependent expression and EvaluateAsRValue die... so for
-  // now we refuse it
+  // In `template <class T> [[ [: ^^T :] ]] ... ` ^^T is found to be a value dependent
+  // expression and EvaluateAsRValue die... so for now we ll smuggle the expression in
+  // [[clang::DelayedSplice(expr)]] and we'll evaluate it at instantiation
   if (SpliceExpr->isValueDependent()) {
     Diag(Tok.getLocation(), diag::p3385_trace_execution_checkpoint)
         << "Found value dependent expression in attribute splicing, creating 'DelayedSpliceAttr'";
 
-    // Create a `DelayedSpliceAttr`
     IdentifierInfo& delayedAttributeName = PP.getIdentifierTable().getOwn("clang::DelayedSplice");
 
     ArgExprs.push_back(SpliceExpr);
@@ -5133,7 +5132,7 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
       range,
       nullptr, loc, ArgExprs.data(), ArgExprs.size(),
       ParsedAttr::Form::CXX11());
-    // Early return if we find a splice...
+    // Early return if we find a splice... there should be nothing else in the [[ ]]
     return true;
   }
   Expr::EvalResult ER;
@@ -5171,12 +5170,16 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
         if (!attr->isCXX11Attribute()) {
           continue;
         }
+        // We dont copy over spliced attributes
+        if (DelayedSpliceAttr::classof(attr)) {
+          continue;
+        }
         const ParsedAttr * parsedAttr = attr->fromParsedAttr();
 
         if (!parsedAttr) {
           Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_error)
             << "Found no backlink, ignoring attribute arguments";
-          } else if (size_t nbArgs= parsedAttr->getNumArgs(); nbArgs >0) {
+          } else if (size_t nbArgs = parsedAttr->getNumArgs(); nbArgs >0) {
             Diag(Tok.getLocation(), diag::p3385_trace_execution_checkpoint)
               << "Found argument(s) while splicing a reflected attribute";
             for (size_t i = 0; i != nbArgs; ++i) {
