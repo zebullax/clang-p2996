@@ -343,6 +343,8 @@ class Spelling<string name, string variety, int version = 1> {
   int Version = version;
 }
 
+class ReflectableAttr;
+
 class GNU<string name> : Spelling<name, "GNU">;
 class Declspec<string name> : Spelling<name, "Declspec">;
 class Microsoft<string name> : Spelling<name, "Microsoft">;
@@ -3816,7 +3818,7 @@ def WarnUnused : InheritableAttr {
   let SimpleHandler = 1;
 }
 
-def WarnUnusedResult : InheritableAttr {
+def WarnUnusedResult : InheritableAttr, ReflectableAttr {
   let Spellings = [CXX11<"", "nodiscard", 201907>,
                    C23<"", "nodiscard", 202003>,
                    CXX11<"clang", "warn_unused_result">,
