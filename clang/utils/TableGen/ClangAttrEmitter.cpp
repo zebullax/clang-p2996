@@ -5261,6 +5261,13 @@ void EmitClangAttrSubjectMatchRulesParserStringSwitches(
   getPragmaAttributeSupport(Records).generateParsingHelpers(OS);
 }
 
+void EmitClangAttrReflection(const llvm::RecordKeeper &Records,
+                           llvm::raw_ostream &OS)
+{
+  emitSourceFileHeader("P3385 attribute Reflection facilities", OS, Records);
+  OS << "// TODO";
+}
+
 void EmitClangAttrDocTable(const RecordKeeper &Records, raw_ostream &OS) {
   emitSourceFileHeader("Clang attribute documentation", OS, Records);
 
