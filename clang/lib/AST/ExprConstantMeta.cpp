@@ -1719,8 +1719,7 @@ llvm::SmallVector<const Attr*, 8> static collectUniqueCxx11Attrs(const Decl *D) 
 
   for (const Decl *RD : D->redecls()) {
     for (const Attr *A : RD->getAttrs()) {
-      if (A->getSyntax() == AttributeCommonInfo::Syntax::AS_CXX11
-        && SeenKinds.insert(A->getKind()).second) {
+      if (A->isCXX11Attribute() && SeenKinds.insert(A->getKind()).second) {
         Result.push_back(A);
       }
     }
@@ -1737,10 +1736,10 @@ static StringRef stringArgumentFromAttr(const Attr *A) {
     return D->getMessage();              // [[deprecated("…")]]
   if (auto *W = dyn_cast<WarnUnusedResultAttr>(A))
     return W->getMessage();              // [[nodiscard("…")]]
-  // if (auto *Al = dyn_cast<AliasAttr>(A))
-  //   return Al->getAliasee();             // __attribute__((alias("…")))
-  // if (auto *Sec = dyn_cast<SectionAttr>(A))
-  //   return Sec->getName();               // __attribute__((section("…")))
+  if (auto *Al = dyn_cast<AliasAttr>(A))
+    return Al->getAliasee();             // __attribute__((alias("…")))
+  if (auto *Sec = dyn_cast<SectionAttr>(A))
+    return Sec->getName();               // __attribute__((section("…")))
   if (auto *AS = dyn_cast<AsmLabelAttr>(A))
     return AS->getLabel();               // [[clang::asm("…")]]
   return {};
@@ -1781,34 +1780,43 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
 
   static AttributeScratchpad scratchpad;
 
-
-  // Fetch the ith attribute
-  auto fetchIthAttrFromDecl = [&](Decl* decl) -> const Attr* {
+  // Fetch the ith attribute, build and return a ParsedAttr out of it
+  auto fetchIthAttrFromDecl = [&](Decl* decl, ParsedAttr* &result) -> bool {
     auto cxx11Attrs = collectUniqueCxx11Attrs(decl);
     if (idx + 1 > cxx11Attrs.size()) {
-      return nullptr;
+      result = nullptr;
+      return false;
     }
 
+    // Attr -> ParsedAttr
     const Attr * const val = cxx11Attrs[idx];
     assert(val);
-    return val;
-  };
 
-  // Calback we pass to the semantic attribute to trigger syntactic synthesis
-  auto onSyntacticBag = [&](IdentifierInfo * name,
-                           SmallVector<llvm::PointerUnion<Expr *, IdentifierLoc *>, 2> args,
-                           Attr* attr,
-                           AttributeCommonInfo::Form form) -> ParsedAttr*
-  {
-    return scratchpad.attributes.addNew(
-      name,
-      attr->getRange(),
+    bool hasFoundStringArg = false;
+    if (StringRef stringArg = stringArgumentFromAttr(val); !stringArg.empty()) {
+      const bool isUtf8 = false; // ah ?... why ?
+      scratchpad.argExprs.push_back(makeStrLiteral(stringArg, C, isUtf8));
+      hasFoundStringArg = true;
+    }
+
+    AttributeCommonInfo::AttrArgsInfo AttrArgsInfo
+      = AttributeCommonInfo::getCXX11AttrArgsInfo(val->getAttrName());
+    if (AttrArgsInfo == AttributeCommonInfo::AttrArgsInfo::Required && !hasFoundStringArg) {
+      Diagnoser(Range.getBegin(), diag::metafn_p3385_non_string_mandatory_argument)
+        << val->getAttrName();
+      return true;
+    }
+    IdentifierInfo &attrName = C.Idents.get(val->getAttrName()->getName());
+    result = scratchpad.attributes.addNew(
+      &attrName, // const_cast<IdentifierInfo*>(val->getAttrName()),
+      val->getRange(),
       nullptr,
-      attr->getLoc(),
-      args.empty() ? nullptr : args.data(),
-      args.size(),
-      form
+      val->getLoc(),
+      hasFoundStringArg ? scratchpad.argExprs.data() : nullptr,
+      hasFoundStringArg,
+      val->getForm() // Better be cxx11 by now...
     );
+    return false;
   };
 
   switch (RV.getReflectionKind()) {
@@ -1824,37 +1832,37 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
       return Diagnoser(Range.getBegin(), diag::metafn_p3385_non_standard_attribute)
         << attr->getAttrName();
     }
-    // case ReflectionKind::Type: {
-    //   QualType qType = RV.getReflectedType();
-    //   Decl *D = findTypeDecl(qType)->getMostRecentDecl();
-    //   if (!D) {
-    //     return Diagnoser(Range.getBegin(), diag::metafn_p3385_no_declaration_for_type)
-    //       << DescriptionOf(RV);
-    //   }
+    case ReflectionKind::Type: {
+      QualType qType = RV.getReflectedType();
+      Decl *D = findTypeDecl(qType)->getMostRecentDecl();
+      if (!D) {
+        return Diagnoser(Range.getBegin(), diag::metafn_p3385_no_declaration_for_type)
+          << DescriptionOf(RV);
+      }
 
-    //   if (ParsedAttr* fetchedAttribute{}; !fetchIthAttrFromDecl(D, fetchedAttribute)) {
-    //     if (fetchedAttribute) {
-    //       return SetAndSucceed(Result, makeReflection(fetchedAttribute));
-    //     }
-    //     return SetAndSucceed(Result, Sentinel);
-    //   }
-    //   return true;
-    // }
-    // case ReflectionKind::Declaration: {
-    //   ValueDecl *D = RV.getReflectedDecl();
-    //   if (!D) {
-    //     return DiagnoseReflectionKind(
-    //       Diagnoser, Range, "attribute, type, declaration", DescriptionOf(RV));
-    //   }
+      if (ParsedAttr* fetchedAttribute{}; !fetchIthAttrFromDecl(D, fetchedAttribute)) {
+        if (fetchedAttribute) {
+          return SetAndSucceed(Result, makeReflection(fetchedAttribute));
+        }
+        return SetAndSucceed(Result, Sentinel);
+      }
+      return true;
+    }
+    case ReflectionKind::Declaration: {
+      ValueDecl *D = RV.getReflectedDecl();
+      if (!D) {
+        return DiagnoseReflectionKind(
+          Diagnoser, Range, "attribute, type, declaration", DescriptionOf(RV));
+      }
 
-    //   if (ParsedAttr* fetchedAttribute{}; !fetchIthAttrFromDecl(D, fetchedAttribute)) {
-    //     if (fetchedAttribute) {
-    //       return SetAndSucceed(Result, makeReflection(fetchedAttribute));
-    //     }
-    //     return SetAndSucceed(Result, Sentinel);
-    //   }
-    //   return true;
-    // }
+      if (ParsedAttr* fetchedAttribute{}; !fetchIthAttrFromDecl(D, fetchedAttribute)) {
+        if (fetchedAttribute) {
+          return SetAndSucceed(Result, makeReflection(fetchedAttribute));
+        }
+        return SetAndSucceed(Result, Sentinel);
+      }
+      return true;
+    }
     case ReflectionKind::Null:
     case ReflectionKind::Template:
     case ReflectionKind::Object:
