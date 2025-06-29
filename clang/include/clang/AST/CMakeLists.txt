@@ -18,6 +18,10 @@ clang_tablegen(AttrVisitor.inc -gen-clang-attr-ast-visitor
   SOURCE ../Basic/Attr.td
   TARGET ClangAttrVisitor)
 
+# clang_tablegen(AttrReflection.inc  -gen-clang-attr-reflection
+#   SOURCE ../Basic/Attr.td
+#   TARGET ClangAttrReflection)
+
 clang_tablegen(StmtNodes.inc -gen-clang-stmt-nodes
   SOURCE ../Basic/StmtNodes.td
   TARGET ClangStmtNodes)
