@@ -189,12 +189,11 @@ static StringRef NormalizeGNUAttrSpelling(StringRef AttrSpelling) {
 
 typedef std::vector<std::pair<std::string, const Record *>> ParsedAttrMap;
 
-static ParsedAttrMap getParsedAttrList(const RecordKeeper &Records,
-                                       ParsedAttrMap *Dupes = nullptr,
-                                       bool SemaOnly = true) {
-  std::set<std::string> Seen;
-  ParsedAttrMap R;
-  for (const Record *Attr : Records.getAllDerivedDefinitions("Attr")) {
+static void getParsedAttrFromRecord(const Record* Attr,
+                                    std::set<std::string>& Seen,
+                                    ParsedAttrMap& R,
+                                    ParsedAttrMap *Dupes = nullptr,
+                                    bool SemaOnly = true) {
     if (!SemaOnly || Attr->getValueAsBit("SemaHandler")) {
       std::string AN;
       if (Attr->isSubClassOf("TargetSpecificAttr") &&
@@ -206,13 +205,22 @@ static ParsedAttrMap getParsedAttrList(const RecordKeeper &Records,
         if (!Seen.insert(AN).second) {
           if (Dupes)
             Dupes->push_back(std::make_pair(AN, Attr));
-          continue;
+          return;
         }
       } else
         AN = NormalizeAttrName(Attr->getName()).str();
 
       R.push_back(std::make_pair(AN, Attr));
     }
+}
+
+static ParsedAttrMap getParsedAttrList(const RecordKeeper &Records,
+                                       ParsedAttrMap *Dupes = nullptr,
+                                       bool SemaOnly = true) {
+  std::set<std::string> Seen;
+  ParsedAttrMap R;
+  for (const Record *Attr : Records.getAllDerivedDefinitions("Attr")) {
+    getParsedAttrFromRecord(Attr, Seen, R, Dupes, SemaOnly);
   }
   return R;
 }
@@ -504,14 +512,6 @@ namespace {
     void writeDump(raw_ostream &OS) const override {
       OS << "    OS << \" \\\"\" << SA->get" << getUpperName()
          << "() << \"\\\"\";\n";
-    }
-    
-    void writeToExprConv(raw_ostream& OS) const {
-      // assume 'C, srcLocation' in scope
-      // FIXME hardcoded much ?
-      OS << "StringLiteral::Create(\n"
-         << "  C, get" << getUpperName() << "(), StringLiteralKind::Ordinary,\n"
-         << "  false, C.CharTy, srcLocation)\n";
     }
   };
 
@@ -2542,21 +2542,17 @@ static bool isVariadicExprArgument(const Record *Arg) {
 }
 
 static bool isBoolArgument(const Record *Arg) {
-  if (Arg->getDirectSuperClasses().empty())
-    return false;
-  StringRef ArgKind = Arg->getDirectSuperClasses().back().first->getName();
-  if (ArgKind == "EnumArgument")
-    return Arg->getValueAsBit("IsBool");
-  return ArgKind == "BoolArgument";
+  return !Arg->getDirectSuperClasses().empty() &&
+    StringSwitch<bool>(Arg->getDirectSuperClasses().back().first->getName())
+      .Case("BoolArgument", true)
+      .Default(false);
 }
 
 static bool isIntArgument(const Record *Arg) {
-  if (Arg->getDirectSuperClasses().empty())
-    return false;
-  StringRef ArgKind = Arg->getDirectSuperClasses().back().first->getName();
-  if (ArgKind == "EnumArgument")
-    return Arg->getValueAsBit("IsInt");
-  return ArgKind == "IntArgument";
+  return !Arg->getDirectSuperClasses().empty() &&
+    StringSwitch<bool>(Arg->getDirectSuperClasses().back().first->getName())
+      .Case("IntArgument", true)
+      .Default(false);
 }
 
 static bool isStringLiteralArgument(const Record *Arg) {
@@ -2568,6 +2564,13 @@ static bool isStringLiteralArgument(const Record *Arg) {
   return ArgKind == "StringArgument";
 }
 
+static bool isStringEnumArgument(const Record *Arg) {
+  if (Arg->getDirectSuperClasses().empty())
+    return false;
+  StringRef ArgKind = Arg->getDirectSuperClasses().back().first->getName();
+  return ArgKind == "EnumArgument" && Arg->getValueAsBit("IsString");
+}
+
 static bool isVariadicStringLiteralArgument(const Record *Arg) {
   if (Arg->getDirectSuperClasses().empty())
     return false;
@@ -2575,6 +2578,92 @@ static bool isVariadicStringLiteralArgument(const Record *Arg) {
   if (ArgKind == "VariadicEnumArgument")
     return Arg->getValueAsBit("IsString");
   return ArgKind == "VariadicStringArgument";
+}
+
+// An attribute is reflectable (for now) if
+// - it admits at least one CXX11 representation, and
+// - it has no arguments or
+// - all its arguments are of any of the types: string, bool, int
+static bool isReflectableAttr(const Record* R) {
+  bool hasStandardRepresentation = false;
+  for (const auto &Spelling : R->getValueAsListOfDefs("Spellings")) {
+    StringRef Variety = Spelling->getValueAsString("Variety");
+    StringRef Name = Spelling->getValueAsString("Name");
+    if (!Name.empty() && (Variety == "GCC" || Variety == "Clang" || Variety == "ClangGCC")) {
+      hasStandardRepresentation = true;
+      break;
+    }
+  }
+  if (!hasStandardRepresentation) {
+    return false;
+  }
+
+  auto isSupportedArgType = [](const Record* arg) {
+    return isStringLiteralArgument(arg)
+      || isBoolArgument(arg)
+      || isIntArgument(arg);
+  };
+  std::vector<const Record *> ArgRecords = R->getValueAsListOfDefs("Args");
+  return ArgRecords.empty() || std::all_of(ArgRecords.begin(), ArgRecords.end(), isSupportedArgType);
+}
+
+// P3385 Codegen an accessor for arguments as expr
+static void writeExtractSyntacticArgumentFunction(const Record &R,
+                         raw_ostream &OS) {
+  OS << "  bool " << R.getName() << "Attr::extractSyntacticArguments(ASTContext& C, OnSyntacticArgument onSyntax, SourceLocation srcLocation) {\n";
+  OS << "    SmallVector<llvm::PointerUnion<Expr *, IdentifierLoc *>, 2> args;\n";
+  OS << "    const AttributeCommonInfo* info = this;\n";
+  OS << "    IdentifierInfo &attrName = C.Idents.get(info->getAttrName()->getName());\n\n";
+
+  auto makeShortNameForArgType = [] (const Record* Arg) {
+    const bool isExternal = Arg->getValueAsBit("IsExternalType");
+    StringRef argType = Arg->getValueAsString("Type");
+    StringRef shortType = isExternal ? argType.rsplit("::").second : argType;
+    if (shortType.empty())
+      shortType = argType;
+    return shortType;
+  };
+
+  auto emitExprFromArg = [&] (raw_ostream &OS, const Record *Arg) {
+    std::string ArgName(Arg->getValueAsString("Name"));
+    ArgName[0] = std::toupper(ArgName[0]);
+    std::string Accessor = std::string("get") + ArgName + "()";
+
+    if (isIntArgument(Arg)) {
+      OS << "    args.push_back(IntegerLiteral::Create(C, llvm::APInt(32, " << Accessor << "), C.IntTy, srcLocation));\n";
+    } else if (isBoolArgument(Arg)) {
+      OS << "    args.push_back(CXXBoolLiteralExpr::Create(C, " << Accessor << ", C.BoolTy, srcLocation));\n";
+    // } else if (isIdentifierArgument(Arg)) {
+    //   OS << "    if (auto II = " << Accessor << ") {\n"
+    //     << "      args.push_back(DeclRefExpr::Create(\n"
+    //     << "          C, NestedNameSpecifierLoc(), srcLocation,\n"
+    //     << "          II, false, srcLocation,\n"
+    //     << "          C.DependentTy, ExprValueKind::VK_LValue));\n"
+    //     << "    }\n";
+    } else if (isStringLiteralArgument(Arg)) {
+      // String enums need to go through a convert
+      if (R.getName() == "DefineLanguage") {
+
+      }
+      if (isStringEnumArgument(Arg)) {
+        std::string enumTypeName(makeShortNameForArgType(Arg));
+        enumTypeName[0] = std::toupper(enumTypeName[0]);
+        Accessor = "Convert" + enumTypeName + "ToStr(" + Accessor +")";
+        OS << "    args.push_back(StringLiteral::Create(C, " << Accessor << ", StringLiteralKind::Ordinary, false, C.CharTy, srcLocation));\n";
+      } else {
+        OS << "    args.push_back(StringLiteral::Create(C, " << Accessor << ", StringLiteralKind::Ordinary, false, C.CharTy, srcLocation));\n";
+      }
+    } else {
+      OS << "    // FIXME: Unhandled argument type...'" << Arg->getName() << "'\n";
+    }
+  };
+
+  for (const Record * arg : R.getValueAsListOfDefs("Args")) {
+    emitExprFromArg(OS, arg);
+  }
+  OS << "\n";
+  OS << "    return onSyntax(&attrName, args, info->getForm());\n";
+  OS << "  }\n";
 }
 
 static void emitClangAttrVariadicIdentifierArgList(const RecordKeeper &Records,
@@ -2715,33 +2804,6 @@ static void emitFormInitializer(raw_ostream &OS,
      << " /*IsRegularKeywordAttribute*/}";
 }
 
-// An attribute is reflectable if
-// - it has at least one CXX11 representation, and 
-// - it has no arguments or 
-// - all its arguments are of any of the types: string, bool, int
-static bool isReflectableAttr(const Record* R) {
-  bool hasStandardRepresentation = false;
-  for (const auto &Spelling : R->getValueAsListOfDefs("Spellings")) {
-    StringRef Variety = Spelling->getValueAsString("Variety");
-    StringRef Name = Spelling->getValueAsString("Name");
-    if (!Name.empty() && (Variety == "GCC" || Variety == "Clang" || Variety == "ClangGCC")) {
-      hasStandardRepresentation = true;
-      break;
-    }
-  }
-  if (!hasStandardRepresentation) {
-    return false;
-  }
-
-  auto isSupportedArgType = [](const Record* arg) {
-    return isStringLiteralArgument(arg)
-      || isBoolArgument(arg)
-      || isIntArgument(arg);
-  };
-  std::vector<const Record *> ArgRecords = R->getValueAsListOfDefs("Args");
-  return ArgRecords.empty() || std::all_of(ArgRecords.begin(), ArgRecords.end(), isSupportedArgType);
-}
-
 static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
                            bool Header) {
   ParsedAttrMap AttrMap = getParsedAttrList(Records);
@@ -2779,26 +2841,17 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
     assert(!Supers.empty() && "Forgot to specify a superclass for the attr");
     std::string SuperName;
     bool Inheritable = false;
-    bool isReflectable = false;
-
     for (const Record *R : reverse(Supers)) {
       if (R->getName() != "TargetSpecificAttr" &&
-          R->getName() != "reDeclOrTypeAttr" && 
-          R->getName() != "ReflectableAttr" && SuperName.empty())
+          R->getName() != "DeclOrTypeAttr" && SuperName.empty())
         SuperName = R->getName().str();
       if (R->getName() == "InheritableAttr")
         Inheritable = true;
-      if (R->getName() == "ReflectableAttr") {
-        isReflectable = true;
-      }
     }
 
     if (Header) {
       OS << "class CLANG_ABI " << R.getName() << "Attr : public " << SuperName
          << " {\n";
-      if (isReflectable) {
-        OS << "\n// This attribute is unsemantifiable (...) \n\n";
-      }
     }
     else
       OS << "\n// " << R.getName() << "Attr implementation\n\n";
@@ -3170,12 +3223,26 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
     if (DelayedArgs && HasRequiredArgs)
       emitCtor(false, false, true);
 
+    bool mustEmitOnSyntactiArgs = isReflectableAttr(Attr) && !Attr->getValueAsBit("EscapeReflection");
+
     if (Header) {
       OS << '\n';
       OS << "  " << R.getName() << "Attr *clone(ASTContext &C) const;\n";
       OS << "  void printPretty(raw_ostream &OS,\n"
          << "                   const PrintingPolicy &Policy) const;\n";
       OS << "  const char *getSpelling() const;\n";
+
+      if (mustEmitOnSyntactiArgs) {
+        OS << "  using OnSyntacticArgument\n";
+        OS << "    = std::function<bool(\n";
+        OS << "        IdentifierInfo *,\n"; // Attr name
+        OS << "        SmallVector<llvm::PointerUnion<Expr *, IdentifierLoc *>, 2>,\n"; // Args
+        OS << "        AttributeCommonInfo::Form\n"; // Form
+        OS << "      )>;\n";
+        OS << "\n";
+        OS << "  bool extractSyntacticArguments(ASTContext& C, OnSyntacticArgument onSyntax, SourceLocation srcLocation);\n";
+        OS << "\n";
+      }
     }
 
     if (!ElideSpelling) {
@@ -3192,62 +3259,7 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
     }
 
     if (Header) {
-      if (isReflectable) {
-        // TODO This likely does not need be repeated in every attribute body
-        OS << "  using OnSyntacticCookie\n";
-        OS << "    = std::function<bool(\n";
-        OS << "        IdentifierInfo *,\n"; // Attr name
-        OS << "        SmallVector<llvm::PointerUnion<Expr *, IdentifierLoc *>, 2>,\n"; // Args
-        OS << "        AttributeCommonInfo::Form\n"; // Form (should be - CXX11)
-        OS << "      )>;\n";
-        OS << "\n";
-        OS << "  bool toSyntacticElement(ASTContext& C, OnSyntacticCookie onSyntax, SourceLocation srcLocation);\n";
-        OS << "\n";
-      }
       writeAttrAccessorDefinition(R, OS);
-    } else {
-      // Emit a function 'toSyntacticEquivalent' to go back to syntactic form
-      if (isReflectable) {
-        // Handwave some conversion back to expr* from easy args
-        auto emitExprFromArg = [&] (raw_ostream &OS, const Record *Arg) {
-          std::unique_ptr<Argument> arg = createArgument(*Arg, R.getName(), nullptr);
-          
-          if (isStringLiteralArgument(Arg)) {
-            StringArgument* strArg = reinterpret_cast<StringArgument*>(arg.get());
-            OS << "  ArgExprs.push_back(\n";
-            strArg->writeToExprConv(OS);
-            OS << "  );\n";
-          }
-
-          // if (ArgType == "int") {
-          //   OS << "  ArgExprs.push_back(IntegerLiteral::Create(C, llvm::APInt(32, "
-          //     << Accessor << "), C.IntTy, srcLocation));\n";
-          // } else if (ArgType == "bool") {
-          //   OS << "  ArgExprs.push_back(CXXBoolLiteralExpr::Create(c, "
-          //     << Accessor << ", C.BoolTy, srcLocation));\n";
-          // } else {
-          //   OS << "  // FIXME: Unhandled argument type: " << ArgType << "\n";
-          // }
-        };
-
-        // Sanity check on supported args
-        auto isSupportedArgType = [](const Record* arg) {
-          return isStringLiteralArgument(arg)
-            || isBoolArgument(arg)
-            || isIntArgument(arg);
-        };
-        if (ArgRecords.empty() || std::all_of(ArgRecords.begin(), ArgRecords.end(), isSupportedArgType)) {
-          OS << "bool " << R.getName() << "Attr::toSyntacticElement(ASTContext& C, OnSyntacticCookie onSyntax, SourceLocation srcLocation) {\n";
-          OS << "  SmallVector<llvm::PointerUnion<Expr *, IdentifierLoc *>, 2> ArgExprs;\n";
-          OS << "  const AttributeCommonInfo* info = this;\n";
-          OS << "  IdentifierInfo &attrName = C.Idents.get(info->getAttrName()->getName());\n";
-          for (const Record * arg : ArgRecords) {
-            emitExprFromArg(OS, arg);
-          }
-          OS << "  return onSyntax(&attrName, ArgExprs, info->getForm());\n";
-          OS << "}\n";
-        }
-      }
     }
 
     for (auto const &ai : Args) {
@@ -3307,6 +3319,9 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
 
       writePrettyPrintFunction(R, Args, OS);
       writeGetSpellingFunction(R, OS);
+      if (mustEmitOnSyntactiArgs) {
+        writeExtractSyntacticArgumentFunction(R, OS);
+      }
     }
   }
 }
@@ -5259,11 +5274,31 @@ void EmitClangAttrSubjectMatchRulesParserStringSwitches(
   getPragmaAttributeSupport(Records).generateParsingHelpers(OS);
 }
 
+// Build list of attributes 'case (Kind) : isReflectable'
+static void emitClangAttrIsReflectableList(const llvm::RecordKeeper &Records,
+                                          llvm::raw_ostream &OS)
+{
+  OS << "#if defined(CLANG_ATTR_IS_REFLECTABLE_LIST)\n";
+  for (const auto & [name, record] : getParsedAttrList(Records)) {
+    OS << "case (AttributeCommonInfo::Kind::AT_" << name << "): return "
+       << (isReflectableAttr(record) ? "true" : "false") << ";\n";
+  }
+  OS << "#endif // CLANG_ATTR_IS_REFLECTABLE_LIST\n\n";
+}
+
+static void emitClangAttrOnSyntacticArgs(const llvm::RecordKeeper &Records,
+                                           llvm::raw_ostream &OS)
+{
+  // TODO
+}
+
+// Backend to generate Attr reflection .inc file
 void EmitClangAttrReflection(const llvm::RecordKeeper &Records,
                            llvm::raw_ostream &OS)
 {
   emitSourceFileHeader("P3385 attribute Reflection facilities", OS, Records);
-  OS << "// TODO";
+  emitClangAttrIsReflectableList(Records, OS);
+  emitClangAttrOnSyntacticArgs(Records, OS);
 }
 
 void EmitClangAttrDocTable(const RecordKeeper &Records, raw_ostream &OS) {

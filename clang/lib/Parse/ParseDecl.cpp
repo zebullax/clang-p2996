@@ -109,6 +109,17 @@ static bool IsAttributeLateParsedStandard(const IdentifierInfo &II) {
 #undef CLANG_ATTR_LATE_PARSED_LIST
 }
 
+/// Returns whether an attribute has a reflectable variant
+/// For example AT_WarnUnusedResult admit a reflectable variant
+static bool IsAttributeWithReflectableVariant(AttributeCommonInfo::Kind kind){
+  #define CLANG_ATTR_IS_REFLECTABLE_LIST
+  switch (kind) {
+    default: return false;
+#include "clang/Parse/AttrReflection.inc"
+  }
+  #undef CLANG_ATTR_IS_REFLECTABLE_LIST
+}
+
 /// Check if the a start and end source location expand to the same macro.
 static bool FindLocsWithCommonFileID(Preprocessor &PP, SourceLocation StartLoc,
                                      SourceLocation EndLoc) {
