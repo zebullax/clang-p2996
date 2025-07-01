@@ -40,7 +40,7 @@ class FunctionDecl;
 class OMPTraitInfo;
 class ParsedAttr;
 class OpenACCClause;
-
+    
 /// Attr - This represents one attribute.
 class Attr : public AttributeCommonInfo {
 private:
@@ -71,6 +71,16 @@ protected:
   }
 
 public:
+
+  /// TODO this alias is kinda all over the place, not great
+  /// This callback will be called for a semantic attribute with
+  using OnSyntacticArgument
+    = std::function<bool( // return true if the syntactic synthesis succeeded
+        IdentifierInfo *, // attribute name
+        SmallVector<llvm::PointerUnion<Expr *, IdentifierLoc *>, 2>, // arguments
+        AttributeCommonInfo::Form // attribute form
+      )>;
+
   // Forward so that the regular new and delete do not hide global ones.
   void *operator new(size_t Bytes, ASTContext &C,
                      size_t Alignment = 8) noexcept {
@@ -111,6 +121,10 @@ public:
   Attr *clone(ASTContext &C) const;
 
   bool isLateParsed() const { return IsLateParsed; }
+
+  /// Extract the syntactic arguments for this attribute, with the specified context and location
+  /// The callback 'CB' will be invoked with arguments described above
+  bool extractSyntacticArguments(ASTContext &Ctx, OnSyntacticArgument CB, SourceLocation Loc);
 
   // Pretty print this attribute.
   void printPretty(raw_ostream &OS, const PrintingPolicy &Policy) const;
@@ -380,6 +394,20 @@ static_assert(sizeof(ParamIdx) == sizeof(ParamIdx::SerialType),
               "ParamIdx does not fit its serialization type");
 
 #include "clang/AST/Attrs.inc" // IWYU pragma: export
+
+inline bool extractSyntacticArguments(Attr* semanticAttr,
+                                      ASTContext &C,
+                                      Attr::OnSyntacticArgument onSyntax,
+                                      SourceLocation srcLocation)
+{
+  #define CLANG_ATTR_ON_SYNTACTIC_ARGS_LIST
+  AttributeCommonInfo info = *semanticAttr;
+  switch (info.getParsedKind()) {
+    default: return false;
+#include "clang/Parse/AttrReflection.inc"
+  }
+  #undef CLANG_ATTR_ON_SYNTACTIC_ARGS_LIST
+}
 
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
                                              const Attr *At) {

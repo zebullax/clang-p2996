@@ -2584,8 +2584,16 @@ static bool isVariadicStringLiteralArgument(const Record *Arg) {
 // - it admits at least one CXX11 representation, and
 // - it has no arguments or all its arguments are of any of the types: string, bool, int
 // - it does not set 'EscapeReflection' to true
+// - it does not set 'ASTNode' to true
+// - it is not a type attributes (we may lift later...)
 static bool isReflectableAttr(const Record* R) {
   if (R->getValueAsBit("EscapeReflection")) {
+    return false;
+  }
+  if (!R->getValueAsBit("ASTNode")) {
+    return false;
+  }
+  if (R->isSubClassOf("TypeAttr")) {
     return false;
   }
   bool hasStandardRepresentation = false;
@@ -5292,7 +5300,21 @@ static void emitClangAttrIsReflectableList(const llvm::RecordKeeper &Records,
 static void emitClangAttrOnSyntacticArgs(const llvm::RecordKeeper &Records,
                                            llvm::raw_ostream &OS)
 {
-  // TODO
+  OS << "#if defined(CLANG_ATTR_ON_SYNTACTIC_ARGS_LIST)\n";
+  for (const auto & [name, record] : getParsedAttrList(Records)) {
+    if (!isReflectableAttr(record)) {
+      OS << "case (AttributeCommonInfo::Kind::AT_" << name << "): return false;\n";
+    } else {
+      std::string attrClassName(record->getName());
+      attrClassName += "Attr";
+      OS << "case (AttributeCommonInfo::Kind::AT_" << name << "): {\n"
+         << "  " << attrClassName << "* attr = static_cast<" << attrClassName <<"*>(semanticAttr);\n"
+         /*                              ASTContext&, OnSyntacticArgument, SourceLocation */
+         << "  return attr->extractSyntacticArguments(C, onSyntax, srcLocation);\n"
+         << "}\n";
+    }
+  }
+  OS << "#endif // CLANG_ATTR_ON_SYNTACTIC_ARGS_LIST\n\n";
 }
 
 // Backend to generate Attr reflection .inc file
