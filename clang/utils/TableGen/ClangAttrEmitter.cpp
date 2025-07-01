@@ -2582,9 +2582,12 @@ static bool isVariadicStringLiteralArgument(const Record *Arg) {
 
 // An attribute is reflectable (for now) if
 // - it admits at least one CXX11 representation, and
-// - it has no arguments or
-// - all its arguments are of any of the types: string, bool, int
+// - it has no arguments or all its arguments are of any of the types: string, bool, int
+// - it does not set 'EscapeReflection' to true
 static bool isReflectableAttr(const Record* R) {
+  if (R->getValueAsBit("EscapeReflection")) {
+    return false;
+  }
   bool hasStandardRepresentation = false;
   for (const auto &Spelling : R->getValueAsListOfDefs("Spellings")) {
     StringRef Variety = Spelling->getValueAsString("Variety");
@@ -3223,7 +3226,7 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
     if (DelayedArgs && HasRequiredArgs)
       emitCtor(false, false, true);
 
-    bool mustEmitOnSyntactiArgs = isReflectableAttr(Attr) && !Attr->getValueAsBit("EscapeReflection");
+    bool mustEmitOnSyntactiArgs = isReflectableAttr(Attr);
 
     if (Header) {
       OS << '\n';
