@@ -1748,8 +1748,7 @@ static StringRef stringArgumentFromAttr(const Attr *A) {
 struct AttributeScratchpad {
   AttributeFactory factory;
   ParsedAttributes attributes;
-  ArgsVector argExprs;
-  AttributeScratchpad() : factory(), attributes(factory), argExprs() {}
+  AttributeScratchpad() : factory(), attributes(factory) {}
 };
 
 // -----------------------------------------------------------------------------
@@ -1778,6 +1777,7 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
     return true;
   size_t idx = Idx.getInt().getExtValue();
 
+  // FIXME this is debatable whether those shouldnt be kept in ASTContext...
   static AttributeScratchpad scratchpad;
 
   // Fetch the ith attribute, build and return a ParsedAttr out of it
@@ -1792,31 +1792,23 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
     const Attr * const val = cxx11Attrs[idx];
     assert(val);
 
-    bool hasFoundStringArg = false;
-    if (StringRef stringArg = stringArgumentFromAttr(val); !stringArg.empty()) {
-      const bool isUtf8 = false; // ah ?... why ?
-      scratchpad.argExprs.push_back(makeStrLiteral(stringArg, C, isUtf8));
-      hasFoundStringArg = true;
-    }
-
-    AttributeCommonInfo::AttrArgsInfo AttrArgsInfo
-      = AttributeCommonInfo::getCXX11AttrArgsInfo(val->getAttrName());
-    if (AttrArgsInfo == AttributeCommonInfo::AttrArgsInfo::Required && !hasFoundStringArg) {
-      Diagnoser(Range.getBegin(), diag::metafn_p3385_non_string_mandatory_argument)
-        << val->getAttrName();
-      return true;
-    }
-    IdentifierInfo &attrName = C.Idents.get(val->getAttrName()->getName());
-    result = scratchpad.attributes.addNew(
-      &attrName, // const_cast<IdentifierInfo*>(val->getAttrName()),
-      val->getRange(),
-      nullptr,
-      val->getLoc(),
-      hasFoundStringArg ? scratchpad.argExprs.data() : nullptr,
-      hasFoundStringArg,
-      val->getForm() // Better be cxx11 by now...
-    );
-    return false;
+    auto syntacticFormBuilder = [&](
+      IdentifierInfo * attrName,
+      SmallVector<llvm::PointerUnion<Expr *, IdentifierLoc *>, 2> argExprs,
+      AttributeCommonInfo::Form form
+    ) {
+      result = scratchpad.attributes.addNew(
+        attrName,
+        val->getRange(),
+        nullptr,
+        val->getLoc(),
+        argExprs.data(),
+        argExprs.size(),
+        val->getForm() // Better be cxx11 by now...
+      );
+      return false;
+    };
+    return extractSyntacticArguments(val, C, syntacticFormBuilder, val->getLocation());
   };
 
   switch (RV.getReflectionKind()) {

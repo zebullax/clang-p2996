@@ -75,7 +75,7 @@ public:
   /// TODO this alias is kinda all over the place, not great
   /// This callback will be called for a semantic attribute with
   using OnSyntacticArgument
-    = std::function<bool( // return true if the syntactic synthesis succeeded
+    = std::function<bool( // Should return false if the operation failed, true if successful
         IdentifierInfo *, // attribute name
         SmallVector<llvm::PointerUnion<Expr *, IdentifierLoc *>, 2>, // arguments
         AttributeCommonInfo::Form // attribute form
@@ -121,10 +121,6 @@ public:
   Attr *clone(ASTContext &C) const;
 
   bool isLateParsed() const { return IsLateParsed; }
-
-  /// Extract the syntactic arguments for this attribute, with the specified context and location
-  /// The callback 'CB' will be invoked with arguments described above
-  bool extractSyntacticArguments(ASTContext &Ctx, OnSyntacticArgument CB, SourceLocation Loc);
 
   // Pretty print this attribute.
   void printPretty(raw_ostream &OS, const PrintingPolicy &Policy) const;
@@ -395,18 +391,38 @@ static_assert(sizeof(ParamIdx) == sizeof(ParamIdx::SerialType),
 
 #include "clang/AST/Attrs.inc" // IWYU pragma: export
 
-inline bool extractSyntacticArguments(Attr* semanticAttr,
+/// Returns whether an attribute has a reflectable variant
+/// For example AT_WarnUnusedResult admit a reflectable variant
+static bool isAttributeWithReflectableVariant(AttributeCommonInfo::Kind kind){
+#define CLANG_ATTR_IS_REFLECTABLE_LIST
+  switch (kind) {
+    default: return false;
+#include "clang/Parse/AttrReflection.inc"
+  }
+#undef CLANG_ATTR_IS_REFLECTABLE_LIST
+}
+
+/// Extract the syntactic arguments for this attribute, with the specified context and location
+/// to be used when creating expression out of arguments found in semantic attributes.
+/// The callback 'CB' will be invoked with arguments found, if the attribute is reflectable
+///
+/// Return false if the attribute is not reflectatble, otherwise return the result of calling
+///  'onSyntax'
+inline bool extractSyntacticArguments(const Attr* semanticAttr,
                                       ASTContext &C,
                                       Attr::OnSyntacticArgument onSyntax,
                                       SourceLocation srcLocation)
 {
-  #define CLANG_ATTR_ON_SYNTACTIC_ARGS_LIST
   AttributeCommonInfo info = *semanticAttr;
+  if (!isAttributeWithReflectableVariant(info.getParsedKind())) {
+    return false;
+  }
+#define CLANG_ATTR_ON_SYNTACTIC_ARGS_LIST
   switch (info.getParsedKind()) {
     default: return false;
 #include "clang/Parse/AttrReflection.inc"
   }
-  #undef CLANG_ATTR_ON_SYNTACTIC_ARGS_LIST
+#undef CLANG_ATTR_ON_SYNTACTIC_ARGS_LIST
 }
 
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,

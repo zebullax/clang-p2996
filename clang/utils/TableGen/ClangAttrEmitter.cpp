@@ -2621,7 +2621,7 @@ static bool isReflectableAttr(const Record* R) {
 // P3385 Codegen an accessor for arguments as expr
 static void writeExtractSyntacticArgumentFunction(const Record &R,
                          raw_ostream &OS) {
-  OS << "  bool " << R.getName() << "Attr::extractSyntacticArguments(ASTContext& C, OnSyntacticArgument onSyntax, SourceLocation srcLocation) {\n";
+  OS << "  bool " << R.getName() << "Attr::extractSyntacticArguments(ASTContext& C, OnSyntacticArgument onSyntax, SourceLocation srcLocation) const {\n";
   OS << "    SmallVector<llvm::PointerUnion<Expr *, IdentifierLoc *>, 2> args;\n";
   OS << "    const AttributeCommonInfo* info = this;\n";
   OS << "    IdentifierInfo &attrName = C.Idents.get(info->getAttrName()->getName());\n\n";
@@ -3251,7 +3251,7 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
         OS << "        AttributeCommonInfo::Form\n"; // Form
         OS << "      )>;\n";
         OS << "\n";
-        OS << "  bool extractSyntacticArguments(ASTContext& C, OnSyntacticArgument onSyntax, SourceLocation srcLocation);\n";
+        OS << "  bool extractSyntacticArguments(ASTContext& C, OnSyntacticArgument onSyntax, SourceLocation srcLocation) const;\n";
         OS << "\n";
       }
     }
@@ -5308,7 +5308,7 @@ static void emitClangAttrOnSyntacticArgs(const llvm::RecordKeeper &Records,
       std::string attrClassName(record->getName());
       attrClassName += "Attr";
       OS << "case (AttributeCommonInfo::Kind::AT_" << name << "): {\n"
-         << "  " << attrClassName << "* attr = static_cast<" << attrClassName <<"*>(semanticAttr);\n"
+         << "  const " << attrClassName << "* attr = static_cast<const " << attrClassName <<"*>(semanticAttr);\n"
          /*                              ASTContext&, OnSyntacticArgument, SourceLocation */
          << "  return attr->extractSyntacticArguments(C, onSyntax, srcLocation);\n"
          << "}\n";
