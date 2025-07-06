@@ -2660,9 +2660,9 @@ static void writeExtractSyntacticArgumentFunction(const Record &R,
         std::string enumTypeName(makeShortNameForArgType(Arg));
         enumTypeName[0] = std::toupper(enumTypeName[0]);
         Accessor = "Convert" + enumTypeName + "ToStr(" + Accessor +")";
-        OS << "    args.push_back(StringLiteral::Create(C, " << Accessor << ", StringLiteralKind::Ordinary, false, C.CharTy, srcLocation));\n";
+        OS << "    args.push_back(StringLiteral::Create(C, " << Accessor << ", StringLiteralKind::Unevaluated, false, C.CharTy, srcLocation));\n";
       } else {
-        OS << "    args.push_back(StringLiteral::Create(C, " << Accessor << ", StringLiteralKind::Ordinary, false, C.CharTy, srcLocation));\n";
+        OS << "    args.push_back(StringLiteral::Create(C, " << Accessor << ", StringLiteralKind::Unevaluated, false, C.CharTy, srcLocation));\n";
       }
     } else {
       OS << "    // FIXME: Unhandled argument type...'" << Arg->getName() << "'\n";

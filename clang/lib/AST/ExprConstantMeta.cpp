@@ -1728,23 +1728,6 @@ llvm::SmallVector<const Attr*, 8> static collectUniqueCxx11Attrs(const Decl *D) 
   return Result;
 }
 
-// Pull back the string argument from a semantic attribute
-// FIXME Should really be codegened... and does not belong here
-static StringRef stringArgumentFromAttr(const Attr *A) {
-  // Note that we dont really check whether it's cxx11 style here
-  if (auto *D = dyn_cast<DeprecatedAttr>(A))
-    return D->getMessage();              // [[deprecated("…")]]
-  if (auto *W = dyn_cast<WarnUnusedResultAttr>(A))
-    return W->getMessage();              // [[nodiscard("…")]]
-  if (auto *Al = dyn_cast<AliasAttr>(A))
-    return Al->getAliasee();             // __attribute__((alias("…")))
-  if (auto *Sec = dyn_cast<SectionAttr>(A))
-    return Sec->getName();               // __attribute__((section("…")))
-  if (auto *AS = dyn_cast<AsmLabelAttr>(A))
-    return AS->getLabel();               // [[clang::asm("…")]]
-  return {};
-}
-
 struct AttributeScratchpad {
   AttributeFactory factory;
   ParsedAttributes attributes;
@@ -1780,22 +1763,20 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
   // FIXME this is debatable whether those shouldnt be kept in ASTContext...
   static AttributeScratchpad scratchpad;
 
-  // Fetch the ith attribute, build and return a ParsedAttr out of it
-  auto fetchIthAttrFromDecl = [&](Decl* decl, ParsedAttr* &result) -> bool {
+  auto buildIthParsedAttrFromDecl = [&](Decl* decl, ParsedAttr* &result) -> bool {
     auto cxx11Attrs = collectUniqueCxx11Attrs(decl);
     if (idx + 1 > cxx11Attrs.size()) {
       result = nullptr;
       return false;
     }
 
-    // Attr -> ParsedAttr
     const Attr * const val = cxx11Attrs[idx];
     assert(val);
 
-    auto syntacticFormBuilder = [&](
+    auto onSyntacticArgs = [&](
       IdentifierInfo * attrName,
       SmallVector<llvm::PointerUnion<Expr *, IdentifierLoc *>, 2> argExprs,
-      AttributeCommonInfo::Form form
+      AttributeCommonInfo::Form /* Do we need this fed back to us at all ?...*/
     ) {
       result = scratchpad.attributes.addNew(
         attrName,
@@ -1804,11 +1785,11 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
         val->getLoc(),
         argExprs.data(),
         argExprs.size(),
-        val->getForm() // Better be cxx11 by now...
+        val->getForm()
       );
       return false;
     };
-    return extractSyntacticArguments(val, C, syntacticFormBuilder, val->getLocation());
+    return extractSyntacticArguments(val, C, onSyntacticArgs, val->getLocation());
   };
 
   switch (RV.getReflectionKind()) {
@@ -1832,7 +1813,7 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
           << DescriptionOf(RV);
       }
 
-      if (ParsedAttr* fetchedAttribute{}; !fetchIthAttrFromDecl(D, fetchedAttribute)) {
+      if (ParsedAttr* fetchedAttribute{}; !buildIthParsedAttrFromDecl(D, fetchedAttribute)) {
         if (fetchedAttribute) {
           return SetAndSucceed(Result, makeReflection(fetchedAttribute));
         }
@@ -1847,7 +1828,7 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
           Diagnoser, Range, "attribute, type, declaration", DescriptionOf(RV));
       }
 
-      if (ParsedAttr* fetchedAttribute{}; !fetchIthAttrFromDecl(D, fetchedAttribute)) {
+      if (ParsedAttr* fetchedAttribute{}; !buildIthParsedAttrFromDecl(D, fetchedAttribute)) {
         if (fetchedAttribute) {
           return SetAndSucceed(Result, makeReflection(fetchedAttribute));
         }
