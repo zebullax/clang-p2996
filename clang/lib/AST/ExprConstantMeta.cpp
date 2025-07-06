@@ -21,6 +21,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Metafunction.h"
+#include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/Reflection.h"
 #include "clang/AST/Type.h"
@@ -1715,11 +1716,20 @@ bool DiagnoseReflectionKind(DiagFn Diagnoser, SourceRange Range,
 
 llvm::SmallVector<const Attr*, 8> static collectUniqueCxx11Attrs(const Decl *D) {
   llvm::SmallVector<const Attr*, 8> Result;
-  llvm::SmallSet<attr::Kind, 8> SeenKinds;
+  // We ll persist a representation of the attribute != kind otherwise
+  // we would count [[clang::warn_unused_result]] and [[nodiscard]] as
+  // the same attribute which we do not want...
+  llvm::SmallSet<std::string, 8> SeenKinds;
 
   for (const Decl *RD : D->redecls()) {
     for (const Attr *A : RD->getAttrs()) {
-      if (A->isCXX11Attribute() && SeenKinds.insert(A->getKind()).second) {
+      if (!A->isCXX11Attribute()) {
+        continue;
+      }
+      std::string S;
+      llvm::raw_string_ostream OS(S);
+      A->printPretty(OS, D->getASTContext().getPrintingPolicy());
+      if (SeenKinds.insert(S).second) {
         Result.push_back(A);
       }
     }
