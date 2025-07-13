@@ -507,6 +507,10 @@ let Class = PropertyTypeCase<APValue, "Reflection"> in {
     let Conditional = [{ kind == ReflectionKind::EntityProxy }];
     let Read = [{ base.getReflectedEntityProxy() }];
   }
+  def : Property<"baseParameter", DeclRef> {
+    let Conditional = [{ kind == ReflectionKind::Parameter  }];
+    let Read = [{ base.getReflectedParameter() }];
+  }
   def : Property<"baseBaseSpecDerivedFrom", CXXRecordDeclRef> {
     let Conditional = [{ kind == ReflectionKind::BaseSpecifier }];
     let Read = [{ base.getReflectedBaseSpecifier()->getDerived() }];
@@ -573,6 +577,9 @@ let Class = PropertyTypeCase<APValue, "Reflection"> in {
       break;
     case ReflectionKind::EntityProxy:
       V = APValue(kind, *baseEntityProxy);
+      break;
+    case ReflectionKind::Parameter:
+      V = APValue(kind, *baseParameter);
       break;
     case ReflectionKind::BaseSpecifier:
       V = APValue(
@@ -1068,6 +1075,6 @@ let Class = PropertyTypeCase<TemplateArgument, "Pack"> in {
     TemplateArgument *ctxElements = new (ctx) TemplateArgument[elements.size()];
     for (size_t i = 0, e = elements.size(); i != e; ++i)
       ctxElements[i] = elements[i];
-    return TemplateArgument(llvm::ArrayRef(ctxElements, elements.size()));
+    return TemplateArgument(ArrayRef(ctxElements, elements.size()));
   }]>;
 }

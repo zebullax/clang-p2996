@@ -5924,11 +5924,16 @@ class CXXExpansionInitListExpr : public Expr {
                            unsigned NumSubExprs, SourceLocation LBraceLoc,
                            SourceLocation RBraceLoc);
 
+  CXXExpansionInitListExpr(EmptyShell Empty);
+
 public:
   static CXXExpansionInitListExpr *Create(const ASTContext &C,
                                           Expr **SubExprs, unsigned NumSubExprs,
                                           SourceLocation LBraceLoc,
                                           SourceLocation RBraceLoc);
+
+  static CXXExpansionInitListExpr *Create(const ASTContext &C,
+                                          EmptyShell Empty);
 
   ArrayRef<Expr *> getSubExprs() const { return {SubExprs, NumSubExprs}; }
 
@@ -5955,6 +5960,8 @@ public:
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CXXExpansionInitListExprClass;
   }
+
+  friend class ASTStmtReader;
 };
 
 class CXXIterableExpansionSelectExpr : public Expr {
@@ -5963,9 +5970,14 @@ class CXXIterableExpansionSelectExpr : public Expr {
 
   CXXIterableExpansionSelectExpr(QualType ResultTy, VarDecl *DD, Expr *Impl);
 
+  CXXIterableExpansionSelectExpr(EmptyShell Empty);
+
 public:
   static CXXIterableExpansionSelectExpr *Create(const ASTContext &C,
                                                 VarDecl *RangeVar, Expr *Impl);
+
+  static CXXIterableExpansionSelectExpr *Create(const ASTContext &C,
+                                                EmptyShell Empty);
 
   Expr *getImplExpr() const { return ImplExpr; }
   VarDecl *getRangeVar() const { return RangeVar; }
@@ -5991,6 +6003,8 @@ public:
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CXXIterableExpansionSelectExprClass;
   }
+
+  friend class ASTStmtReader;
 };
 
 class CXXDestructurableExpansionSelectExpr : public Expr {
@@ -6001,11 +6015,16 @@ class CXXDestructurableExpansionSelectExpr : public Expr {
   CXXDestructurableExpansionSelectExpr(QualType ResultTy, DecompositionDecl *DD,
                                        Expr *Idx, VarDecl *ExpansionVar);
 
+  CXXDestructurableExpansionSelectExpr(EmptyShell Empty);
+
 public:
   static CXXDestructurableExpansionSelectExpr *Create(const ASTContext &C,
                                                       DecompositionDecl *DD,
                                                       Expr *Idx,
                                                       VarDecl *ExpansionVar);
+
+  static CXXDestructurableExpansionSelectExpr *Create(const ASTContext &C,
+                                                      EmptyShell Empty);
 
   Expr *getIdxExpr() const { return IdxExpr; }
   DecompositionDecl *getDecompositionDecl() const { return DD; }
@@ -6028,6 +6047,8 @@ public:
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CXXDestructurableExpansionSelectExprClass;
   }
+
+  friend class ASTStmtReader;
 };
 
 class CXXIndeterminateExpansionSelectExpr : public Expr {
@@ -6043,10 +6064,15 @@ class CXXIndeterminateExpansionSelectExpr : public Expr {
       unsigned NumLifetimeExtendTemps,
       MaterializeTemporaryExpr **LifetimeExtendTemps);
 
+  CXXIndeterminateExpansionSelectExpr(EmptyShell Empty);
+
 public:
   static CXXIndeterminateExpansionSelectExpr *Create(
       const ASTContext &C, Expr *Range, Expr *Idx, VarDecl *ExpansionVar,
       ArrayRef<MaterializeTemporaryExpr *> LifetimeExtendTemps);
+
+  static CXXIndeterminateExpansionSelectExpr *Create(const ASTContext &C,
+                                                     EmptyShell Empty);
 
   Expr *getRangeExpr() const { return SubExprs[0]; }
   Expr *getIdxExpr() const { return SubExprs[1]; }
@@ -6070,6 +6096,8 @@ public:
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CXXIndeterminateExpansionSelectExprClass;
   }
+
+  friend class ASTStmtReader;
 };
 
 class CXXExpansionInitListSelectExpr : public Expr {
@@ -6077,9 +6105,14 @@ class CXXExpansionInitListSelectExpr : public Expr {
 
   CXXExpansionInitListSelectExpr(QualType ResultTy, Expr *Range, Expr *Idx);
 
+  CXXExpansionInitListSelectExpr(EmptyShell Empty);
+
 public:
   static CXXExpansionInitListSelectExpr *Create(const ASTContext &C,
                                                 Expr *Range, Expr *Idx);
+
+  static CXXExpansionInitListSelectExpr *Create(const ASTContext &C,
+                                                EmptyShell Empty);
 
   Expr *getRangeExpr() const { return SubExprs[0]; }
   Expr *getIdxExpr() const { return SubExprs[1]; }
@@ -6101,6 +6134,8 @@ public:
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CXXExpansionInitListSelectExprClass;
   }
+
+  friend class ASTStmtReader;
 };
 
 } // namespace clang

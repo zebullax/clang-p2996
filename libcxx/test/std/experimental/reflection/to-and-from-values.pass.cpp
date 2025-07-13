@@ -17,7 +17,7 @@
 //
 // RUN: %{exec} %t.exe > %t.stdout
 
-#include <experimental/meta>
+#include <meta>
 
 #include <print>
 #include <utility>

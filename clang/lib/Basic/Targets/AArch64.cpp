@@ -125,79 +125,6 @@ static constexpr auto BuiltinAArch64Infos =
 #include "clang/Basic/BuiltinsAArch64.def"
     });
 
-void AArch64TargetInfo::setArchFeatures() {
-  if (*ArchInfo == llvm::AArch64::ARMV8R) {
-    HasDotProd = true;
-    HasDIT = true;
-    HasFlagM = true;
-    HasRCPC = true;
-    FPU |= NeonMode;
-    HasCCPP = true;
-    HasCRC = true;
-    HasLSE = true;
-    HasRDM = true;
-  } else if (ArchInfo->Version.getMajor() == 8) {
-    if (ArchInfo->Version.getMinor() >= 7u) {
-      HasWFxT = true;
-    }
-    if (ArchInfo->Version.getMinor() >= 6u) {
-      HasBFloat16 = true;
-      HasMatMul = true;
-    }
-    if (ArchInfo->Version.getMinor() >= 5u) {
-      HasAlternativeNZCV = true;
-      HasFRInt3264 = true;
-      HasSSBS = true;
-      HasSB = true;
-      HasPredRes = true;
-      HasBTI = true;
-    }
-    if (ArchInfo->Version.getMinor() >= 4u) {
-      HasDotProd = true;
-      HasDIT = true;
-      HasFlagM = true;
-    }
-    if (ArchInfo->Version.getMinor() >= 3u) {
-      HasRCPC = true;
-      FPU |= NeonMode;
-    }
-    if (ArchInfo->Version.getMinor() >= 2u) {
-      HasCCPP = true;
-    }
-    if (ArchInfo->Version.getMinor() >= 1u) {
-      HasCRC = true;
-      HasLSE = true;
-      HasRDM = true;
-    }
-  } else if (ArchInfo->Version.getMajor() == 9) {
-    if (ArchInfo->Version.getMinor() >= 2u) {
-      HasWFxT = true;
-    }
-    if (ArchInfo->Version.getMinor() >= 1u) {
-      HasBFloat16 = true;
-      HasMatMul = true;
-    }
-    FPU |= SveMode;
-    HasSVE2 = true;
-    HasFullFP16 = true;
-    HasAlternativeNZCV = true;
-    HasFRInt3264 = true;
-    HasSSBS = true;
-    HasSB = true;
-    HasPredRes = true;
-    HasBTI = true;
-    HasDotProd = true;
-    HasDIT = true;
-    HasFlagM = true;
-    HasRCPC = true;
-    FPU |= NeonMode;
-    HasCCPP = true;
-    HasCRC = true;
-    HasLSE = true;
-    HasRDM = true;
-  }
-}
-
 AArch64TargetInfo::AArch64TargetInfo(const llvm::Triple &Triple,
                                      const TargetOptions &Opts)
     : TargetInfo(Triple), ABI("aapcs") {
@@ -625,6 +552,9 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
   if (HasCRC)
     Builder.defineMacro("__ARM_FEATURE_CRC32", "1");
 
+  if (HasCSSC)
+    Builder.defineMacro("__ARM_FEATURE_CSSC", "1");
+
   if (HasRCPC3)
     Builder.defineMacro("__ARM_FEATURE_RCPC", "3");
   else if (HasRCPC)
@@ -874,6 +804,7 @@ bool AArch64TargetInfo::hasFeature(StringRef Feature) const {
       .Case("rdm", HasRDM)
       .Case("lse", HasLSE)
       .Case("crc", HasCRC)
+      .Case("cssc", HasCSSC)
       .Case("sha2", HasSHA2)
       .Case("sha3", HasSHA3)
       .Cases("aes", "pmull", HasAES)
@@ -1249,6 +1180,8 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasPAuthLR = true;
       HasPAuth = true;
     }
+    if (Feature == "+cssc")
+      HasCSSC = true;
   }
 
   // Check features that are manually disabled by command line options.
@@ -1260,7 +1193,6 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   }
 
   setDataLayout();
-  setArchFeatures();
 
   if (HasNoFP) {
     FPU &= ~FPUMode;

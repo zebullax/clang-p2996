@@ -20,7 +20,7 @@
 // RUN: %{build}
 // RUN: %{exec} %t.exe --count 42 > %t.stdout
 
-#include <experimental/meta>
+#include <meta>
 
 #include <iostream>
 #include <sstream>

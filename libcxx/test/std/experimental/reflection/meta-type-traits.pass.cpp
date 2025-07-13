@@ -15,7 +15,7 @@
 //
 // [reflection]
 
-#include <experimental/meta>
+#include <meta>
 
 
 struct C {};

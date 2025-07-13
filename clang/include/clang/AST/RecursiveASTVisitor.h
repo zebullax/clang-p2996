@@ -3011,7 +3011,6 @@ DEF_TRAVERSE_STMT(CXXRewrittenBinaryOperator, {
   }
 })
 DEF_TRAVERSE_STMT(OpaqueValueExpr, {})
-DEF_TRAVERSE_STMT(TypoExpr, {})
 DEF_TRAVERSE_STMT(RecoveryExpr, {})
 DEF_TRAVERSE_STMT(CUDAKernelCallExpr, {})
 
@@ -3052,6 +3051,10 @@ DEF_TRAVERSE_STMT(CXXReflectExpr, {
     }
     case ReflectionKind::EntityProxy: {
       TRY_TO(TraverseDecl(RV.getReflectedEntityProxy()));
+      break;
+    }
+    case ReflectionKind::Parameter: {
+      TRY_TO(TraverseDecl(RV.getReflectedParameter()));
       break;
     }
     case ReflectionKind::Annotation: {

@@ -16,7 +16,7 @@
 //
 // [reflection]
 
-#include <experimental/meta>
+#include <meta>
 
 struct S { unsigned i:2, j:6; };
 

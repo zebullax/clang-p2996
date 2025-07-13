@@ -19,7 +19,7 @@
 // RUN: %{build}
 // RUN: %{exec} %t.exe -n WG21 --count 5 > %t.stdout
 
-#include <experimental/meta>
+#include <meta>
 
 #include <iostream>
 #include <sstream>

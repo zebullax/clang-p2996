@@ -670,7 +670,7 @@ ClassTemplateDecl::getInjectedClassNameSpecialization() {
   CommonPtr->InjectedClassNameType =
       Context.getTemplateSpecializationType(Name,
                                             /*SpecifiedArgs=*/TemplateArgs,
-                                            /*CanonicalArgs=*/std::nullopt);
+                                            /*CanonicalArgs=*/{});
   return CommonPtr->InjectedClassNameType;
 }
 

@@ -19,9 +19,10 @@
 //
 // RUN: %{exec} %t.exe > %t.stdout
 
-#include <experimental/meta>
+#include <meta>
 
 #include <print>
+#include <ranges>
 
 constexpr auto ctx = std::meta::access_context::unchecked();
 
@@ -395,5 +396,32 @@ int_template<0> o1;
 int_holder_template<int_holder{0}> o2;
 
 }  // namespace bb_clang_p2996_issue_145_regression_test
+
+                  // ========================================
+                  // bb_clang_p2996_issue_159_regression_test
+                  // ========================================
+
+namespace bb_clang_p2996_issue_159_regression_test {
+template <auto V>
+struct VS;
+
+template <>
+struct VS<^^float>{};
+
+consteval {
+  std::meta::define_aggregate(^^VS<0>, {});
+  std::meta::define_aggregate(
+      std::meta::substitute(^^VS, {std::meta::reflect_constant(1)}), {});
+
+  std::meta::define_aggregate(
+      std::meta::substitute(^^VS, {std::meta::reflect_constant(^^int)}),
+      {});
+}
+
+VS<1> v1;
+VS<^^int> v2;
+
+}  // namespace bb_clang_p2996_issue_159_regression_test
+
 
 int main() { }

@@ -43,7 +43,7 @@ CXXTryStmt::CXXTryStmt(SourceLocation tryLoc, CompoundStmt *tryBlock,
     : Stmt(CXXTryStmtClass), TryLoc(tryLoc), NumHandlers(handlers.size()) {
   Stmt **Stmts = getStmts();
   Stmts[0] = tryBlock;
-  std::copy(handlers.begin(), handlers.end(), Stmts + 1);
+  llvm::copy(handlers, Stmts + 1);
 }
 
 CXXForRangeStmt::CXXForRangeStmt(Stmt *Init, DeclStmt *Range,
@@ -124,8 +124,7 @@ CoroutineBodyStmt::CoroutineBodyStmt(CoroutineBodyStmt::CtorArgs const &Args)
   SubStmts[CoroutineBodyStmt::ReturnStmt] = Args.ReturnStmt;
   SubStmts[CoroutineBodyStmt::ReturnStmtOnAllocFailure] =
       Args.ReturnStmtOnAllocFailure;
-  std::copy(Args.ParamMoves.begin(), Args.ParamMoves.end(),
-            const_cast<Stmt **>(getParamMoves().data()));
+  llvm::copy(Args.ParamMoves, const_cast<Stmt **>(getParamMoves().data()));
 }
 
 CXXExpansionStmt::CXXExpansionStmt(
@@ -182,6 +181,11 @@ CXXIndeterminateExpansionStmt *CXXIndeterminateExpansionStmt::Create(
                                                ColonLoc, RParenLoc, TParamRef);
 }
 
+CXXIndeterminateExpansionStmt *CXXIndeterminateExpansionStmt::Create(
+    const ASTContext &C, EmptyShell Empty) {
+  return new (C) CXXIndeterminateExpansionStmt(Empty);
+}
+
 CXXIterableExpansionStmt *CXXIterableExpansionStmt::Create(
     const ASTContext &C, Stmt *Init, DeclStmt *ExpansionVar, Expr *SizeExpr,
     unsigned NumInstantiations, SourceLocation TemplateKWLoc,
@@ -195,7 +199,7 @@ CXXIterableExpansionStmt *CXXIterableExpansionStmt::Create(
 
 CXXIterableExpansionStmt *CXXIterableExpansionStmt::Create(const ASTContext &C,
                                                            EmptyShell Empty) {
-  return new CXXIterableExpansionStmt(Empty);
+  return new (C) CXXIterableExpansionStmt(Empty);
 }
 
 bool CXXIterableExpansionStmt::hasDependentSize() const {
@@ -219,7 +223,7 @@ CXXDestructurableExpansionStmt *CXXDestructurableExpansionStmt::Create(
 
 CXXDestructurableExpansionStmt *CXXDestructurableExpansionStmt::Create(
     const ASTContext &C, EmptyShell Empty) {
-  return new CXXDestructurableExpansionStmt(Empty);
+  return new (C) CXXDestructurableExpansionStmt(Empty);
 }
 
 bool CXXDestructurableExpansionStmt::hasDependentSize() const {

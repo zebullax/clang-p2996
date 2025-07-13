@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DynamicRecursiveASTVisitor.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
@@ -36,20 +37,14 @@ VarDecl *ExtractVarDecl(Stmt *S) {
 }
 
 unsigned ExtractParmVarDeclDepth(Expr *E) {
-  if (auto *DRE = cast<DeclRefExpr>(E))
+  if (auto *DRE = dyn_cast<DeclRefExpr>(E)) {
     if (auto *PVD = cast<NonTypeTemplateParmDecl>(DRE->getDecl()))
       return PVD->getDepth();
-  return 0;
-}
-
-// Returns how many layers of templates the current scope is nested within.
-unsigned ComputeTemplateEmbeddingDepth(Scope *CurScope) {
-  int Depth = 0;
-  while ((CurScope = CurScope->getParent())) {
-    if (CurScope->isTemplateParamScope())
-      ++Depth;
+  } else if (auto *SNTTPE = cast<SubstNonTypeTemplateParmExpr>(E)) {
+    if (auto *PVD = cast<NonTypeTemplateParmDecl>(SNTTPE->getAssociatedDecl()))
+      return PVD->getDepth();
   }
-  return Depth;
+  return 0;
 }
 
 ExprResult makeIterableExpansionSizeExpr(Sema &S, VarDecl *RangeVar) {
@@ -524,6 +519,18 @@ StmtResult Sema::FinishCXXExpansionStmt(Stmt *Heading, Stmt *Body) {
   if (!Heading || !Body)
     return StmtError();
 
+  // Diagnose identifier labels.
+  struct DiagnoseLabels : DynamicRecursiveASTVisitor {
+    Sema &SemaRef;
+    DiagnoseLabels(Sema &S) : SemaRef(S) {}
+    bool VisitLabelStmt(LabelStmt *S) override {
+      SemaRef.Diag(S->getIdentLoc(), diag::err_expanded_identifier_label);
+      return false;
+    }
+  } Visitor(*this);
+  if (!Visitor.TraverseStmt(Body))
+    return StmtError();
+
   CXXExpansionStmt *Expansion = cast<CXXExpansionStmt>(Heading);
   Expansion->setBody(Body);
 
@@ -597,10 +604,10 @@ ExprResult Sema::BuildCXXExpansionInitList(SourceLocation LBraceLoc,
                                           RBraceLoc);
 }
 
-Decl *Sema::ActOnExpansionStmtDeclaration(Scope *S,
+Decl *Sema::ActOnExpansionStmtDeclaration(Scope *S, unsigned TParamDepth,
                                           SourceLocation TemplateKWLoc) {
   // Compute how many layers of template parameters wrap this statement.
-  unsigned TemplateDepth = ComputeTemplateEmbeddingDepth(S);
+  unsigned TemplateDepth = TParamDepth;
 
   // Create a template parameter '__N'.
   IdentifierInfo *ParmName = &Context.Idents.get("__N");

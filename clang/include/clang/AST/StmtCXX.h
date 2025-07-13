@@ -584,7 +584,9 @@ public:
   }
 
 
-  Expr *getSizeExpr() { return cast<Expr>(SubStmts[SIZE]); }
+  Expr *getSizeExpr() {
+    return SubStmts[SIZE] ? cast<Expr>(SubStmts[SIZE]) : nullptr;
+  }
   const Expr *getSizeExpr() const {
     return const_cast<CXXExpansionStmt *>(this)->getSizeExpr();
   }
@@ -670,6 +672,8 @@ public:
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CXXIndeterminateExpansionStmtClass;
   }
+
+  friend class ASTStmtReader;
 };
 
 /// CXXIterableExpansionStmt - Expansion over a iterable expression.
@@ -712,6 +716,8 @@ public:
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CXXIterableExpansionStmtClass;
   }
+
+  friend class ASTStmtReader;
 };
 
 /// CXXDestructurableExpansionStmt - Expansion over a destructurable expression.
@@ -750,6 +756,8 @@ public:
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CXXDestructurableExpansionStmtClass;
   }
+
+  friend class ASTStmtReader;
 };
 
 /// CXXInitListExpansionStmt - Expansion over an expansion-init-list.
@@ -786,6 +794,8 @@ public:
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CXXInitListExpansionStmtClass;
   }
+
+  friend class ASTStmtReader;
 };
 
 }  // end namespace clang

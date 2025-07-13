@@ -477,8 +477,6 @@ ExprResult Parser::ParseBraceInitializer() {
     if (Tok.is(tok::ellipsis))
       SubElt = Actions.ActOnPackExpansion(SubElt.get(), ConsumeToken());
 
-    SubElt = Actions.CorrectDelayedTyposInExpr(SubElt.get());
-
     // If we couldn't parse the subelement, bail out.
     if (SubElt.isUsable()) {
       InitExprs.push_back(SubElt.get());
@@ -527,8 +525,7 @@ ExprResult Parser::ParseExpansionInitList() {
   /// initializer.
   ExprVector InitExprs;
 
-  if (Tok.is(tok::r_brace) || !ParseExpressionList(InitExprs, []{},
-                                                   false, true))
+  if (Tok.is(tok::r_brace) || !ParseExpressionList(InitExprs, []{}, true))
     if (!T.consumeClose())
       return Actions.ActOnCXXExpansionInitList(LBraceLoc, InitExprs,
                                                T.getCloseLocation());

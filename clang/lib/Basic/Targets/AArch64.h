@@ -66,6 +66,7 @@ class LLVM_LIBRARY_VISIBILITY AArch64TargetInfo : public TargetInfo {
 
   unsigned FPU = FPUMode;
   bool HasCRC = false;
+  bool HasCSSC = false;
   bool HasAES = false;
   bool HasSHA2 = false;
   bool HasSHA3 = false;
@@ -156,8 +157,6 @@ public:
   bool useFP16ConversionIntrinsics() const override {
     return false;
   }
-
-  void setArchFeatures();
 
   void getTargetDefinesARMV81A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;

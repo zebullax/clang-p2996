@@ -16,7 +16,7 @@
 //
 // [reflection]
 
-#include <experimental/meta>
+#include <meta>
 
 namespace NS {
 struct A {

@@ -1,5 +1,6 @@
 module;
-#include <experimental/meta>
+#include <meta>
+#include <tuple>
 
 export module Example;
 namespace Example {
@@ -72,5 +73,22 @@ export constexpr auto rBase2 = bases_of(^^Child, ctx)[1];
                       // =================================
 
 export constexpr auto rTDMS = data_member_spec(^^int, {.name="test"});
+
+                            // ====================
+                            // Expansion statements
+                            // ====================
+
+void test() {
+  // Iterating expansion statement.
+  constexpr static auto sequence = std::array{0, 1, 2, 3, 4};
+  template for (constexpr auto i : sequence) { (void) i; }
+
+  // Destructurable expansion statement.
+  constexpr auto tup = std::make_tuple(1, true, 'c');
+  template for (constexpr auto i : tup) { (void) i; }
+
+  // Enumerating expansion statement.
+  template for (auto i : {1, 2, 3}) { (void) i; }
+}
 
 }  // namespace Example

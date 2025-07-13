@@ -298,8 +298,7 @@ Parser::ParseConceptDefinition(const ParsedTemplateInfo &TemplateInfo,
     return nullptr;
   }
 
-  ExprResult ConstraintExprResult =
-      Actions.CorrectDelayedTyposInExpr(ParseConstraintExpression());
+  ExprResult ConstraintExprResult = ParseConstraintExpression();
   if (ConstraintExprResult.isInvalid()) {
     SkipUntil(tok::semi);
     if (D)

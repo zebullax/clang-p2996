@@ -340,3 +340,21 @@ consteval int fn() {
 }
 static_assert(fn() == 12);
 }  // namespace destructurable_by_reference
+
+                          // ========================
+                          // paper_example_regression
+                          // ========================
+
+namespace paper_example_regression {
+consteval int f(auto const&... Containers) {
+  int result = 0;
+  template for (auto const& c : {Containers...}) {
+    result += c[0];
+  }
+  return result;
+}
+constexpr int c1[] = {1, 2, 3};
+constexpr int c2[] = {4, 3, 2, 1};
+static_assert(f(c1, c2) == 5);
+
+}  // namespace paper_example_regression

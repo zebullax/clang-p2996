@@ -41,6 +41,7 @@ template <typename T> class BasicReaderBase;
   class FieldDecl;
   class NamespaceDecl;
   class ParsedAttr;
+  class ParmVarDecl;
   struct PrintingPolicy;
   class Type;
   class UsingShadowDecl;
@@ -565,6 +566,9 @@ public:
   bool isReflectedEntityProxy() const {
     return isReflection() && getReflectionKind() == ReflectionKind::EntityProxy;
   }
+  bool isReflectedParameter() const {
+    return isReflection() && getReflectionKind() == ReflectionKind::Parameter;
+  }
   bool isReflectedBaseSpecifier() const {
     return isReflection() &&
            getReflectionKind() == ReflectionKind::BaseSpecifier;
@@ -768,6 +772,7 @@ public:
   const TemplateName getReflectedTemplate() const;
   Decl *getReflectedNamespace() const;
   UsingShadowDecl *getReflectedEntityProxy() const;
+  ParmVarDecl *getReflectedParameter() const;
   CXXBaseSpecifier *getReflectedBaseSpecifier() const;
   TagDataMemberSpec *getReflectedDataMemberSpec() const;
   CXX26AnnotationAttr *getReflectedAnnotation() const;

@@ -15,8 +15,8 @@
 //
 // [reflection]
 
-#include <experimental/meta>
-
+#include <meta>
+#include <ranges>
 
 using std::meta::access_context;
 

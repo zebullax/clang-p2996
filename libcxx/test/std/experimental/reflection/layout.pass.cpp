@@ -15,7 +15,8 @@
 //
 // [reflection]
 
-#include <experimental/meta>
+#include <meta>
+#include <ranges>
 
 
 using int_alias = int;

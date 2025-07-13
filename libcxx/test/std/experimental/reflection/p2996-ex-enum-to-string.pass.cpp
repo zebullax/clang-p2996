@@ -16,7 +16,7 @@
 //
 // [reflection]
 
-#include <experimental/meta>
+#include <meta>
 
 #include <print>
 #include <type_traits>

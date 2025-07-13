@@ -4993,7 +4993,7 @@ void CXXNameMangler::mangleReflection(const APValue &R) {
     Out << 'd';
 
     Decl *D = R.getReflectedDecl();
-    if (auto * ED = dyn_cast<EnumConstantDecl>(D)) {
+    if (auto *ED = dyn_cast<EnumConstantDecl>(D)) {
       mangleIntegerLiteral(ED->getType(), ED->getInitVal());
     } else if (auto *CD = dyn_cast<CXXConstructorDecl>(D)) {
       GlobalDecl GD(CD, Ctor_Complete);
@@ -5001,17 +5001,20 @@ void CXXNameMangler::mangleReflection(const APValue &R) {
     } else if (auto *DD = dyn_cast<CXXDestructorDecl>(D)) {
       GlobalDecl GD(DD, Dtor_Complete);
       mangle(GD);
-    } else if (auto *PVD = dyn_cast<ParmVarDecl>(D)) {
-      if (const FunctionDecl *Func
-            = dyn_cast<FunctionDecl>(PVD->getDeclContext())) {
-        Out << 'p';
-        unsigned Num = Func->getNumParams() - PVD->getFunctionScopeIndex();
-        if (Num > 1)
-          mangleNumber(Num - 2);
-        Out << '_';
-      }
     } else {
       mangle(cast<NamedDecl>(D));
+    }
+    break;
+  }
+  case ReflectionKind::Parameter: {
+    auto *PVD = R.getReflectedParameter();
+    if (const FunctionDecl *Func
+        = dyn_cast<FunctionDecl>(PVD->getDeclContext())) {
+      Out << 'p';
+      unsigned Num = Func->getNumParams() - PVD->getFunctionScopeIndex();
+      if (Num > 1)
+        mangleNumber(Num - 2);
+      Out << '_';
     }
     break;
   }
@@ -5162,7 +5165,6 @@ recurse:
   case Expr::ParenListExprClass:
   case Expr::MSPropertyRefExprClass:
   case Expr::MSPropertySubscriptExprClass:
-  case Expr::TypoExprClass: // This should no longer exist in the AST by now.
   case Expr::RecoveryExprClass:
   case Expr::ArraySectionExprClass:
   case Expr::OMPArrayShapingExprClass:
@@ -6820,7 +6822,7 @@ void CXXNameMangler::mangleValueInTemplateArg(QualType T, const APValue &V,
                            V.getStructField(Fields.back()->getFieldIndex())))) {
       Fields.pop_back();
     }
-    llvm::ArrayRef<CXXBaseSpecifier> Bases(RD->bases_begin(), RD->bases_end());
+    ArrayRef<CXXBaseSpecifier> Bases(RD->bases_begin(), RD->bases_end());
     if (Fields.empty()) {
       while (!Bases.empty() &&
              isZeroInitialized(Bases.back().getType(),

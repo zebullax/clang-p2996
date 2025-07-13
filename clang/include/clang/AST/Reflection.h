@@ -87,6 +87,11 @@ enum class ReflectionKind {
   /// Corresponds to a UsingShadowDecl.
   EntityProxy,
 
+  /// \brief A reflection of a function parameter.
+  ///
+  /// Corresponds to a ParmVarDecl.
+  Parameter,
+
   /// \brief A reflection of a base class specifier.
   ///
   /// Corresponds to a CXXBaseSpecifier.

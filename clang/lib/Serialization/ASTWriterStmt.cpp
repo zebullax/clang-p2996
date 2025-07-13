@@ -535,63 +535,111 @@ void ASTStmtWriter::VisitExplDependentCallExpr(ExplDependentCallExpr *E) {
   Code = serialization::EXPR_EXPL_DEPENDENT_CALL;
 }
 
+void ASTStmtWriter::VisitCXXExpansionStmt(CXXExpansionStmt *S) {
+  VisitStmt(S);
+
+  Record.AddSourceLocation(S->getTemplateKWLoc());
+  Record.AddSourceLocation(S->getForLoc());
+  Record.AddSourceLocation(S->getLParenLoc());
+  Record.AddSourceLocation(S->getColonLoc());
+  Record.AddSourceLocation(S->getRParenLoc());
+
+  Record.AddStmt(S->getInit());
+  Record.AddStmt(S->getTParamRef());
+  Record.AddStmt(S->getExpansionVarStmt());
+  Record.AddStmt(S->getSizeExpr());
+  Record.AddStmt(S->getBody());
+
+  Record.writeUInt32(S->getNumInstantiations());
+  for (size_t k = 0; k < S->getNumInstantiations(); ++k)
+    Record.AddStmt(S->getInstantiation(k));
+}
+
 void ASTStmtWriter::VisitCXXIndeterminateExpansionStmt(
                                              CXXIndeterminateExpansionStmt *S) {
-  VisitStmt(S);
-  // TODO(P2996): Implement this.
+  VisitCXXExpansionStmt(S);
+
   Code = serialization::STMT_INDETERMINATE_EXPANSION;
 }
 
 void ASTStmtWriter::VisitCXXIterableExpansionStmt(CXXIterableExpansionStmt *S) {
-  VisitStmt(S);
-  // TODO(P2996): Implement this.
+  VisitCXXExpansionStmt(S);
+  Record.writeUInt32(S->getNumInstantiations());
+
   Code = serialization::STMT_ITERABLE_EXPANSION;
 }
 
 void ASTStmtWriter::VisitCXXDestructurableExpansionStmt(
                                             CXXDestructurableExpansionStmt *S) {
-  VisitStmt(S);
-  // TODO(P2996): Implement this.
+  VisitCXXExpansionStmt(S);
+
   Code = serialization::STMT_DESTRUCTURABLE_EXPANSION;
 }
 
 void ASTStmtWriter::VisitCXXInitListExpansionStmt(CXXInitListExpansionStmt *S) {
-  VisitStmt(S);
-  // TODO(P2996): Implement this.
+  VisitCXXExpansionStmt(S);
+
   Code = serialization::STMT_INIT_LIST_EXPANSION;
 }
 
 void ASTStmtWriter::VisitCXXIndeterminateExpansionSelectExpr(
         CXXIndeterminateExpansionSelectExpr *E) {
   VisitExpr(E);
-  // TODO(P2996): Implement this.
-  Code = serialization::EXPR_EXPANSION_SELECT;
+
+  Record.AddStmt(E->getRangeExpr());
+  Record.AddStmt(E->getIdxExpr());
+  Record.AddDeclRef(E->getExpansionVar());
+
+  auto Temps = E->getLifetimeExtendTemps();
+  Record.writeUInt32(Temps.size());
+  for (auto Temp : Temps)
+    Record.AddStmt(Temp);
+
+  Code = serialization::EXPR_INDETERMINATE_EXPANSION_SELECT;
 }
 
 void ASTStmtWriter::VisitCXXIterableExpansionSelectExpr(
         CXXIterableExpansionSelectExpr *E) {
   VisitExpr(E);
-  // TODO(P2996): Implement this.
-  Code = serialization::EXPR_EXPANSION_SELECT;
+
+  Record.AddStmt(E->getImplExpr());
+  Record.AddDeclRef(E->getRangeVar());
+
+  Code = serialization::EXPR_ITERABLE_EXPANSION_SELECT;
 }
 
 void ASTStmtWriter::VisitCXXDestructurableExpansionSelectExpr(
         CXXDestructurableExpansionSelectExpr *E) {
   VisitExpr(E);
-  // TODO(P2996): Implement this.
-  Code = serialization::EXPR_EXPANSION_SELECT;
+
+  Record.AddStmt(E->getIdxExpr());
+  Record.AddDeclRef(E->getDecompositionDecl());
+  Record.AddDeclRef(E->getExpansionVar());
+
+  Code = serialization::EXPR_DESTRUCTURABLE_EXPANSION_SELECT;
 }
 
 void ASTStmtWriter::VisitCXXExpansionInitListSelectExpr(
         CXXExpansionInitListSelectExpr *E) {
   VisitExpr(E);
-  // TODO(P2996): Implement this.
-  Code = serialization::EXPR_EXPANSION_SELECT;
+
+  Record.AddStmt(E->getRangeExpr());
+  Record.AddStmt(E->getIdxExpr());
+
+  Code = serialization::EXPR_INIT_LIST_EXPANSION_SELECT;
 }
 
 void ASTStmtWriter::VisitCXXExpansionInitListExpr(CXXExpansionInitListExpr *E) {
   VisitExpr(E);
-  // TODO(P2996): Implement this.
+
+  Record.AddSourceLocation(E->getLBraceLoc());
+  Record.AddSourceLocation(E->getRBraceLoc());
+
+  auto Exprs = E->getSubExprs();
+  Record.writeUInt32(Exprs.size());
+  for (Expr *E : Exprs)
+    Record.AddStmt(E);
+
   Code = serialization::EXPR_EXPANSION_INIT_LIST;
 }
 
@@ -1100,7 +1148,7 @@ void ASTStmtWriter::VisitCallExpr(CallExpr *E) {
     Record.push_back(E->getFPFeatures().getAsOpaqueInt());
 
   if (!E->hasStoredFPFeatures() && !static_cast<bool>(E->getADLCallKind()) &&
-      E->getStmtClass() == Stmt::CallExprClass)
+      !E->usesMemberSyntax() && E->getStmtClass() == Stmt::CallExprClass)
     AbbrevToUse = Writer.getCallExprAbbrev();
 
   Code = serialization::EXPR_CALL;
@@ -2440,12 +2488,6 @@ void ASTStmtWriter::VisitOpaqueValueExpr(OpaqueValueExpr *E) {
   Record.AddSourceLocation(E->getLocation());
   Record.push_back(E->isUnique());
   Code = serialization::EXPR_OPAQUE_VALUE;
-}
-
-void ASTStmtWriter::VisitTypoExpr(TypoExpr *E) {
-  VisitExpr(E);
-  // TODO: Figure out sane writer behavior for a TypoExpr, if necessary
-  llvm_unreachable("Cannot write TypoExpr nodes");
 }
 
 //===----------------------------------------------------------------------===//

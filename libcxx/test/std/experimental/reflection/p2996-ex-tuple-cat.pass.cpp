@@ -18,8 +18,9 @@
 // RUN: %{build}
 // RUN: %{exec} %t.exe > %t.stdout
 
-#include <experimental/meta>
+#include <meta>
 
+#include <functional>
 #include <print>
 #include <utility>
 #include <vector>

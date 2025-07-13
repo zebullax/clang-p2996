@@ -16,7 +16,8 @@
 //
 // [reflection]
 
-#include <experimental/meta>
+#include <meta>
+#include <ranges>
 
 
 constexpr auto ctx = std::meta::access_context::unchecked();
@@ -53,17 +54,17 @@ static_assert(parameters_of(type_of(^^fn)) ==
               std::vector {^^int, ^^bool, ^^const S<int> &});
 static_assert(type_of(parameters_of(^^fn)[0]) == ^^int);
 static_assert(identifier_of(parameters_of(^^fn)[0]) == "a");
-static_assert(has_consistent_identifier(parameters_of(^^fn)[0]));
+static_assert(has_identifier(parameters_of(^^fn)[0]));
 static_assert(!has_default_argument(parameters_of(^^fn)[0]));
 static_assert(!is_explicit_object_parameter(parameters_of(^^fn)[0]));
 static_assert(type_of(parameters_of(^^fn)[1]) == ^^bool);
 static_assert(identifier_of(parameters_of(^^fn)[1]) == "b");
-static_assert(has_consistent_identifier(parameters_of(^^fn)[1]));
+static_assert(has_identifier(parameters_of(^^fn)[1]));
 static_assert(!has_default_argument(parameters_of(^^fn)[1]));
 static_assert(!is_explicit_object_parameter(parameters_of(^^fn)[1]));
 static_assert(type_of(parameters_of(^^fn)[2]) == ^^const S<int> &);
 static_assert(identifier_of(parameters_of(^^fn)[2]) == "s");
-static_assert(has_consistent_identifier(parameters_of(^^fn)[2]));
+static_assert(has_identifier(parameters_of(^^fn)[2]));
 static_assert(!has_default_argument(parameters_of(^^fn)[2]));
 static_assert(!is_explicit_object_parameter(parameters_of(^^fn)[2]));
 static_assert(!has_ellipsis_parameter(^^fn));
@@ -91,7 +92,7 @@ constexpr auto ctor =
 static_assert(parameters_of(ctor).size() == 1);
 static_assert(type_of(parameters_of(ctor)[0]) == ^^int);
 static_assert(identifier_of(parameters_of(ctor)[0]) == "a");
-static_assert(has_consistent_identifier(parameters_of(ctor)[0]));
+static_assert(has_identifier(parameters_of(ctor)[0]));
 static_assert(!has_default_argument(parameters_of(ctor)[0]));
 static_assert(!is_explicit_object_parameter(parameters_of(ctor)[0]));
 static_assert(!has_ellipsis_parameter(ctor));
@@ -106,12 +107,12 @@ static_assert(parameters_of(^^Cls::fn).size() == 2);
 static_assert(parameters_of(type_of(^^Cls::fn)) == std::vector {^^int, ^^bool});
 static_assert(type_of(parameters_of(^^Cls::fn)[0]) == ^^int);
 static_assert(identifier_of(parameters_of(^^Cls::fn)[0]) == "a");
-static_assert(has_consistent_identifier(parameters_of(^^Cls::fn)[0]));
+static_assert(has_identifier(parameters_of(^^Cls::fn)[0]));
 static_assert(!has_default_argument(parameters_of(^^Cls::fn)[0]));
 static_assert(!is_explicit_object_parameter(parameters_of(^^Cls::fn)[0]));
 static_assert(type_of(parameters_of(^^Cls::fn)[1]) == ^^bool);
 static_assert(identifier_of(parameters_of(^^Cls::fn)[1]) == "b");
-static_assert(has_consistent_identifier(parameters_of(^^Cls::fn)[1]));
+static_assert(has_identifier(parameters_of(^^Cls::fn)[1]));
 static_assert(has_default_argument(parameters_of(^^Cls::fn)[1]));
 static_assert(!is_explicit_object_parameter(parameters_of(^^Cls::fn)[1]));
 static_assert(!has_ellipsis_parameter(^^Cls::fn));
@@ -123,12 +124,11 @@ static_assert(parameters_of(type_of(^^Cls::fn2)) ==
               std::vector {^^Cls &, ^^int});
 static_assert(type_of(parameters_of(^^Cls::fn2)[0]) == ^^Cls &);
 static_assert(identifier_of(parameters_of(^^Cls::fn2)[0]) == "self");
-static_assert(has_consistent_identifier(parameters_of(^^Cls::fn2)[0]));
+static_assert(has_identifier(parameters_of(^^Cls::fn2)[0]));
 static_assert(!has_default_argument(parameters_of(^^Cls::fn2)[0]));
 static_assert(is_explicit_object_parameter(parameters_of(^^Cls::fn2)[0]));
 static_assert(type_of(parameters_of(^^Cls::fn2)[1]) == ^^int);
 static_assert(!has_identifier(parameters_of(^^Cls::fn2)[1]));
-static_assert(has_consistent_identifier(parameters_of(^^Cls::fn2)[1]));
 static_assert(!has_default_argument(parameters_of(^^Cls::fn2)[1]));
 static_assert(has_ellipsis_parameter(^^Cls::fn2));
 static_assert(has_ellipsis_parameter(type_of(^^Cls::fn2)));
@@ -139,7 +139,7 @@ static_assert(parameters_of(^^Cls::sfn).size() == 1);
 static_assert(parameters_of(type_of(^^Cls::sfn)) == std::vector {^^int});
 static_assert(type_of(parameters_of(^^Cls::sfn)[0]) == ^^int);
 static_assert(identifier_of(parameters_of(^^Cls::sfn)[0]) == "a");
-static_assert(has_consistent_identifier(parameters_of(^^Cls::sfn)[0]));
+static_assert(has_identifier(parameters_of(^^Cls::sfn)[0]));
 static_assert(!has_default_argument(parameters_of(^^Cls::sfn)[0]));
 static_assert(!is_explicit_object_parameter(parameters_of(^^Cls::sfn)[0]));
 static_assert(has_ellipsis_parameter(^^Cls::sfn));
@@ -163,17 +163,17 @@ consteval bool check() {
                 std::vector {^^int &&, ^^char &&, ^^bool &&});
   static_assert(type_of(parameters_of(Fn)[0]) == ^^int &&);
   static_assert(identifier_of(parameters_of(Fn)[0]) == "ts");
-  static_assert(has_consistent_identifier(parameters_of(Fn)[0]));
+  static_assert(has_identifier(parameters_of(Fn)[0]));
   static_assert(!has_default_argument(parameters_of(Fn)[0]));
   static_assert(!is_explicit_object_parameter(parameters_of(Fn)[0]));
   static_assert(type_of(parameters_of(Fn)[1]) == ^^char &&);
   static_assert(identifier_of(parameters_of(Fn)[1]) == "ts");
-  static_assert(has_consistent_identifier(parameters_of(Fn)[1]));
+  static_assert(has_identifier(parameters_of(Fn)[1]));
   static_assert(!has_default_argument(parameters_of(Fn)[1]));
   static_assert(!is_explicit_object_parameter(parameters_of(Fn)[1]));
   static_assert(type_of(parameters_of(Fn)[2]) == ^^bool &&);
   static_assert(identifier_of(parameters_of(Fn)[2]) == "ts");
-  static_assert(has_consistent_identifier(parameters_of(Fn)[2]));
+  static_assert(has_identifier(parameters_of(Fn)[2]));
   static_assert(!has_default_argument(parameters_of(Fn)[2]));
   static_assert(!is_explicit_object_parameter(parameters_of(Fn)[2]));
   static_assert(!has_ellipsis_parameter(Fn));
@@ -199,12 +199,12 @@ static_assert(parameters_of(^^fn).size() == 2);
 static_assert(parameters_of(type_of(^^fn)) == std::vector {^^int, ^^bool});
 static_assert(type_of(parameters_of(^^fn)[0]) == ^^int);
 static_assert(identifier_of(parameters_of(^^fn)[0]) == "a");
-static_assert(has_consistent_identifier(parameters_of(^^fn)[0]));
+static_assert(has_identifier(parameters_of(^^fn)[0]));
 static_assert(!has_default_argument(parameters_of(^^fn)[0]));
 static_assert(!is_explicit_object_parameter(parameters_of(^^fn)[0]));
 static_assert(type_of(parameters_of(^^fn)[1]) == ^^bool);
 static_assert(identifier_of(parameters_of(^^fn)[1]) == "b");
-static_assert(has_consistent_identifier(parameters_of(^^fn)[1]));
+static_assert(has_identifier(parameters_of(^^fn)[1]));
 static_assert(has_default_argument(parameters_of(^^fn)[1]));
 static_assert(!is_explicit_object_parameter(parameters_of(^^fn)[1]));
 static_assert(!has_ellipsis_parameter(^^fn));
@@ -217,7 +217,7 @@ static_assert(!has_ellipsis_parameter(type_of(^^fn)));
 
 namespace with_ambiguous_names {
 void fn(int a1, bool b, char c1);
-static_assert(has_consistent_identifier(parameters_of(^^fn)[2]));
+static_assert(has_identifier(parameters_of(^^fn)[2]));
 
 void fn(int a2, bool,   char c2);
 constexpr auto r_a2 = parameters_of(^^fn)[0];
@@ -230,16 +230,10 @@ constexpr auto r_a3 = parameters_of(^^fn)[0];
 static_assert(parameters_of(^^fn).size() == 3);
 static_assert(parameters_of(type_of(^^fn)) ==
               std::vector {^^int, ^^bool, ^^char});
-static_assert(any_identifier_of(parameters_of(^^fn)[0]) == "a1" ||
-              any_identifier_of(parameters_of(^^fn)[0]) == "a2" ||
-              any_identifier_of(parameters_of(^^fn)[0]) == "a3");
-static_assert(!has_consistent_identifier(parameters_of(^^fn)[0]));
-static_assert(any_identifier_of(parameters_of(^^fn)[1]) == "b");
+static_assert(!has_identifier(parameters_of(^^fn)[0]));
 static_assert(identifier_of(parameters_of(^^fn)[1]) == "b");
-static_assert(has_consistent_identifier(parameters_of(^^fn)[1]));
-static_assert(any_identifier_of(parameters_of(^^fn)[2]) == "c1" ||
-              any_identifier_of(parameters_of(^^fn)[2]) == "c2");
-static_assert(!has_consistent_identifier(parameters_of(^^fn)[2]));
+static_assert(has_identifier(parameters_of(^^fn)[1]));
+static_assert(!has_identifier(parameters_of(^^fn)[2]));
 
 static_assert(r_a2 == r_a3);
 }  // namespace with_ambiguous_names
@@ -288,5 +282,26 @@ void user(int) {
   fn<parameters_of(^^user)[0]>();
 }
 }  // namespace mangle_reflection_of_function_parameter
+
+                              // =================
+                              // variable_of_tests
+                              // =================
+
+namespace variable_of_tests {
+consteval int fn(int p) {
+  constexpr auto rp = parameters_of(^^fn)[0];
+  constexpr auto rv = variable_of(rp);
+  static_assert(is_function_parameter(rp));
+  static_assert(!is_function_parameter(rv));
+  static_assert(!is_variable(rp));
+  static_assert(is_variable(rv));
+  static_assert(^^p == rv);
+
+  return [:variable_of(parameters_of(^^fn)[0]):];
+}
+
+static_assert(fn(42) == 42);
+
+}  // namespace variable_of_tests
 
 int main() { }

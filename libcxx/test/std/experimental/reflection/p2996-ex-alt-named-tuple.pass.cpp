@@ -17,7 +17,8 @@
 //
 // RUN: %{build}
 
-#include <experimental/meta>
+#include <meta>
+
 #include <algorithm>
 
 

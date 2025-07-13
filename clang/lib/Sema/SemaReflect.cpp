@@ -144,7 +144,7 @@ bool CheckSpliceVar(Sema &S, VarDecl *VD, SourceRange Range) {
   // Check for an intervening lambda scope.
   for (DeclContext *DC = S.CurContext; DC != VD->getDeclContext();
        DC = DC->getParent()) {
-    assert(DC && "Var context not a parent of the current context");
+    if (!DC) return false;
     if (auto *RD = dyn_cast<CXXRecordDecl>(DC); RD && RD->isLambda()) {
       S.Diag(Range.getBegin(), diag::err_splice_intervening_lambda)
           << VD << Range;
@@ -552,8 +552,15 @@ public:
                                      SourceLocation());
             break;
           }
-          // TODO(P2996): Handle other kinds of TemplateArgument
-          // (e.g., structural).
+          case TemplateArgument::StructuralValue: {
+            Expr *E = new (S.Context) OpaqueValueExpr(
+                DefinitionLoc, TArg.getStructuralValueType(), VK_PRValue);
+            E = ConstantExpr::Create(S.Context, E, TArg.getAsStructuralValue());
+            ParsedTArgs.emplace_back(ParsedTemplateArgument::NonType, E,
+                                     SourceLocation());
+            break;
+          }
+          // TODO(P2996): Handle other kinds of TemplateArgument.
           default:
             llvm_unreachable("unimplemented");
           }
@@ -660,16 +667,13 @@ public:
         ParsedAttr::Form Form(tok::kw_alignas);
 
         SourceRange Range(DefinitionLoc, DefinitionLoc);
-        MemberAttrs.addAtEnd(AttrPool.create(&II, Range, nullptr,
-                                             SourceLocation{}, nullptr, 0,
-                                             Form));
+        MemberAttrs.addAtEnd(AttrPool.create(&II, Range, {}, nullptr, 0, Form));
       }
       if (MemberSpec->NoUniqueAddress) {
         IdentifierInfo &II = S.Context.Idents.get("no_unique_address");
 
         SourceRange Range(DefinitionLoc, DefinitionLoc);
-        MemberAttrs.addAtEnd(AttrPool.create(&II, Range, nullptr,
-                                             SourceLocation{}, nullptr, 0,
+        MemberAttrs.addAtEnd(AttrPool.create(&II, Range, {}, nullptr, 0,
                                              ParsedAttr::Form::CXX11()));
       }
 
@@ -786,8 +790,8 @@ public:
       SourceRange Range(DefinitionLoc, DefinitionLoc);
       IdentifierInfo &II = S.Context.Idents.get("__annotation_placeholder");
       AttributeCommonInfo *ACI = ParsedAttrs.addNew(
-            &II, Range, nullptr, DefinitionLoc, nullptr, 0,
-            ParsedAttr::Form::Annotation());
+            &II, Range, {}, nullptr, 0,
+            ParsedAttr::Form::Annotation(), DefinitionLoc);
 
       Annot = CXX26AnnotationAttr::Create(S.Context, CE, *ACI);
       Annot->setValue(Value.getReflectedValue());
@@ -805,8 +809,8 @@ public:
 
     SourceRange Range(Loc, Loc);
     IdentifierInfo &II = S.Context.Idents.get("__annotation_placeholder");
-    return ParsedAttrs.addNew(&II, Range, nullptr, Loc, nullptr, 0,
-                              ParsedAttr::Form::Annotation());
+    return ParsedAttrs.addNew(&II, Range, {}, nullptr, 0,
+                              ParsedAttr::Form::Annotation(), Loc);
   }
 };
 }  // anonymous namespace
@@ -1712,6 +1716,7 @@ ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation TemplateKWLoc,
     case ReflectionKind::Type:
     case ReflectionKind::Namespace:
     case ReflectionKind::BaseSpecifier:
+    case ReflectionKind::Parameter:
     case ReflectionKind::DataMemberSpec:
     case ReflectionKind::Annotation:
     case ReflectionKind::Attribute:
@@ -1848,6 +1853,7 @@ DeclContext *Sema::TryFindDeclContextOf(SpliceSpecifier *Splice) {
   case ReflectionKind::Value:
   case ReflectionKind::Declaration:
   case ReflectionKind::BaseSpecifier:
+  case ReflectionKind::Parameter:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
   case ReflectionKind::Attribute:

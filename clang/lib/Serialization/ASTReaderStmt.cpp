@@ -551,46 +551,100 @@ void ASTStmtReader::VisitExplDependentCallExpr(ExplDependentCallExpr *E) {
   llvm_unreachable("unimplemented");
 }
 
+void ASTStmtReader::VisitCXXExpansionStmt(CXXExpansionStmt *S) {
+  VisitStmt(S);
+
+  S->TemplateKWLoc = Record.readSourceLocation();
+  S->ForLoc = Record.readSourceLocation();
+  S->LParenLoc = Record.readSourceLocation();
+  S->ColonLoc = Record.readSourceLocation();
+  S->RParenLoc = Record.readSourceLocation();
+
+  S->SubStmts[CXXExpansionStmt::INIT] = Record.readStmt();
+  S->SubStmts[CXXExpansionStmt::TPARAM] = Record.readStmt();
+  S->SubStmts[CXXExpansionStmt::VAR] = Record.readStmt();
+  S->SubStmts[CXXExpansionStmt::SIZE] = Record.readStmt();
+  S->SubStmts[CXXExpansionStmt::BODY] = Record.readStmt();
+
+  if (unsigned NumExpansions = Record.readUInt32(); NumExpansions > 0) {
+    Stmt **Expansions = new (Record.getContext()) Stmt *[NumExpansions];
+    for (size_t k = 0; k < NumExpansions; ++k)
+      Expansions[k] = Record.readStmt();
+    S->Expansions = Expansions;
+  }
+}
+
 void ASTStmtReader::VisitCXXIndeterminateExpansionStmt(
                                              CXXIndeterminateExpansionStmt *S) {
-  llvm_unreachable("unimplemented");
+  VisitCXXExpansionStmt(S);
 }
 
 void ASTStmtReader::VisitCXXIterableExpansionStmt(CXXIterableExpansionStmt *S) {
-  llvm_unreachable("unimplemented");
+  VisitCXXExpansionStmt(S);
+
+  S->NumInstantiations = Record.readUInt32();
 }
 
 void ASTStmtReader::VisitCXXDestructurableExpansionStmt(
                                             CXXDestructurableExpansionStmt *S) {
-  llvm_unreachable("unimplemented");
+  VisitCXXExpansionStmt(S);
 }
 
 void ASTStmtReader::VisitCXXInitListExpansionStmt(CXXInitListExpansionStmt *S) {
-  llvm_unreachable("unimplemented");
+  VisitCXXExpansionStmt(S);
 }
 
 void ASTStmtReader::VisitCXXIndeterminateExpansionSelectExpr(
         CXXIndeterminateExpansionSelectExpr *E) {
-  llvm_unreachable("unimplemented");
+  VisitExpr(E);
+
+  E->SubExprs[0] = Record.readExpr();
+  E->SubExprs[1] = Record.readExpr();
+  E->ExpansionVar = readDeclAs<VarDecl>();
+  
+  E->NumLifetimeExtendTemps = Record.readUInt32();
+  Expr **Temps = new (Record.getContext()) Expr *[E->NumLifetimeExtendTemps];
+  for (size_t k = 0; k < E->NumLifetimeExtendTemps; ++k)
+    Temps[k] = Record.readExpr();
+  E->LifetimeExtendTemps = reinterpret_cast<MaterializeTemporaryExpr **>(Temps);
 }
 
 void ASTStmtReader::VisitCXXIterableExpansionSelectExpr(
         CXXIterableExpansionSelectExpr *E) {
-  llvm_unreachable("unimplemented");
+  VisitExpr(E);
+
+  E->ImplExpr = Record.readExpr();
+  E->RangeVar = readDeclAs<VarDecl>();
 }
 
 void ASTStmtReader::VisitCXXDestructurableExpansionSelectExpr(
         CXXDestructurableExpansionSelectExpr *E) {
-  llvm_unreachable("unimplemented");
+  VisitExpr(E);
+
+  E->IdxExpr = Record.readExpr();
+  E->DD = Record.readDeclAs<DecompositionDecl>();
+  E->ExpansionVar = Record.readDeclAs<VarDecl>();
 }
 
 void ASTStmtReader::VisitCXXExpansionInitListSelectExpr(
         CXXExpansionInitListSelectExpr *E) {
-  llvm_unreachable("unimplemented");
+  VisitExpr(E);
+
+  E->SubExprs[0] = Record.readExpr();
+  E->SubExprs[1] = Record.readExpr();
 }
 
 void ASTStmtReader::VisitCXXExpansionInitListExpr(CXXExpansionInitListExpr *E) {
-  llvm_unreachable("unimplemented");
+  VisitExpr(E);
+
+  E->LBraceLoc = readSourceLocation();
+  E->RBraceLoc = readSourceLocation();
+
+  E->NumSubExprs = Record.readUInt32();
+  Expr **SubExprs = new (Record.getContext()) Expr *[E->NumSubExprs];
+  for (size_t k = 0; k < E->NumSubExprs; ++k)
+    SubExprs[k] = Record.readExpr();
+  E->SubExprs = SubExprs;
 }
 
 void ASTStmtReader::VisitDependentCoawaitExpr(DependentCoawaitExpr *E) {
@@ -821,7 +875,7 @@ void ASTStmtReader::VisitParenListExpr(ParenListExpr *E) {
   unsigned NumExprs = Record.readInt();
   assert((NumExprs == E->getNumExprs()) && "Wrong NumExprs!");
   for (unsigned I = 0; I != NumExprs; ++I)
-    E->getTrailingObjects<Stmt *>()[I] = Record.readSubStmt();
+    E->getTrailingObjects()[I] = Record.readSubStmt();
   E->LParenLoc = readSourceLocation();
   E->RParenLoc = readSourceLocation();
 }
@@ -1993,7 +2047,7 @@ void ASTStmtReader::VisitCXXDefaultArgExpr(CXXDefaultArgExpr *E) {
   E->CXXDefaultArgExprBits.Loc = readSourceLocation();
   E->CXXDefaultArgExprBits.HasRewrittenInit = Record.readInt();
   if (E->CXXDefaultArgExprBits.HasRewrittenInit)
-    *E->getTrailingObjects<Expr *>() = Record.readSubExpr();
+    *E->getTrailingObjects() = Record.readSubExpr();
 }
 
 void ASTStmtReader::VisitCXXDefaultInitExpr(CXXDefaultInitExpr *E) {
@@ -2003,7 +2057,7 @@ void ASTStmtReader::VisitCXXDefaultInitExpr(CXXDefaultInitExpr *E) {
   E->UsedContext = readDeclAs<DeclContext>();
   E->CXXDefaultInitExprBits.Loc = readSourceLocation();
   if (E->CXXDefaultInitExprBits.HasRewrittenInit)
-    *E->getTrailingObjects<Expr *>() = Record.readSubExpr();
+    *E->getTrailingObjects() = Record.readSubExpr();
 }
 
 void ASTStmtReader::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
@@ -2100,7 +2154,7 @@ void ASTStmtReader::VisitExprWithCleanups(ExprWithCleanups *E) {
       Obj = cast<CompoundLiteralExpr>(Record.readSubExpr());
     else
       llvm_unreachable("unexpected cleanup object type");
-    E->getTrailingObjects<ExprWithCleanups::CleanupObject>()[i] = Obj;
+    E->getTrailingObjects()[i] = Obj;
   }
 
   E->ExprWithCleanupsBits.CleanupsHaveSideEffects = Record.readInt();
@@ -2299,9 +2353,8 @@ void ASTStmtReader::VisitSizeOfPackExpr(SizeOfPackExpr *E) {
   E->Pack = Record.readDeclAs<NamedDecl>();
   if (E->isPartiallySubstituted()) {
     assert(E->Length == NumPartialArgs);
-    for (auto *I = E->getTrailingObjects<TemplateArgument>(),
-              *E = I + NumPartialArgs;
-         I != E; ++I)
+    for (auto *I = E->getTrailingObjects(), *E = I + NumPartialArgs; I != E;
+         ++I)
       new (I) TemplateArgument(Record.readTemplateArgument());
   } else if (!E->isValueDependent()) {
     E->Length = Record.readInt();
@@ -2316,7 +2369,7 @@ void ASTStmtReader::VisitPackIndexingExpr(PackIndexingExpr *E) {
   E->RSquareLoc = readSourceLocation();
   E->SubExprs[0] = Record.readStmt();
   E->SubExprs[1] = Record.readStmt();
-  auto **Exprs = E->getTrailingObjects<Expr *>();
+  auto **Exprs = E->getTrailingObjects();
   for (unsigned I = 0; I < E->PackIndexingExprBits.TransformedExpressions; ++I)
     Exprs[I] = Record.readExpr();
 }
@@ -2353,7 +2406,7 @@ void ASTStmtReader::VisitFunctionParmPackExpr(FunctionParmPackExpr *E) {
   E->NumParameters = Record.readInt();
   E->ParamPack = readDeclAs<ValueDecl>();
   E->NameLoc = readSourceLocation();
-  auto **Parms = E->getTrailingObjects<ValueDecl *>();
+  auto **Parms = E->getTrailingObjects();
   for (unsigned i = 0, n = E->NumParameters; i != n; ++i)
     Parms[i] = readDeclAs<ValueDecl>();
 }
@@ -2390,7 +2443,7 @@ void ASTStmtReader::VisitCXXParenListInitExpr(CXXParenListInitExpr *E) {
   E->LParenLoc = readSourceLocation();
   E->RParenLoc = readSourceLocation();
   for (unsigned I = 0; I < ExpectedNumExprs; I++)
-    E->getTrailingObjects<Expr *>()[I] = Record.readSubExpr();
+    E->getTrailingObjects()[I] = Record.readSubExpr();
 
   bool HasArrayFillerOrUnionDecl = Record.readBool();
   if (HasArrayFillerOrUnionDecl) {
@@ -2409,10 +2462,6 @@ void ASTStmtReader::VisitOpaqueValueExpr(OpaqueValueExpr *E) {
   E->SourceExpr = Record.readSubExpr();
   E->OpaqueValueExprBits.Loc = readSourceLocation();
   E->setIsUnique(Record.readInt());
-}
-
-void ASTStmtReader::VisitTypoExpr(TypoExpr *E) {
-  llvm_unreachable("Cannot read TypoExpr nodes");
 }
 
 void ASTStmtReader::VisitRecoveryExpr(RecoveryExpr *E) {
@@ -3707,11 +3756,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
     }
 
     case STMT_OMP_REVERSE_DIRECTIVE: {
-      assert(Record[ASTStmtReader::NumStmtFields] == 1 &&
-             "Reverse directive accepts only a single loop");
+      unsigned NumLoops = Record[ASTStmtReader::NumStmtFields];
       assert(Record[ASTStmtReader::NumStmtFields + 1] == 0 &&
              "Reverse directive has no clauses");
-      S = OMPReverseDirective::CreateEmpty(Context);
+      S = OMPReverseDirective::CreateEmpty(Context, NumLoops);
       break;
     }
 
@@ -4617,6 +4665,42 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
     }
     case EXPR_DEPENDENT_MEMBER_SPLICE: {
       S = CXXDependentMemberSpliceExpr::CreateEmpty(Context);
+      break;
+    }
+    case STMT_INDETERMINATE_EXPANSION: {
+      S = CXXIndeterminateExpansionStmt::Create(Context, Empty);
+      break;
+    }
+    case STMT_ITERABLE_EXPANSION: {
+      S = CXXIterableExpansionStmt::Create(Context, Empty);
+      break;
+    }
+    case STMT_DESTRUCTURABLE_EXPANSION: {
+      S = CXXDestructurableExpansionStmt::Create(Context, Empty);
+      break;
+    }
+    case STMT_INIT_LIST_EXPANSION: {
+      S = CXXInitListExpansionStmt::Create(Context, Empty);
+      break;
+    }
+    case EXPR_INDETERMINATE_EXPANSION_SELECT: {
+      S = CXXIndeterminateExpansionSelectExpr::Create(Context, Empty);
+      break;
+    }
+    case EXPR_ITERABLE_EXPANSION_SELECT: {
+      S = CXXIterableExpansionSelectExpr::Create(Context, Empty);
+      break;
+    }
+    case EXPR_DESTRUCTURABLE_EXPANSION_SELECT: {
+      S = CXXDestructurableExpansionSelectExpr::Create(Context, Empty);
+      break;
+    }
+    case EXPR_INIT_LIST_EXPANSION_SELECT: {
+      S = CXXExpansionInitListSelectExpr::Create(Context, Empty);
+      break;
+    }
+    case EXPR_EXPANSION_INIT_LIST: {
+      S = CXXExpansionInitListExpr::Create(Context, Empty);
       break;
     }
     }
