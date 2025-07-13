@@ -21,6 +21,7 @@
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Template.h"
@@ -975,6 +976,11 @@ ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OperatorLoc,
   return BuildCXXReflectExpr(OperatorLoc, E);
 }
 
+ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OperatorLoc,
+                                     ParsedAttr *A) {
+  return BuildCXXReflectExpr(OperatorLoc, A);
+}
+
 /// Returns an expression representing the result of a metafunction operating
 /// on a reflection.
 ExprResult Sema::ActOnCXXMetafunction(SourceLocation KwLoc,
@@ -1330,6 +1336,13 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
 
   return CXXReflectExpr::Create(Context, OperatorLoc, E->getSourceRange(),
                                 ER.Val);
+}
+
+ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
+                                     ParsedAttr *A) {
+  return CXXReflectExpr::Create(
+      Context, OperatorLoc, A->getRange(),
+      APValue{ReflectionKind::Attribute, static_cast<void *>(A)});
 }
 
 ExprResult Sema::BuildCXXMetafunctionExpr(
@@ -1706,6 +1719,7 @@ ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation TemplateKWLoc,
     case ReflectionKind::Parameter:
     case ReflectionKind::DataMemberSpec:
     case ReflectionKind::Annotation:
+    case ReflectionKind::Attribute:
       Diag(Splice->getBeginLoc(),
            diag::err_unexpected_reflection_kind_in_splice)
           << 1 << Splice->getSourceRange();
@@ -1842,6 +1856,7 @@ DeclContext *Sema::TryFindDeclContextOf(SpliceSpecifier *Splice) {
   case ReflectionKind::Parameter:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     Diag(Splice->getBeginLoc(), diag::err_expected_class_or_namespace)
         << "spliced entity" << getLangOpts().CPlusPlus;
     return nullptr;

@@ -22,8 +22,10 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/LocInfoType.h"
 #include "clang/AST/Type.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
+
 using namespace clang;
 
 /// The identity of a type_info object depends on the canonical unqualified
@@ -565,6 +567,40 @@ static void profileReflection(llvm::FoldingSetNodeID &ID, APValue V) {
   case ReflectionKind::Annotation:
     ID.AddPointer(V.getOpaqueReflectionData());
     return;
+  case ReflectionKind::Attribute: {
+    ParsedAttr* attr = V.getReflectedAttribute();
+    // Note here we do not enforce that only gnu, clang, etc.
+    // be valid reflectable namespace... we assume it was done
+    // before when forming a reflection
+    if (attr->hasScope()) {
+      ID.AddInteger(attr->getScopeName()->getName().size());
+      ID.AddString(attr->getScopeName()->getName());
+    }
+    ID.AddInteger(attr->getAttrName()->getName().size());
+    ID.AddString(attr->getAttrName()->getName());
+    for (size_t i = 0; i != attr->getNumArgs(); ++i) {
+        Expr *Arg0 = attr->getArgAsExpr(i);
+        StringLiteral *strLiteral =
+          dyn_cast<StringLiteral>(Arg0->IgnoreParenCasts());
+        IntegerLiteral *intLiteral = dyn_cast<IntegerLiteral>(Arg0->IgnoreParenCasts());
+        CXXBoolLiteralExpr *boolLiteral = dyn_cast<CXXBoolLiteralExpr>(Arg0->IgnoreParenCasts());
+        // FIXME we should we offload this to somewhere else... (tablegen?)
+        if(strLiteral) {
+          StringRef stringArgValue = strLiteral->getString();
+          if (!stringArgValue.empty()) {
+            ID.AddInteger(stringArgValue.size());
+            ID.AddString(stringArgValue.data());
+          }
+        } else if (intLiteral) {
+          auto intArgValue = intLiteral->getValue();
+          ID.AddInteger(intArgValue.getLimitedValue());
+        } else if (boolLiteral) {
+          ID.AddBoolean(boolLiteral->getValue());
+        }
+    }
+
+    return;
+  }
   case ReflectionKind::DataMemberSpec: {
     TagDataMemberSpec *TDMS = V.getReflectedDataMemberSpec();
     TDMS->Ty.Profile(ID);
@@ -971,6 +1007,13 @@ CXX26AnnotationAttr *APValue::getReflectedAnnotation() const {
           const_cast<void *>(getOpaqueReflectionData()));
 }
 
+ParsedAttr *APValue::getReflectedAttribute() const {
+  assert(getReflectionKind() == ReflectionKind::Attribute &&
+         "not a reflection of an attribute");
+  return reinterpret_cast<ParsedAttr *>(
+          const_cast<void *>(getOpaqueReflectionData()));
+}
+
 static double GetApproxValue(const llvm::APFloat &F) {
   llvm::APFloat V = F;
   bool ignored;
@@ -1330,6 +1373,9 @@ void APValue::printPretty(raw_ostream &Out, const PrintingPolicy &Policy,
     case ReflectionKind::Annotation:
       Repr = "annotation";
       break;
+    case ReflectionKind::Attribute:
+      Repr = "attribute";
+      break;
     }
     Out << "^^(" << Repr << ")";
     return;
@@ -1668,6 +1714,7 @@ void APValue::setReflection(ReflectionKind RK, const void *Ptr) {
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
+  case ReflectionKind::Attribute:
     SelfData.Kind = RK;
     SelfData.Data = Ptr;
     return;

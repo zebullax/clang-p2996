@@ -12,11 +12,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/LocInfoType.h"
 #include "clang/Basic/DiagnosticParse.h"
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
+#include "clang/Sema/ParsedAttr.h"
 using namespace clang;
 
 ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
@@ -82,6 +84,26 @@ ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
             Actions.ActOnCXXReflectExpr(OpLoc, SourceLocation(), TUDecl));
   }
   TentativeAction.Revert();
+
+  // Check for a standard attribute
+  {
+    size_t last = Attrs.size();
+    if (MaybeParseCXX11Attributes(Attrs)) {
+      size_t newLast = Attrs.size();
+
+      // FIXME handle empty [[]] gracefully
+      if (last == newLast) {
+        Diag(OperandLoc, diag::p3385_trace_empty_attributes_list);
+        return ExprError();
+      }
+      if (newLast - last > 1) {
+        Diag(OperandLoc, diag::p3385_err_attributes_list) << (newLast - last);
+        return ExprError();
+      }
+
+      return Actions.ActOnCXXReflectExpr(OpLoc, &Attrs.back());
+    }
+  }
 
   if (SS.isSet() &&
       TryAnnotateTypeOrScopeTokenAfterScopeSpec(SS, true,
