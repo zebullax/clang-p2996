@@ -2519,8 +2519,6 @@ static bool isIdentifierArgument(const Record *Arg) {
          StringSwitch<bool>(
              Arg->getDirectSuperClasses().back().first->getName())
              .Case("IdentifierArgument", true)
-             .Case("EnumArgument", true)
-             .Case("VariadicEnumArgument", true)
              .Default(false);
 }
 
@@ -2645,13 +2643,9 @@ static void writeExtractSyntacticArgumentFunction(const Record &R,
       OS << "    args.push_back(IntegerLiteral::Create(C, llvm::APInt(32, " << Accessor << "), C.IntTy, srcLocation));\n";
     } else if (isBoolArgument(Arg)) {
       OS << "    args.push_back(CXXBoolLiteralExpr::Create(C, " << Accessor << ", C.BoolTy, srcLocation));\n";
-    // } else if (isIdentifierArgument(Arg)) {
-    //   OS << "    if (auto II = " << Accessor << ") {\n"
-    //     << "      args.push_back(DeclRefExpr::Create(\n"
-    //     << "          C, NestedNameSpecifierLoc(), srcLocation,\n"
-    //     << "          II, false, srcLocation,\n"
-    //     << "          C.DependentTy, ExprValueKind::VK_LValue));\n"
-    //     << "    }\n";
+    } else if (isIdentifierArgument(Arg)) {
+      OS << "    IdentifierLoc *IL" << ArgName << " = new (C) IdentifierLoc(srcLocation, " << Accessor << ");\n";
+      OS << "    args.push_back(IL" << ArgName << ");\n";
     } else if (isStringLiteralArgument(Arg)) {
       // String enums need to go through a convert
       if (isStringEnumArgument(Arg)) {
@@ -2659,7 +2653,7 @@ static void writeExtractSyntacticArgumentFunction(const Record &R,
         enumTypeName[0] = std::toupper(enumTypeName[0]);
         Accessor = "Convert" + enumTypeName + "ToStr(" + Accessor +")";
       }
-      // OS << "  args.push_back(makeStrLiteral(" << Accessor << ", C, false));";
+      // TODO: ExpConstantMeta use a 'makeStrLiteral' which seems more complex... needed ?
       OS << "  args.push_back(StringLiteral::Create(C, " << Accessor << ", StringLiteralKind::Unevaluated, false, C.CharTy, srcLocation));\n";
     } else {
       OS << "  // FIXME: Unhandled argument type...'" << Arg->getName() << "'\n";
