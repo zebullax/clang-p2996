@@ -18,11 +18,12 @@
 // [reflection]
 #include <experimental/meta>
 
-// Note that 'Foo' mix standard and vendor namespaced
+// Note that 'Foo' mix standard and vendor namespaced, supported and unsupported
 struct [[nodiscard("std variant"), deprecated("dont use me")]]
-[[clang::warn_unused_result("clang variant")]] Foo {};
+[[clang::warn_unused_result("clang variant")]]
+[[clang::availability(macos,introduced=10.4,deprecated=10.6,obsoleted=10.7)]] Foo {};
 
-// This is vendor specific, does not exist in the standard
+// This is vendor specific & does not exist in the standard
 [[gnu::constructor(200)]] void gnuConstructor(void);
 
 // Some samples of vendor and standard attributes
@@ -72,6 +73,7 @@ consteval bool testAttributesOfType() {
       || i == ^^[[clang::warn_unused_result("clang variant")]];
   };
 
+  // This should not return the unsupported 'availability'
   static_assert(std::meta::attributes_of(^^Foo).size() == 3);
   
   constexpr auto att0 = std::meta::attributes_of(^^Foo)[0];
@@ -121,5 +123,6 @@ int main() {
   static_assert(testAttributesOfType() ,"AttributesOfType");
   static_assert(testComparison() ,"Comparison");
   static_assert(testVendorSpecific() ,"VendorSpecific");
+  static_assert(testUnsupported() ,"Unsupported");
 }
 
