@@ -105,6 +105,14 @@ consteval bool testVendorSpecific() {
   return true;
 }
 
+consteval bool testUnsupported() {
+  static_assert(!std::meta::is_attribute(^^[[assume(true)]]));
+  static_assert(!std::meta::is_attribute(^^[[clang::assume(true)]]));
+  static_assert(!std::meta::is_attribute(^^[[my::stuff("anything")]]));
+  static_assert(^^[[assume(true)]] == std::meta::info());
+  return true;
+}
+
 int main() {
   static_assert(testIsAttribute(), "IsAttribute");
   static_assert(testHasIdentifier(), "HasIdentifier");
@@ -114,3 +122,4 @@ int main() {
   static_assert(testComparison() ,"Comparison");
   static_assert(testVendorSpecific() ,"VendorSpecific");
 }
+
