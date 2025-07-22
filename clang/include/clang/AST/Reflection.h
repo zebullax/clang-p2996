@@ -108,7 +108,7 @@ enum class ReflectionKind {
   /// \brief A reflection of an annotation (P2996 ext).
   Annotation,
 
-  /// \brief A reflection of a standard attribute (P3385).
+  /// \brief A reflection of an attribute (P3385).
   Attribute,
 };
 
@@ -122,6 +122,10 @@ struct TagDataMemberSpec {
   std::optional<size_t> Alignment;
   std::optional<size_t> BitWidth;
   bool NoUniqueAddress;
+  // I dont really have a clue... but to avoid cyclic dep here we ll just
+  // voidify the ParsedAttributesView* argument to which we tack on bunch
+  // of reflected attributed
+  std::function<void(void*)> onTagAttributes;
 
   bool operator==(TagDataMemberSpec const& Rhs) const;
   bool operator!=(TagDataMemberSpec const& Rhs) const;
