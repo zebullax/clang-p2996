@@ -674,8 +674,9 @@ public:
                                              ParsedAttr::Form::CXX11()));
       }
 
-      // Tag all stashed attributes
-      MemberSpec->onTagAttributes(reinterpret_cast<void*>(&MemberAttrs));
+      for (ParsedAttr *PA : MemberSpec->Attributes) {
+        MemberAttrs.addAtEnd(PA);
+      }
 
       // Create declarator for the member.
       Declarator MemberDeclarator(DS, MemberAttrs, DeclaratorContext::Member);

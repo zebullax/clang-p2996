@@ -5276,7 +5276,7 @@ bool data_member_spec(APValue &Result, ASTContext &C, MetaActions &Meta,
   // Next is `N` and then { attr_i, ..., attr_N }
   if (!Evaluator(Scratch, Args[ArgIdx++], true))
     return true;
-  llvm::SmallVector<APValue, 2> attributes;
+  llvm::SmallVector<ParsedAttr *, 2> Attributes;
   if (int64_t N = Scratch.getInt().getExtValue(); N > 0) {
     for (int64_t i = 0; i < N; ++i) {
       llvm::APInt Idx(C.getTypeSize(C.getSizeType()), i, false);
@@ -5290,18 +5290,12 @@ bool data_member_spec(APValue &Result, ASTContext &C, MetaActions &Meta,
       if (!Scratch.isReflectedAttribute()) {
         return DiagnoseReflectionKind(Diagnoser, Range, "a reflection of an attribute", DescriptionOf(Scratch));
       }
-      attributes.push_back(Scratch);
+      Attributes.push_back(Scratch.getReflectedAttribute());
     }
   }
-  auto onTagAttr = [=](void * attrView) {
-    auto * attrs = reinterpret_cast<ParsedAttributesView*>(attrView);
-    for (APValue attr : attributes) {
-      attrs->addAtEnd(attr.getReflectedAttribute());
-    }
-  };
 
   TagDataMemberSpec *TDMS = new (C) TagDataMemberSpec {
-    MemberTy, Name, Alignment, BitWidth, NoUniqueAddress, onTagAttr
+    MemberTy, Name, Alignment, BitWidth, NoUniqueAddress, Attributes
   };
   return SetAndSucceed(Result, makeReflection(TDMS));
 }

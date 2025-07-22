@@ -1489,6 +1489,7 @@ consteval auto data_member_spec(info member_type,
   int alignment = options.alignment.value_or(0);
   int width = options.width.value_or(0);
   bool no_unique_address = options.no_unique_address;
+
   initializer_list<meta::info> attributes = options.attributes;
 
   auto validate = [&](auto name_string) {
