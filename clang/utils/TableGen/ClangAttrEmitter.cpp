@@ -2663,9 +2663,16 @@ static void writeExtractSyntacticArgumentFunction(const Record &R,
       if (isStringEnumArgument(Arg)) {
         std::string enumTypeName(makeShortNameForArgType(Arg));
         enumTypeName[0] = std::toupper(enumTypeName[0]);
-        Accessor = "Convert" + enumTypeName + "ToStr(" + Accessor +")";
+        Accessor = "StringRef(Convert" + enumTypeName + "ToStr(" + Accessor +"))";
       }
-      OS << "  args.push_back(StringLiteral::Create(C, " << Accessor << ", StringLiteralKind::Unevaluated, false, C.CharTy, srcLocation));\n";
+      OS << "  if (!" << Accessor << ".empty()) {"
+         << "    args.push_back(StringLiteral::Create(C,\n"
+         << "                                         " << Accessor << ",\n"
+         << "                                         StringLiteralKind::Unevaluated,\n"
+         << "                                         false,\n"
+         << "                                         C.getConstantArrayType(C.CharTy, llvm::APInt(32, " + Accessor + ".size() + 1), nullptr, ArraySizeModifier::Normal, 0),\n"
+         << "                                         srcLocation));\n"
+         << "  }\n";
     } else if (isExprArgument(Arg)) {
       OS << "  args.push_back(" << Accessor << ");\n";
     } else {

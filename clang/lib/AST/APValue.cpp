@@ -562,48 +562,7 @@ static void profileReflection(llvm::FoldingSetNodeID &ID, APValue V) {
     return;
   case ReflectionKind::Attribute: {
     ParsedAttr* attr = V.getReflectedAttribute();
-    // Note here we do not enforce that only gnu, clang, etc.
-    // be valid reflectable namespace... we assume it was done
-    // before when forming a reflection
-    if (attr->hasScope()) {
-      StringRef scopeName = attr->getScopeName()->getName();
-      ID.AddInteger(scopeName.size());
-      ID.AddString(scopeName);
-    }
-    StringRef attrName = attr->getAttrName()->getName();
-    ID.AddInteger(attrName.size());
-    ID.AddString(attrName);
-    for (size_t i = 0; i != attr->getNumArgs(); ++i) {
-        Expr *Arg0 = attr->getArgAsExpr(i);
-        StringLiteral *strLiteral =
-          dyn_cast<StringLiteral>(Arg0->IgnoreParenCasts());
-        IntegerLiteral *intLiteral = dyn_cast<IntegerLiteral>(Arg0->IgnoreParenCasts());
-        CXXBoolLiteralExpr *boolLiteral = dyn_cast<CXXBoolLiteralExpr>(Arg0->IgnoreParenCasts());
-        // FIXME we should we offload this to somewhere else... (tablegen?)
-        if(strLiteral) {
-          StringRef stringArgValue = strLiteral->getString();
-          if (!stringArgValue.empty()) {
-            ID.AddInteger(stringArgValue.size());
-            ID.AddString(stringArgValue.data());
-          }
-        } else if (intLiteral) {
-          auto intArgValue = intLiteral->getValue();
-          ID.AddInteger(intArgValue.getLimitedValue());
-        } else if (boolLiteral) {
-          ID.AddBoolean(boolLiteral->getValue());
-        } else {
-          // TODO Absolute trash for Expr we ll turn it into a token soup
-          // Can we re-lex it or profile EXPR when we create the attributes... ?
-          std::string Buffer;
-          llvm::raw_string_ostream OS(Buffer);
-          LangOptions lo;
-          PrintingPolicy policy(lo);
-          Arg0->printPretty(OS, nullptr, policy);
-          ID.AddInteger(Buffer.size());
-          ID.AddString(Buffer.data());
-        }
-    }
-
+    attr->profile(ID);
     return;
   }
   case ReflectionKind::DataMemberSpec: {
