@@ -2590,15 +2590,24 @@ static bool isVariadicStringLiteralArgument(const Record *Arg) {
   return isVariadicStringLiteralEnumArgument(Arg) || ArgKind == "VariadicStringArgument";
 }
 
+// Custom logic is used to regen ParsedAttr from Attr
+static bool hasCustomSyntacticConversion(const Record* R) {
+  return R->getValueAsBit("HasCustomSyntacticConversion");
+}
+
 // An (family-of-variant) attribute is reflectable if
 // - it admits at least one CXX11 representation, and
 // - it has no arguments or all its arguments are of any of the types: string, bool, int
-// - it does not set 'EscapeReflection' to true
+// - it does not set 'EscapeReflection' to true (opt out)
+// - it has set 'HasCustomSyntacticConversion' to true (opt in)
 // - it does not set 'ASTNode' to true
 // - it is not a type attributes (we may lift later...)
 static bool isReflectableAttr(const Record* R) {
   if (R->getValueAsBit("EscapeReflection")) {
-    return false;
+    return false; // Reflection is problematic even though arguments are trivial to synthesize
+  }
+  if (hasCustomSyntacticConversion(R)) {
+    return true; // Dedicated logic used to allow reflection
   }
   if (!R->getValueAsBit("ASTNode")) {
     return false;
@@ -2631,12 +2640,14 @@ static bool isReflectableAttr(const Record* R) {
   return ArgRecords.empty() || std::all_of(ArgRecords.begin(), ArgRecords.end(), isSupportedArgType);
 }
 
-// P3385 Codegen an accessor for arguments as expr
-static void writeExtractSyntacticArgumentFunction(const Record &R,
+// P3385: Emit a function doing conversion back to syntactic form 
+static void writeToSyntacticFormFunction(const Record &R,
                          raw_ostream &OS) {
-  OS << "bool " << R.getName() << "Attr::extractSyntacticArguments(ASTContext& C, OnSyntacticArgument onSyntax, SourceLocation srcLocation) const {\n";
+  OS << "  template <class AllocScratchpad>\n";
+  OS << "  ParsedAttr* " << R.getName() << "Attr::toSyntacticForm(ASTContext& C, AllocScratchpad scratchpad, SourceLocation srcLocation) const {\n";
   OS << "  SmallVector<llvm::PointerUnion<Expr *, IdentifierLoc *>, 2> args;\n";
   OS << "  const AttributeCommonInfo* info = this;\n";
+  OS << "  ParsedAttr * recoveredAttr = nullptr;\n";
   OS << "  IdentifierInfo &attrName = C.Idents.get(info->getAttrName()->getName());\n\n";
 
   auto makeShortNameForArgType = [] (const Record* Arg) {
@@ -2648,6 +2659,7 @@ static void writeExtractSyntacticArgumentFunction(const Record &R,
     return shortType;
   };
 
+  // Write a loop that extract every arguments under a form suitable for ParsedAttr creation
   auto emitExprFromArg = [&] (raw_ostream &OS, const Record *Arg) {
     // I dont have an Arg here so cant directly call
     // all the normalization methods...
@@ -2718,7 +2730,16 @@ static void writeExtractSyntacticArgumentFunction(const Record &R,
     emitExprFromArg(OS, arg);
   }
   OS << "\n";
-  OS << "  return onSyntax(&attrName, args, info->getForm());\n";
+  OS << "  recoveredAttr = scratchpad.create(\n";
+  OS << "    attrName,\n";
+  OS << "    this->getRange(),\n";
+  OS << "    this->hasScope() ? const_cast<IdentifierInfo*>(this->getScopeName()) : nullptr,\n";
+  OS << "    this->getLoc(),\n";
+  OS << "    argExprs.data(),\n";
+  OS << "    argExprs.size(),\n";
+  OS << "    this->getForm()\n";
+  OS << "  );\n";
+  OS << "  return recoveredAttr;\n";
   OS << "}\n";
 }
 
@@ -3279,7 +3300,8 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
     if (DelayedArgs && HasRequiredArgs)
       emitCtor(false, false, true);
 
-    bool mustEmitOnSyntactiArgs = isReflectableAttr(Attr);
+    const bool mustEmitSyntacticConversionFunctions = isReflectableAttr(Attr);
+    const bool hasAutomaticSyntacticConversion = !hasCustomSyntacticConversion(Attr);
 
     if (Header) {
       OS << '\n';
@@ -3288,15 +3310,9 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
          << "                   const PrintingPolicy &Policy) const;\n";
       OS << "  const char *getSpelling() const;\n";
 
-      if (mustEmitOnSyntactiArgs) {
-        OS << "  using OnSyntacticArgument\n";
-        OS << "    = std::function<bool(\n";
-        OS << "        IdentifierInfo *,\n"; // Attr name
-        OS << "        SmallVector<llvm::PointerUnion<Expr *, IdentifierLoc *>, 2>,\n"; // Args
-        OS << "        AttributeCommonInfo::Form\n"; // Form
-        OS << "      )>;\n";
-        OS << "\n";
-        OS << "  bool extractSyntacticArguments(ASTContext& C, OnSyntacticArgument onSyntax, SourceLocation srcLocation) const;\n";
+      if (mustEmitSyntacticConversionFunctions) {
+        OS << "  template <class AllocScratchpad>\n";
+        OS << "  ParsedAttr * toSyntacticForm(ASTContext& C, AllocScratchpad scratchpad, SourceLocation srcLocation) const;\n";
         OS << "\n";
       }
     }
@@ -3375,8 +3391,13 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
 
       writePrettyPrintFunction(R, Args, OS);
       writeGetSpellingFunction(R, OS);
-      if (mustEmitOnSyntactiArgs) {
-        writeExtractSyntacticArgumentFunction(R, OS);
+
+      if (mustEmitSyntacticConversionFunctions) {
+        if (!hasAutomaticSyntacticConversion) {
+          writeToSyntacticFormFunction(R, OS);
+        } else {
+          // TODO: copy paste from Attr.td
+        }
       }
     }
   }
@@ -5341,24 +5362,24 @@ static void emitClangAttrIsReflectableList(const llvm::RecordKeeper &Records,
   OS << "#endif // CLANG_ATTR_IS_REFLECTABLE_LIST\n\n";
 }
 
-static void emitClangAttrOnSyntacticArgs(const llvm::RecordKeeper &Records,
+// Build list of attributes 'case (Kind) : toSyntacticForm(...)'
+static void emitClangAttrToSyntacticForm(const llvm::RecordKeeper &Records,
                                            llvm::raw_ostream &OS)
 {
-  OS << "#if defined(CLANG_ATTR_ON_SYNTACTIC_ARGS_LIST)\n";
+  OS << "#if defined(CLANG_ATTR_TO_SYNTACTIC_FORM_LIST)\n";
   for (const auto & [name, record] : getParsedAttrList(Records)) {
     if (!isReflectableAttr(record)) {
-      OS << "case (AttributeCommonInfo::Kind::AT_" << name << "): return false;\n";
-    } else {
+      OS << "case (AttributeCommonInfo::Kind::AT_" << name << "): return nullptr;\n";
+    } else if (hasCustomSyntacticConversion(record)){
       std::string attrClassName(record->getName());
       attrClassName += "Attr";
       OS << "case (AttributeCommonInfo::Kind::AT_" << name << "): {\n"
          << "  const " << attrClassName << "* attr = static_cast<const " << attrClassName <<"*>(semanticAttr);\n"
-         /*                              ASTContext&, OnSyntacticArgument, SourceLocation */
-         << "  return attr->extractSyntacticArguments(C, onSyntax, srcLocation);\n"
+         << "  return attr->toSyntacticForm(C, scratchpad, srcLocation);\n"
          << "}\n";
     }
   }
-  OS << "#endif // CLANG_ATTR_ON_SYNTACTIC_ARGS_LIST\n\n";
+  OS << "#endif // CLANG_ATTR_TO_SYNTACTIC_FORM_LIST\n\n";
 }
 
 // Backend to generate Attr reflection .inc file
@@ -5367,7 +5388,7 @@ void EmitClangAttrReflection(const llvm::RecordKeeper &Records,
 {
   emitSourceFileHeader("P3385 attribute Reflection facilities", OS, Records);
   emitClangAttrIsReflectableList(Records, OS);
-  emitClangAttrOnSyntacticArgs(Records, OS);
+  emitClangAttrToSyntacticForm(Records, OS);
 }
 
 void EmitClangAttrDocTable(const RecordKeeper &Records, raw_ostream &OS) {

@@ -24,6 +24,7 @@
 #include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "clang/Support/Compiler.h"
 #include "llvm/Frontend/HLSL/HLSLResource.h"
 #include "llvm/Support/CodeGen.h"
@@ -408,21 +409,21 @@ static bool isAttributeWithReflectableVariant(AttributeCommonInfo::Kind kind){
 ///
 /// Return false if the attribute is not reflectatble, otherwise return the result of calling
 ///  'onSyntax'
-inline bool extractSyntacticArguments(const Attr* semanticAttr,
-                                      ASTContext &C,
-                                      Attr::OnSyntacticArgument onSyntax,
-                                      SourceLocation srcLocation)
+inline ParsedAttr* toSyntacticForm(const Attr* semanticAttr,
+                                   ASTContext &C,
+                                   AttributePool pool,
+                                   SourceLocation srcLocation)
 {
   AttributeCommonInfo info = *semanticAttr;
   if (!isAttributeWithReflectableVariant(info.getParsedKind())) {
-    return false;
+    return nullptr;
   }
-#define CLANG_ATTR_ON_SYNTACTIC_ARGS_LIST
+#define CLANG_ATTR_TO_SYNTACTIC_FORM_LIST
   switch (info.getParsedKind()) {
-    default: return false;
+    default: return nullptr;
 #include "clang/Parse/AttrReflection.inc"
   }
-#undef CLANG_ATTR_ON_SYNTACTIC_ARGS_LIST
+#undef CLANG_ATTR_TO_SYNTACTIC_FORM_LIST
 }
 
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,

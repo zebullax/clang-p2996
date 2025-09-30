@@ -1859,35 +1859,6 @@ bool is_msvc_attribute(APValue &Result, ASTContext &C,
   return SetAndSucceed(Result, makeBool(C, isGnu));
 }
 
-// Synthesize back a ParsedAttr from an Attr, the best I can...
-// Return a nullptr if the process met an error
-static const ParsedAttr* toSyntacticForm(const Attr* val, ASTContext * C) {
-  static AttributeScratchpad scratchpad;
-  ParsedAttr * recoveredAttr = nullptr;
-  auto onArgs = [&](
-      IdentifierInfo * attrName,
-      SmallVector<llvm::PointerUnion<Expr *, IdentifierLoc *>, 2> argExprs,
-      AttributeCommonInfo::Form /* Do we need this fed back to us at all ?...*/
-    ) {
-      recoveredAttr = scratchpad.pool.create(
-        attrName,
-        val->getRange(),
-        val->hasScope() ? const_cast<IdentifierInfo*>(val->getScopeName()) : nullptr,
-        val->getLoc(),
-        argExprs.data(),
-        argExprs.size(),
-        val->getForm()
-      );
-      return recoveredAttr != nullptr;
-    };
-    // FIXME why is this not just returning the vector of args...
-    // Did I worry about lifetime... ?
-    if (!extractSyntacticArguments(val, *C, onArgs, val->getLocation())) {
-      recoveredAttr = nullptr;
-    }
-    return recoveredAttr;
-}
-
 enum class AttributeComparison : int64_t {
   Default         = 1 << 0,
   IgnoreNamespace = 1 << 1, // Namespace is ignored during the comparison
@@ -1900,6 +1871,7 @@ bool has_attribute(APValue &Result, ASTContext &C,
                   QualType ResultTy, SourceRange Range,
                   ArrayRef<Expr *> Args, Decl *ContainingDecl) {
   APValue RV;
+  static AttributeScratchpad scratchpad;
 
   assert(ResultTy == C.BoolTy);
 
@@ -1938,7 +1910,10 @@ bool has_attribute(APValue &Result, ASTContext &C,
     }
     for (const auto * val : cxx11Attrs) {
       assert(val);
-      const ParsedAttr * recoveredAttr = toSyntacticForm(val, &C);
+      const ParsedAttr * recoveredAttr = toSyntacticForm(val, C, scratchpad.pool, val->getLocation());
+      if (!recoveredAttr) {
+        return Diagnoser(Range.getBegin(), diag::metafn_p3385_syntactic_conversion) << val->getAttrName()->getName();
+      }
       llvm::FoldingSetNodeID recoveredAttrID;
       recoveredAttr->profile(recoveredAttrID, isContributingNamespace, isContributingArgument);
       if (recoveredAttrID == providedAttrID) {
@@ -1992,6 +1967,8 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
                           DiagFn Diagnoser, bool AllowInjection,
                           QualType ResultTy, SourceRange Range,
                           ArrayRef<Expr *> Args, Decl *ContainingDecl) {
+  static AttributeScratchpad scratchpad;
+
   assert(Args[0]->getType()->isReflectionType());
   assert(ResultTy == C.MetaInfoTy);
 
@@ -2017,7 +1994,7 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
     }
     const Attr * val = cxx11Attrs[i];
     assert(val);
-    result = toSyntacticForm(val, &C);
+    result = toSyntacticForm(val, C, scratchpad.pool, val->getLocation());
     return result != nullptr;
   };
 

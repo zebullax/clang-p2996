@@ -103,6 +103,8 @@ def metafn_result_not_representable : Note<
 
 def metafn_p3385_non_standard_attribute : Warning<
   "non-standard attribute %0 found when expanding attributes">;
+def metafn_p3385_syntactic_conversion : Error<
+  "failed converting back to syntactic form %0">;
 def metafn_p3385_attributes_of_null: Note<
   "the null reflection has no associated attributes">;
 def metafn_p3385_no_declaration_for_type : Error<
