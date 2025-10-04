@@ -2644,7 +2644,7 @@ static bool isReflectableAttr(const Record* R) {
 static void writeToSyntacticFormFunction(const Record &R,
                          raw_ostream &OS) {
   OS << "  template <class AllocScratchpad>\n";
-  OS << "  ParsedAttr* " << R.getName() << "Attr::toSyntacticForm(ASTContext& C, AllocScratchpad scratchpad, SourceLocation srcLocation) const {\n";
+  OS << "  ParsedAttr* " << R.getName() << "Attr::toSyntacticForm(ASTContext& C, AllocScratchpad* scratchpad, SourceLocation srcLocation) const {\n";
   OS << "  SmallVector<llvm::PointerUnion<Expr *, IdentifierLoc *>, 2> args;\n";
   OS << "  const AttributeCommonInfo* info = this;\n";
   OS << "  ParsedAttr * recoveredAttr = nullptr;\n";
@@ -2730,13 +2730,13 @@ static void writeToSyntacticFormFunction(const Record &R,
     emitExprFromArg(OS, arg);
   }
   OS << "\n";
-  OS << "  recoveredAttr = scratchpad.create(\n";
+  OS << "  recoveredAttr = scratchpad->pool.create(\n";
   OS << "    attrName,\n";
   OS << "    this->getRange(),\n";
   OS << "    this->hasScope() ? const_cast<IdentifierInfo*>(this->getScopeName()) : nullptr,\n";
   OS << "    this->getLoc(),\n";
-  OS << "    argExprs.data(),\n";
-  OS << "    argExprs.size(),\n";
+  OS << "    args.data(),\n";
+  OS << "    args.size(),\n";
   OS << "    this->getForm()\n";
   OS << "  );\n";
   OS << "  return recoveredAttr;\n";
@@ -3312,7 +3312,7 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
 
       if (mustEmitSyntacticConversionFunctions) {
         OS << "  template <class AllocScratchpad>\n";
-        OS << "  ParsedAttr * toSyntacticForm(ASTContext& C, AllocScratchpad scratchpad, SourceLocation srcLocation) const;\n";
+        OS << "  ParsedAttr * toSyntacticForm(ASTContext& C, AllocScratchpad* scratchpad, SourceLocation srcLocation) const;\n";
         OS << "\n";
       }
     }
@@ -3393,7 +3393,7 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
       writeGetSpellingFunction(R, OS);
 
       if (mustEmitSyntacticConversionFunctions) {
-        if (!hasAutomaticSyntacticConversion) {
+        if (hasAutomaticSyntacticConversion) {
           writeToSyntacticFormFunction(R, OS);
         } else {
           // TODO: copy paste from Attr.td

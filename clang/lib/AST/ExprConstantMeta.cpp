@@ -1910,7 +1910,7 @@ bool has_attribute(APValue &Result, ASTContext &C,
     }
     for (const auto * val : cxx11Attrs) {
       assert(val);
-      const ParsedAttr * recoveredAttr = toSyntacticForm(val, C, scratchpad.pool, val->getLocation());
+      const ParsedAttr * recoveredAttr = toSyntacticForm(val, C, &scratchpad, val->getLocation());
       if (!recoveredAttr) {
         return Diagnoser(Range.getBegin(), diag::metafn_p3385_syntactic_conversion) << val->getAttrName()->getName();
       }
@@ -1994,7 +1994,7 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
     }
     const Attr * val = cxx11Attrs[i];
     assert(val);
-    result = toSyntacticForm(val, C, scratchpad.pool, val->getLocation());
+    result = toSyntacticForm(val, C, &scratchpad, val->getLocation());
     return result != nullptr;
   };
 

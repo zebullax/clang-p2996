@@ -24,7 +24,6 @@
 #include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Basic/SourceLocation.h"
-#include "clang/Sema/ParsedAttr.h"
 #include "clang/Support/Compiler.h"
 #include "llvm/Frontend/HLSL/HLSLResource.h"
 #include "llvm/Support/CodeGen.h"
@@ -394,7 +393,7 @@ static_assert(sizeof(ParamIdx) == sizeof(ParamIdx::SerialType),
 
 /// Returns whether an attribute has a reflectable variant
 /// For example AT_WarnUnusedResult admit a reflectable variant
-static bool isAttributeWithReflectableVariant(AttributeCommonInfo::Kind kind){
+static inline bool isAttributeWithReflectableVariant(AttributeCommonInfo::Kind kind){
 #define CLANG_ATTR_IS_REFLECTABLE_LIST
   switch (kind) {
     default: return false;
@@ -404,14 +403,15 @@ static bool isAttributeWithReflectableVariant(AttributeCommonInfo::Kind kind){
 }
 
 /// Extract the syntactic arguments for this attribute, with the specified context and location
-/// to be used when creating expression out of arguments found in semantic attributes.
-/// The callback 'CB' will be invoked with arguments found, if the attribute is reflectable
+/// to be used when creating expression out of arguments found in semantic attributes. Use those
+/// arguments to create a syntactic attribute
 ///
-/// Return false if the attribute is not reflectatble, otherwise return the result of calling
-///  'onSyntax'
+/// Return nullptr if the attribute is not reflectatble, otherwise return the synthesized parsed
+/// attribute
+template <class AllocScratchpad>
 inline ParsedAttr* toSyntacticForm(const Attr* semanticAttr,
                                    ASTContext &C,
-                                   AttributePool pool,
+                                   AllocScratchpad* scratchpad,
                                    SourceLocation srcLocation)
 {
   AttributeCommonInfo info = *semanticAttr;
