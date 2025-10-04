@@ -2681,7 +2681,7 @@ static void writeToSyntacticFormFunction(const Record &R,
       variadicAccessorName += "()";
       if (!isVariadicStringLiteralEnumArgument(Arg)) {
         // No need to convert enum to their string representation
-        OS << "    for (auto it : " << variadicAccessorName<< ") {"
+        OS << "    for (auto it : " << variadicAccessorName<< ") {\n"
            << "      args.push_back(StringLiteral::Create(\n"
            << "        C,\n"
            << "        it,\n"
@@ -2694,7 +2694,7 @@ static void writeToSyntacticFormFunction(const Record &R,
         std::string enumTypeName(makeShortNameForArgType(Arg));
         enumTypeName[0] = std::toupper(enumTypeName[0]);
         std::string variadicConvertorName = "StringRef(Convert" + enumTypeName + "ToStr(it))";
-        OS << "    for (auto it : " << variadicAccessorName<< ") {"
+        OS << "    for (auto it : " << variadicAccessorName<< ") {\n"
            << "      args.push_back(StringLiteral::Create(\n"
            << "        C,\n"
            << "        " << variadicConvertorName << ",\n"
@@ -2711,7 +2711,7 @@ static void writeToSyntacticFormFunction(const Record &R,
         enumTypeName[0] = std::toupper(enumTypeName[0]);
         Accessor = "StringRef(Convert" + enumTypeName + "ToStr(" + Accessor +"))";
       }
-      OS << "  if (!" << Accessor << ".empty()) {"
+      OS << "  if (!" << Accessor << ".empty()) {\n"
          << "    args.push_back(StringLiteral::Create(C,\n"
          << "                                         " << Accessor << ",\n"
          << "                                         StringLiteralKind::Unevaluated,\n"
