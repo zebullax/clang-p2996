@@ -971,7 +971,7 @@ def AnalyzerNoReturn : InheritableAttr {
 }
 
 def InferredNoReturn : InheritableAttr {
-  let Spellings = []; 
+  let Spellings = [];
   let SemaHandler = 0;
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [InternalOnly];
@@ -3450,7 +3450,7 @@ def ZeroCallUsedRegs : InheritableAttr {
 def Pascal : DeclOrTypeAttr {
   let Spellings = [Clang<"pascal">, CustomKeyword<"__pascal">,
                    CustomKeyword<"_pascal">];
-//  let Subjects = [Function, ObjCMethod]; 
+//  let Subjects = [Function, ObjCMethod];
   let Documentation = [Undocumented];
 }
 
@@ -3824,6 +3824,12 @@ def WarnUnused : InheritableAttr {
   let Subjects = SubjectList<[Record]>;
   let Documentation = [Undocumented];
   let SimpleHandler = 1;
+}
+
+def CheckedEnum : InheritableAttr {
+  let Spellings = [CXX11<"clang", "checked_enum">];
+  let Subjects = SubjectList<[Enum]>;
+  let Documentation = [Undocumented];
 }
 
 def WarnUnusedResult : InheritableAttr {

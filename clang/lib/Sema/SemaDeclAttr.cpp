@@ -6517,6 +6517,15 @@ static void handleRequiresCapabilityAttr(Sema &S, Decl *D,
   D->addAttr(RCA);
 }
 
+static void handleCheckedEnumAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (EnumDecl * ED = dyn_cast<EnumDecl>(D)) {
+    ED->setChecked(true);
+  }
+  CheckedEnumAttr *CEA = ::new (S.Context)
+      CheckedEnumAttr(S.Context, AL);
+  D->addAttr(CEA);
+}
+
 static void handleDeprecatedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (const auto *NSD = dyn_cast<NamespaceDecl>(D)) {
     if (NSD->isAnonymousNamespace()) {
@@ -7274,7 +7283,10 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     handlePassObjectSizeAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Constructor:
-      handleConstructorAttr(S, D, AL);
+    handleConstructorAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_CheckedEnum:
+    handleCheckedEnumAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Deprecated:
     handleDeprecatedAttr(S, D, AL);

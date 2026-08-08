@@ -15473,6 +15473,7 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
     return Success(Val.getFixedPoint().getBoolValue(), E);
   }
 
+  case CK_IntegralToCheckedEnum: // FIXME temporary vs. ICE
   case CK_IntegralCast: {
     if (!Visit(SubExpr))
       return false;

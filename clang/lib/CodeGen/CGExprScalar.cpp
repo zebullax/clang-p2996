@@ -2805,6 +2805,20 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     return EmitScalarConversion(Visit(E), E->getType(), DestTy,
                                 CE->getExprLoc());
 
+  case CK_IntegralToCheckedEnum: {
+    assert(DestTy->isEnumeralType());
+    Value *V = EmitScalarConversion(Visit(E), E->getType(), DestTy, CE->getExprLoc());
+    const EnumType * ET = DestTy->castAs<EnumType>();
+    const EnumDecl *ED = ET->getDecl();
+    Value *Valid = Builder.getFalse();
+    for (const EnumConstantDecl *ECD : ED->enumerators()) {
+      // LLVM_ABI static ConstantInt *get(IntegerType *Ty, uint64_t V, bool IsSigned = false);
+      auto * ci = llvm::ConstantInt::get(V->getType(), ECD->getInitVal());
+      auto * CmpVal = Builder.CreateICmpEQ(ci, V);
+      Valid = Builder.CreateOr(Valid, CmpVal);
+    }
+    return V;
+  }
   case CK_IntegralCast: {
     if (E->getType()->isExtVectorType() && DestTy->isExtVectorType()) {
       QualType SrcElTy = E->getType()->castAs<VectorType>()->getElementType();

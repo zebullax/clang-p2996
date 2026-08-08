@@ -4010,6 +4010,8 @@ public:
   /// Microsoft-style enumeration with a fixed underlying type.
   void setFixed(bool Fixed = true) { EnumDeclBits.IsFixed = Fixed; }
 
+  void setChecked(bool IsChecked = true) { EnumDeclBits.IsChecked = IsChecked; }
+
 private:
   /// True if a valid hash is stored in ODRHash.
   bool hasODRHash() const { return EnumDeclBits.HasODRHash; }
@@ -4152,6 +4154,9 @@ public:
   /// Returns true if this is an Objective-C, C++11, or
   /// Microsoft-style enumeration with a fixed underlying type.
   bool isFixed() const { return EnumDeclBits.IsFixed; }
+
+  /// Return true if the enum was declared with the checked attribute
+  bool isChecked() const { return EnumDeclBits.IsChecked; }
 
   unsigned getODRHash();
 

@@ -1487,6 +1487,10 @@ static TryCastResult TryStaticCast(Sema &Self, ExprResult &SrcExpr,
       // [expr.static.cast]p10 If the enumeration type has a fixed underlying
       // type, the value is first converted to that type by integral conversion
       const EnumType *Enum = DestType->castAs<EnumType>();
+      if (Enum->getDecl()->isChecked()) {
+        Kind = CK_IntegralToCheckedEnum;
+        return TC_Success;
+      }
       Kind = Enum->getDecl()->isFixed() &&
                      Enum->getDecl()->getIntegerType()->isBooleanType()
                  ? CK_IntegralToBoolean

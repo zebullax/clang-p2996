@@ -1629,6 +1629,12 @@ protected:
     /// True if a valid hash is stored in ODRHash.
     LLVM_PREFERRED_TYPE(bool)
     uint64_t HasODRHash : 1;
+
+    /// True if a valid hash is stored in ODRHash.
+    LLVM_PREFERRED_TYPE(bool)
+    uint64_t IsChecked : 1;
+
+
   };
 
   /// Number of inherited and non-inherited bits in EnumDeclBitfields.
