@@ -2808,6 +2808,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   case CK_IntegralToCheckedEnum: {
     assert(DestTy->isEnumeralType());
     Value *V = EmitScalarConversion(Visit(E), E->getType(), DestTy, CE->getExprLoc());
+
     const EnumType * ET = DestTy->castAs<EnumType>();
     const EnumDecl *ED = ET->getDecl();
     Value *Valid = Builder.getFalse();
@@ -2817,6 +2818,24 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
       auto * CmpVal = Builder.CreateICmpEQ(ci, V);
       Valid = Builder.CreateOr(Valid, CmpVal);
     }
+    // Branches for ok conversion and conversion falling outside enumerators...
+    llvm::BasicBlock *initialBB = Builder.GetInsertBlock();
+    llvm::BasicBlock *validEnumBB = CGF.createBasicBlock("validEnumerator", CGF.CurFn, initialBB->getNextNode());
+    llvm::BasicBlock *invalidEnumBB = CGF.createBasicBlock("InvalidEnumerator", CGF.CurFn);
+    Builder.CreateCondBr(Valid, validEnumBB, invalidEnumBB);
+
+    // Fail block
+    Builder.SetInsertPoint(invalidEnumBB);
+
+    // Do we actually want EmitTrapCheck here ? seems there is some hook into/from ubsan ?
+    llvm::CallInst *TrapCall = CGF.EmitTrapCall(llvm::Intrinsic::trap);
+    TrapCall->setDoesNotReturn();
+    TrapCall->setDoesNotThrow();
+    Builder.CreateUnreachable();
+    Builder.ClearInsertionPoint();
+
+    // All good block
+    Builder.SetInsertPoint(validEnumBB);
     return V;
   }
   case CK_IntegralCast: {
