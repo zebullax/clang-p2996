@@ -219,6 +219,12 @@ def ImplicitObjectParameter
     : SubsetSubject<Function, [{static_cast<void>(S), false}],
                     "implicit object parameters">;
 
+// An enum definition (to dodge opaque enum decl)
+def EnumDefinition : SubsetSubject<
+    Enum,
+    [{ S->isBeingDefined() }],
+    "enum definitions">;
+
 // A single argument to an attribute
 class Argument<string name, bit optional, bit fake = 0> {
   string Name = name;
@@ -3828,7 +3834,7 @@ def WarnUnused : InheritableAttr {
 
 def CheckedEnum : InheritableAttr {
   let Spellings = [CXX11<"clang", "checked_enum">];
-  let Subjects = SubjectList<[Enum]>;
+  let Subjects = SubjectList<[EnumDefinition]>;
   let Documentation = [Undocumented];
 }
 
