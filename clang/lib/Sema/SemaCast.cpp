@@ -1488,6 +1488,50 @@ static TryCastResult TryStaticCast(Sema &Self, ExprResult &SrcExpr,
       // type, the value is first converted to that type by integral conversion
       const EnumType *Enum = DestType->castAs<EnumType>();
       if (Enum->getDecl()->isChecked()) {
+        const EnumDecl *ED = Enum->getDecl();
+        QualType UnderlyingTy = ED->getIntegerType();
+
+        ExprResult Probe = Self.DefaultLvalueConversion(SrcExpr.get());
+        if (Probe.isInvalid()) {
+          return TC_Failed;
+        }
+        Expr *ProbeExpr = Probe.get();
+
+        // Now model [expr.static.cast]'s
+        // "first convert to the underlying type".
+        if (!Self.Context.hasSameType(ProbeExpr->getType(), UnderlyingTy)) {
+          CastKind ProbeKind =
+              UnderlyingTy->isBooleanType()
+                  ? Self.ScalarTypeToBooleanCastKind(ProbeExpr->getType())
+                  : CK_IntegralCast;
+
+          ProbeExpr = ImplicitCastExpr::Create(
+              Self.Context,
+              UnderlyingTy,
+              ProbeKind,
+              ProbeExpr,
+              /*BasePath=*/nullptr,
+              VK_PRValue,
+              Self.CurFPFeatureOverrides());
+        }
+
+        Expr::EvalResult Result;
+        if (ProbeExpr->EvaluateAsInt(Result, Self.Context)) {
+          const llvm::APSInt &CastInt = Result.Val.getInt();
+
+          bool Found = llvm::any_of(
+              ED->enumerators(),
+              [&](const EnumConstantDecl *ECD) {
+                return llvm::APSInt::isSameValue(CastInt, ECD->getInitVal());
+              });
+
+          if (!Found) {
+            Self.Diag(SrcExpr.get()->getExprLoc(), diag::err_checked_enum_value_not_enumerator) << llvm::toString(CastInt, 10) << ED;
+            msg = 0;
+            return TC_Failed;
+          }
+        }
+        // Not evaluatable => runtime check.
         Kind = CK_IntegralToCheckedEnum;
         return TC_Success;
       }

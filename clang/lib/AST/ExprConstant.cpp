@@ -15473,7 +15473,25 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
     return Success(Val.getFixedPoint().getBoolValue(), E);
   }
 
-  case CK_IntegralToCheckedEnum: // FIXME temporary vs. ICE
+  case CK_IntegralToCheckedEnum: {
+    if (!Visit(SubExpr)) {
+      return false;
+    }
+    if (!Result.isInt()) {
+      return false;
+    }
+    const auto castResult = HandleIntToIntCast(Info, E, DestType, SrcType, Result.getInt());
+    const EnumType *ET = dyn_cast<EnumType>(DestType.getCanonicalType());
+    const EnumDecl *ED = ET->getDecl();
+    for (auto enumerator : ED->enumerators()) {
+      if (APSInt::isSameValue(castResult, enumerator->getInitVal())) {
+        return Success(castResult, E);
+      }
+    }
+    Info.CCEDiag(E, diag::note_constexpr_initializer_outside_enumerators)
+      << llvm::toString(castResult, 10) << ED;
+    return false;
+  }
   case CK_IntegralCast: {
     if (!Visit(SubExpr))
       return false;
