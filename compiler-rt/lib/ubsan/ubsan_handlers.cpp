@@ -427,6 +427,37 @@ void __ubsan::__ubsan_handle_local_out_of_bounds_abort() {
   Die();
 }
 
+static void handleEnumCheckedCast(EnumCheckedCastData *Data,
+                                  ValueHandle Val,
+                                  ReportOptions Opts) {
+  SourceLocation Loc = Data->Loc.acquire();
+
+  ErrorType ET = ErrorType::EnumCheckedCast;
+
+  if (ignoreReport(Loc, Opts, ET)) {
+    return;
+  }
+
+  ScopedReport R(Opts, Loc, ET);
+
+  Diag(Loc, DL_Error, ET, "value %0 is not a valid enumerator of type %1")
+      << Value(Data->Type, Val)
+      << Data->Type;
+}
+
+void __ubsan::__ubsan_handle_enum_checked_cast(
+    EnumCheckedCastData *Data, ValueHandle Val) {
+  GET_REPORT_OPTIONS(false);
+  handleEnumCheckedCast(Data, Val, Opts);
+}
+
+void __ubsan::__ubsan_handle_enum_checked_cast_abort(
+    EnumCheckedCastData *Data, ValueHandle Val) {
+  GET_REPORT_OPTIONS(true);
+  handleEnumCheckedCast(Data, Val, Opts);
+  Die();
+}
+
 static void handleBuiltinUnreachableImpl(UnreachableData *Data,
                                          ReportOptions Opts) {
   ErrorType ET = ErrorType::UnreachableCall;

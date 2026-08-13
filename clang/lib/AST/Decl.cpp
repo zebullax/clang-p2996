@@ -4975,6 +4975,7 @@ EnumDecl::EnumDecl(ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
   setScopedUsingClassTag(ScopedUsingClassTag);
   setFixed(Fixed);
   setHasODRHash(false);
+  setChecked(false);
   ODRHash = 0;
 }
 

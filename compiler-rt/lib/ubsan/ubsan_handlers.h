@@ -135,6 +135,14 @@ struct InvalidValueData {
 /// \brief Handle a load of an invalid value for the type.
 RECOVERABLE(load_invalid_value, InvalidValueData *Data, ValueHandle Val)
 
+struct EnumCheckedCastData {
+  SourceLocation Loc;
+  const TypeDescriptor &Type;
+};
+
+/// \brief Handle the cast to an enum falling outside an enumerator
+RECOVERABLE(enum_checked_cast, EnumCheckedCastData *Data, ValueHandle Val)
+
 /// Known implicit conversion check kinds.
 /// Keep in sync with the enum of the same name in CGExprScalar.cpp
 enum ImplicitConversionCheckKind : unsigned char {

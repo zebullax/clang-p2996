@@ -669,7 +669,7 @@ void ASTDeclWriter::VisitTagDecl(TagDecl *D) {
 }
 
 void ASTDeclWriter::VisitEnumDecl(EnumDecl *D) {
-  static_assert(DeclContext::NumEnumDeclBits == 43,
+  static_assert(DeclContext::NumEnumDeclBits == 44,
                 "You need to update the serializer after you change the "
                 "EnumDeclBits");
 
@@ -685,6 +685,7 @@ void ASTDeclWriter::VisitEnumDecl(EnumDecl *D) {
   EnumDeclBits.addBit(D->isScoped());
   EnumDeclBits.addBit(D->isScopedUsingClassTag());
   EnumDeclBits.addBit(D->isFixed());
+  EnumDeclBits.addBit(D->isChecked());
   Record.push_back(EnumDeclBits);
 
   Record.push_back(D->getODRHash());

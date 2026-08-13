@@ -1638,7 +1638,7 @@ protected:
   };
 
   /// Number of inherited and non-inherited bits in EnumDeclBitfields.
-  enum { NumEnumDeclBits = NumTagDeclBits + 20 };
+  enum { NumEnumDeclBits = NumTagDeclBits + 21 };
 
   /// Stores the bits used by RecordDecl.
   /// If modified NumRecordDeclBits and the accessor
