@@ -31,7 +31,7 @@ static const SanitizerMask NeedsUbsanRt =
     SanitizerKind::LocalBounds | SanitizerKind::ImplicitConversion |
     SanitizerKind::Nullability | SanitizerKind::CFI |
     SanitizerKind::FloatDivideByZero | SanitizerKind::ObjCCast |
-    SanitizerKind::Vptr;
+    SanitizerKind::Vptr | SanitizerKind::EnumCheckedCast;
 static const SanitizerMask NeedsUbsanCxxRt =
     SanitizerKind::Vptr | SanitizerKind::CFI;
 static const SanitizerMask NotAllowedWithTrap = SanitizerKind::Vptr;
@@ -60,7 +60,7 @@ static const SanitizerMask RecoverableByDefault =
     SanitizerKind::Undefined | SanitizerKind::Integer |
     SanitizerKind::ImplicitConversion | SanitizerKind::Nullability |
     SanitizerKind::FloatDivideByZero | SanitizerKind::ObjCCast |
-    SanitizerKind::Vptr;
+    SanitizerKind::Vptr | SanitizerKind::EnumCheckedCast;
 static const SanitizerMask Unrecoverable =
     SanitizerKind::Unreachable | SanitizerKind::Return;
 static const SanitizerMask AlwaysRecoverable = SanitizerKind::KernelAddress |
@@ -71,7 +71,9 @@ static const SanitizerMask TrappingSupported =
     SanitizerKind::Undefined | SanitizerKind::Integer |
     SanitizerKind::ImplicitConversion | SanitizerKind::Nullability |
     SanitizerKind::LocalBounds | SanitizerKind::CFI |
-    SanitizerKind::FloatDivideByZero | SanitizerKind::ObjCCast;
+    SanitizerKind::FloatDivideByZero | SanitizerKind::ObjCCast |
+    SanitizerKind::EnumCheckedCast;
+
 static const SanitizerMask MergeDefault =
     SanitizerKind::Undefined | SanitizerKind::Vptr;
 static const SanitizerMask TrappingDefault =

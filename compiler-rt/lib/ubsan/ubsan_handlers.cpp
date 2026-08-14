@@ -431,7 +431,6 @@ static void handleEnumCheckedCast(EnumCheckedCastData *Data,
                                   ValueHandle Val,
                                   ReportOptions Opts) {
   SourceLocation Loc = Data->Loc.acquire();
-
   ErrorType ET = ErrorType::EnumCheckedCast;
 
   if (ignoreReport(Loc, Opts, ET)) {
@@ -445,14 +444,14 @@ static void handleEnumCheckedCast(EnumCheckedCastData *Data,
       << Data->Type;
 }
 
-void __ubsan::__ubsan_handle_enum_checked_cast(
-    EnumCheckedCastData *Data, ValueHandle Val) {
+void __ubsan::__ubsan_handle_enum_checked_cast(EnumCheckedCastData *Data,
+                                               ValueHandle Val) {
   GET_REPORT_OPTIONS(false);
   handleEnumCheckedCast(Data, Val, Opts);
 }
 
-void __ubsan::__ubsan_handle_enum_checked_cast_abort(
-    EnumCheckedCastData *Data, ValueHandle Val) {
+void __ubsan::__ubsan_handle_enum_checked_cast_abort(EnumCheckedCastData *Data,
+                                                     ValueHandle Val) {
   GET_REPORT_OPTIONS(true);
   handleEnumCheckedCast(Data, Val, Opts);
   Die();

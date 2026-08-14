@@ -135,6 +135,8 @@ struct InvalidValueData {
 /// \brief Handle a load of an invalid value for the type.
 RECOVERABLE(load_invalid_value, InvalidValueData *Data, ValueHandle Val)
 
+// Layout must match the StaticArgs built in CGExprScalar.cpp's
+// CK_IntegralToCheckedEnum case: {EmitCheckSourceLocation, EmitCheckTypeDescriptor}.
 struct EnumCheckedCastData {
   SourceLocation Loc;
   const TypeDescriptor &Type;
