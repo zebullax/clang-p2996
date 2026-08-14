@@ -198,6 +198,10 @@ CAST_OPERATION(VectorSplat)
 ///    (unsigned) i
 CAST_OPERATION(IntegralCast)
 
+// CK_IntegralToCheckedEnum
+// Cast targetting a [[checked_enum]] enum
+CAST_OPERATION(IntegralToCheckedEnum)
+
 /// CK_IntegralToBoolean - Integral to boolean.  A check against zero.
 ///    (bool) i
 CAST_OPERATION(IntegralToBoolean)

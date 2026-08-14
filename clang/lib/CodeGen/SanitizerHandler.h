@@ -39,6 +39,7 @@
   SANITIZER_CHECK(TypeMismatch, type_mismatch, 1)                              \
   SANITIZER_CHECK(AlignmentAssumption, alignment_assumption, 0)                \
   SANITIZER_CHECK(VLABoundNotPositive, vla_bound_not_positive, 0)              \
+  SANITIZER_CHECK(EnumCheckedCast, enum_checked_cast, 0)                       \
   SANITIZER_CHECK(BoundsSafety, bounds_safety, 0)
 
 enum SanitizerHandler {

@@ -419,6 +419,9 @@ def warn_fixedpoint_constant_overflow : Warning<
 def note_constexpr_unscoped_enum_out_of_range : Note<
   "integer value %0 is outside the valid range of values [%1, %2] for the "
   "enumeration type %3">;
+def note_constexpr_initializer_outside_enumerators : Note<
+  "integer value %0 does not match any of the enumerators for the enumeration type "
+  "enumeration type %1">;
 
 // This is a temporary diagnostic, and shall be removed once our
 // implementation is complete, and like the preceding constexpr notes belongs

@@ -782,6 +782,7 @@ void ASTDeclReader::VisitEnumDecl(EnumDecl *ED) {
   ED->setScoped(EnumDeclBits.getNextBit());
   ED->setScopedUsingClassTag(EnumDeclBits.getNextBit());
   ED->setFixed(EnumDeclBits.getNextBit());
+  ED->setChecked(EnumDeclBits.getNextBit());
 
   ED->setHasODRHash(true);
   ED->ODRHash = Record.readInt();

@@ -60,6 +60,7 @@ UBSAN_CHECK(NonPositiveVLAIndex, "non-positive-vla-index", "vla-bound")
 UBSAN_CHECK(FloatCastOverflow, "float-cast-overflow", "float-cast-overflow")
 UBSAN_CHECK(InvalidBoolLoad, "invalid-bool-load", "bool")
 UBSAN_CHECK(InvalidEnumLoad, "invalid-enum-load", "enum")
+UBSAN_CHECK(EnumCheckedCast, "enum-checked-cast", "enum-checked-cast")
 UBSAN_CHECK(FunctionTypeMismatch, "function-type-mismatch", "function")
 UBSAN_CHECK(InvalidNullReturn, "invalid-null-return",
             "returns-nonnull-attribute")

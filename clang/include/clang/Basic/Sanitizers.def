@@ -145,6 +145,10 @@ SANITIZER("safe-stack", SafeStack)
 // Shadow Call Stack
 SANITIZER("shadow-call-stack", ShadowCallStack)
 
+// Sanitizer to detect static_cast on enum falling out of an enumerator
+// TODO do we wanna shove this in undefined ?
+SANITIZER("enum-checked-cast", EnumCheckedCast)
+
 // -fsanitize=undefined includes all the sanitizers which have low overhead, no
 // ABI or address space layout implications, and only catch undefined behavior.
 SANITIZER_GROUP("undefined", Undefined,
